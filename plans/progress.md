@@ -54,7 +54,11 @@ Working rule: baby steps. One small step, then update this log, then continue.
 - [x] 0d. ADR 0001 approved on 2026-10-22: testcontainers, Postgres 18 (`pgvector/pgvector:0.8.7-pg18-trixie`).
 - [x] H1. `ayodb.connect` removed from local `main` history via filter-branch (new root 761207f, head 5235df5). Old commits still kept locally in `backup/pre-secret-removal`, `refs/original/` and the reflog; purge them after the push.
 - [x] H2. Force-pushed with the user's confirmation (origin/main d48b9bd -> ed02094). Local backup, refs/original and reflog purged; old commit 2799800 gone locally. It may still be reachable on GitHub by SHA until GitHub support purges cached views.
-- [ ] 1+. Implementation steps as listed in "Order of work", each broken into small commits and logged here.
+- [x] 1a. Renamed: project `ayo-copilot`, package `src/ayo_copilot`, `app.py` with `create_app()`, script `ayo-copilot`. App builds, `/health` route present.
+- [ ] 1b. Dev tooling: dev dependency group (pytest, ruff, httpx2), pytest markers `integration`/`live`, ruff config, first `/health` API test.
+  - Note: Starlette 1.9's TestClient needs `httpx2` (pydantic/httpx2, declared in Starlette's `full` extra), not `httpx`. In step 4, decide whether the Voyage client uses `httpx2` too; tell the user, since the spec says `httpx`.
+- [ ] 1c. Runtime dependencies + `config.py` (pydantic-settings) + `.env.example`.
+- [ ] 2+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
 - Neon password must be rotated by the user (history rewrite does not revoke a leaked secret).

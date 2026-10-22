@@ -7,7 +7,7 @@ async def lifespan(app: FastAPI):
     yield
     ...        # cerrarlo
 
-def create_agent() -> FastAPI:
+def create_app() -> FastAPI:
     app = FastAPI(title="AYO Copilot API", lifespan=lifespan)
     
     @app.get("/health")
