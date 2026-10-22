@@ -62,7 +62,7 @@ Working rule: baby steps. One small step, then update this log, then continue.
   - Deviation to report: the CHUNKER descriptor also includes `min=<CHUNK_MIN_SIZE>` (`md-header+recursive@v1/size=800/overlap=80/min=50/breadcrumb=1`), because the minimum size changes the chunks.
   - Normalization also converts lone `\r` to `\n`.
 - [x] 2b. `ingestion/storage.py`: `InvalidInputError`, `validate_tenant` (fullmatch), `normalize_source_key` (NFC, rejects control chars, keeps only the last `/` or `\\` component, rejects empty/`.`/`..`, max 255 chars); 38 tests including traversal inputs. Behaviour: `../../etc/passwd` becomes `passwd` (accepted, as "file name only"), while `..` is rejected.
-- [ ] 2c. `write_markdown_atomic(knowledge_dir, tenant, doc_id, text)`: temp file in the same dir, fsync, `os.replace`, and a check that the resolved path stays inside `knowledge_dir`; unit tests with `tmp_path`.
+- [x] 2c. `markdown_path` (validates tenant and the `upload-<12 hex>` doc_id, resolved path must stay under `knowledge_dir`) and `write_markdown_atomic` (mkstemp in the same dir, fsync, `os.replace`, temp file removed on failure); 7 tests including a failed rename that keeps the previous file. When to write relative to the DB commit is decided in step 6 (service).
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
