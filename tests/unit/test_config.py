@@ -66,6 +66,12 @@ def test_dimensions_must_fit_hnsw_limit() -> None:
         make_settings(embedding_dimensions=2048)
 
 
+def test_batch_size_must_fit_voyage_limit() -> None:
+    assert make_settings(embedding_batch_size=1000).embedding_batch_size == 1000
+    with pytest.raises(ValidationError):
+        make_settings(embedding_batch_size=1001)
+
+
 def test_voyage_provider_requires_api_key() -> None:
     with pytest.raises(ValidationError, match="VOYAGE_API_KEY"):
         make_settings(embedding_provider="voyage", voyage_api_key=None)

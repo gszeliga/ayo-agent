@@ -26,9 +26,9 @@ Copy `.env.example` to `.env` to start. Never commit `.env`.
 | `EMBEDDING_DIMENSIONS` | `1024` | Vector size; must match the database column, and at most 2000 (pgvector HNSW limit). |
 | `VOYAGE_API_KEY` | *(required with `voyage`)* | Voyage AI API key. |
 | `VOYAGE_BASE_URL` | `https://api.voyageai.com/v1` | Voyage API base URL. |
-| `EMBEDDING_BATCH_SIZE` | `128` | Texts per embedding request. |
+| `EMBEDDING_BATCH_SIZE` | `128` | Texts per embedding request (Voyage allows at most 1000). |
 | `EMBEDDING_TIMEOUT_SECONDS` | `30` | Timeout per embedding request. |
-| `EMBEDDING_MAX_RETRIES` | `3` | Retries on `429` and `5xx`, with exponential backoff. |
+| `EMBEDDING_MAX_RETRIES` | `3` | Retries on `429`, `5xx`, timeouts and connection errors, with exponential backoff and jitter. Other errors fail at once. |
 
 Changing `CHUNK_SIZE`, `CHUNK_OVERLAP`, `MIN_CHUNK_SIZE`, `EMBEDDING_MODEL` or
 `EMBEDDING_DIMENSIONS` changes the document signatures, so the next upload of each

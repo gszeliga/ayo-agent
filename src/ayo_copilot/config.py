@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # pgvector cannot build an HNSW index on a `vector` column wider than this.
 HNSW_MAX_DIMENSIONS = 2000
+# Voyage accepts at most this many texts per embeddings request.
+VOYAGE_MAX_BATCH_SIZE = 1000
 
 
 class Settings(BaseSettings):
@@ -34,7 +36,7 @@ class Settings(BaseSettings):
     embedding_dimensions: int = Field(default=1024, gt=0, le=HNSW_MAX_DIMENSIONS)
     voyage_api_key: SecretStr | None = None
     voyage_base_url: str = "https://api.voyageai.com/v1"
-    embedding_batch_size: int = Field(default=128, gt=0)
+    embedding_batch_size: int = Field(default=128, gt=0, le=VOYAGE_MAX_BATCH_SIZE)
     embedding_timeout_seconds: float = Field(default=30.0, gt=0)
     embedding_max_retries: int = Field(default=3, ge=0)
 

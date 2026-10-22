@@ -69,8 +69,20 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
   - Setting renamed `chunk_min_size` -> `MIN_CHUNK_SIZE`, default 100. The CHUNKER signature bumped to `md-header+recursive@v2/size=../overlap=../min=../merge=fwd,back1.5x,keep/breadcrumb=1`.
   - README: configuration table + chunking rules. `.env.example` updated.
   - Tests: 61 in `test_chunking.py` (end to end and the merge step alone, plus the invariants: every body line in some chunk, every heading in some path, all words in order when overlap=0). 126 tests in total.
-- [ ] 4a. Check the Voyage docs (models, dimensions, limits, request shape) and decide `httpx` vs `httpx2` for the client. Report before writing code.
+- [x] 4a. Voyage docs checked on 2026-10-22 (research only, no code; this log edit goes into the 4b commit):
+  - `POST {base}/embeddings`, `Authorization: Bearer`, body `input` (list, at most 1000 items), `model`, `input_type` (`document`/`query`/null), `truncation` (default true), `output_dimension` (256/512/1024/2048, default 1024), `output_dtype` (default `float`), `encoding_format` (null/`base64`). Response: `data[].embedding` and `data[].index`, plus `usage.total_tokens`; errors carry `detail`.
+  - `voyage-4`: 32K-token context, 1024 dims by default, 320K total tokens per request. Tier 1: 8M TPM / 2000 RPM. Working assumption confirmed.
+  - Errors: retry 429 and 500/502/503/504 with exponential backoff and jitter (Voyage suggests about 128 docs per batch). Fail fast on 400/401/403.
+  - httpx 0.28.1 (last release 2024-12) is only a transitive dependency through langchain-core. httpx2 2.16.0 (pydantic fork, released 2026-10-21) is already in the dev group for TestClient. Proposal approved 2026-10-22: httpx2, not the spec's `httpx` (deviation to report).
+- [x] 4b. `ingestion/embedding.py` (sync; the service is sync too, decide again in step 6 if needed):
+  - `Embedder` protocol (`embed_documents`), `EmbeddingError` (message holds only the HTTP status or the error class; never the key, the texts or the response body; nothing chained), `build_embedder(settings)`.
+  - `FakeEmbedder`: unit vectors from SHA-256 of the text, records `calls` (empty input is not a call).
+  - `VoyageEmbedder`: httpx2 client (`client=` and `sleep=` injectable), `input_type=document`, explicit `output_dimension`, `output_dtype=float`, `truncation=false`, batches of `EMBEDDING_BATCH_SIZE`. Retries 429/500/502/503/504, timeouts and connection errors with full-jitter backoff (at most 1, 2, 4 s ...); other 4xx fail at once. Checks the response count, the indexes and the dimensions. No token-based batch splitting: 128 chunks of about 800 chars is far below 320K tokens.
+  - `httpx2` moved from dev to runtime deps. `EMBEDDING_BATCH_SIZE` capped at 1000 (Voyage limit). README rows updated.
+  - Tests: 34 in `test_embedding.py` + 1 config test; `tests/live/test_voyage_live.py` (reads the key from env or `.env`, skipped without one) **ran once and passed** against real Voyage (2 texts, 1024 dims). 160 tests by default, 1 deselected.
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
+- **Awaiting user confirmation (asked after step 3):** chunk-policy interpretations: (1) "same section" = one path equal to, or a subsection of, the other, and the merged piece keeps the receiver's path; (2) heading-only sections never become pieces (the heading lives on in the path), and a heading with no content anywhere below it is dropped by rule 1; (3) the 1.5x cap applies only to backward merges; (4) same-section overlapping pieces are joined at their offsets, without repeating the overlap; (5) page-number patterns: `12`, `Página 3`, `pág. 3 de 10`, `3 / 10`, `- 4 -`, `(4)`.
+- Workflow reminders: never push (the force-push of `main` was a one-off for removing the secret); the spec file `plans/claude-code-prompt-markdown-ingestion.md` is intentionally left untracked; the log-update edits go into the next step's commit.
 - Neon password must be rotated by the user (history rewrite does not revoke a leaked secret).
