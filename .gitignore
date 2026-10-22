@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 ayodb.connect
+
+# Local secrets
+.env
+voyage.ai
