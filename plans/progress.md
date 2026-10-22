@@ -61,7 +61,8 @@ Working rule: baby steps. One small step, then update this log, then continue.
 - [x] 2a. `ingestion/signatures.py` (sig, content_hash, chunker/embedder descriptors, chunk/embed signature, make_doc_id) and `normalize_markdown` in `ingestion/chunking.py`; 11 unit tests.
   - Deviation to report: the CHUNKER descriptor also includes `min=<CHUNK_MIN_SIZE>` (`md-header+recursive@v1/size=800/overlap=80/min=50/breadcrumb=1`), because the minimum size changes the chunks.
   - Normalization also converts lone `\r` to `\n`.
-- [ ] 2b. `ingestion/storage.py`: `validate_tenant`, `normalize_source_key` (NFC, basename only, no `..`, no control chars, reject empty) with path-traversal tests; then atomic write (`write_markdown_atomic`).
+- [x] 2b. `ingestion/storage.py`: `InvalidInputError`, `validate_tenant` (fullmatch), `normalize_source_key` (NFC, rejects control chars, keeps only the last `/` or `\\` component, rejects empty/`.`/`..`, max 255 chars); 38 tests including traversal inputs. Behaviour: `../../etc/passwd` becomes `passwd` (accepted, as "file name only"), while `..` is rejected.
+- [ ] 2c. `write_markdown_atomic(knowledge_dir, tenant, doc_id, text)`: temp file in the same dir, fsync, `os.replace`, and a check that the resolved path stays inside `knowledge_dir`; unit tests with `tmp_path`.
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
