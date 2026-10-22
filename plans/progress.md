@@ -95,6 +95,7 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
+- **Paused 2026-10-22 after 5a**, everything committed and pushed to origin/main. Resume at 5b.
 - **Awaiting user confirmation (asked after step 3):** chunk-policy interpretations: (1) "same section" = one path equal to, or a subsection of, the other, and the merged piece keeps the receiver's path; (2) heading-only sections never become pieces (the heading lives on in the path), and a heading with no content anywhere below it is dropped by rule 1; (3) the 1.5x cap applies only to backward merges; (4) same-section overlapping pieces are joined at their offsets, without repeating the overlap; (5) page-number patterns: `12`, `Página 3`, `pág. 3 de 10`, `3 / 10`, `- 4 -`, `(4)`.
-- Workflow reminders: never push (the force-push of `main` was a one-off for removing the secret); the spec file `plans/claude-code-prompt-markdown-ingestion.md` is intentionally left untracked; the log-update edits go into the next step's commit.
+- Workflow reminders: push only when the user asks (they asked on 2026-10-22 after 5a; a normal push, never a force-push); the spec file `plans/claude-code-prompt-markdown-ingestion.md` is intentionally left untracked; the log-update edits go into the next step's commit.
 - Neon password must be rotated by the user (history rewrite does not revoke a leaked secret).
