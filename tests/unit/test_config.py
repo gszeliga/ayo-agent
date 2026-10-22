@@ -20,6 +20,7 @@ def test_defaults() -> None:
 
     assert settings.chunk_size == 800
     assert settings.chunk_overlap == 80
+    assert settings.min_chunk_size == 100
     assert settings.embedding_model == "voyage-4"
     assert settings.embedding_dimensions == 1024
     assert settings.embedding_provider == "voyage"

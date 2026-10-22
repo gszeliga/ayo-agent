@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     # Chunk sizes are measured in characters, not tokens.
     chunk_size: int = Field(default=800, gt=0)
     chunk_overlap: int = Field(default=80, ge=0)
-    chunk_min_size: int = Field(default=50, ge=0)
+    # Starting value to tune, not a validated number.
+    min_chunk_size: int = Field(default=100, ge=0)
 
     embedding_provider: Literal["voyage", "fake"] = "voyage"
     embedding_model: str = "voyage-4"

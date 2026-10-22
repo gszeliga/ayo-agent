@@ -32,7 +32,7 @@ Spec: `plans/claude-code-prompt-markdown-ingestion.md`. This file holds the agre
 - Manual upload through Swagger UI (Authorize, then Try it out) and with `curl`.
 
 ## Progress log (update after every small step; resume from the first unchecked item)
-Working rule: baby steps. One small step, then update this log, then continue.
+Working rule: baby steps. One small step, update this log, then STOP and wait for the user to review and approve before starting the next step. Exactly one commit per step (code + tests + this log together; no separate log-only commits).
 
 ### Done
 - [x] Spec read; repo, tools and git history inspected (Docker 29.7.2 with daemon running, no Compose; local PG 18.6 without pgvector; Python 3.12.0; uv 0.13.1).
@@ -63,6 +63,13 @@ Working rule: baby steps. One small step, then update this log, then continue.
   - Normalization also converts lone `\r` to `\n`.
 - [x] 2b. `ingestion/storage.py`: `InvalidInputError`, `validate_tenant` (fullmatch), `normalize_source_key` (NFC, rejects control chars, keeps only the last `/` or `\\` component, rejects empty/`.`/`..`, max 255 chars); 38 tests including traversal inputs. Behaviour: `../../etc/passwd` becomes `passwd` (accepted, as "file name only"), while `..` is rejected.
 - [x] 2c. `markdown_path` (validates tenant and the `upload-<12 hex>` doc_id, resolved path must stay under `knowledge_dir`) and `write_markdown_atomic` (mkstemp in the same dir, fsync, `os.replace`, temp file removed on failure); 7 tests including a failed rename that keeps the previous file. When to write relative to the DB commit is decided in step 6 (service).
+- [x] 3a+3b (one commit, as agreed). Chunker per the **updated small-chunk requirements** (they supersede the spec's "merge or drop" line):
+  - `split_markdown` is library only (MarkdownHeaderTextSplitter h1-h3 with `strip_headers=True`, then RecursiveCharacterTextSplitter with `add_start_index=True`). It is our code only in that `"  \n"` (how the header splitter renders blank lines) becomes `"\n\n"` again, so paragraph breaks are restored.
+  - `apply_small_chunk_policy(pieces, min_size, max_merged)` is our own merge step on the library output: (1) drop if `has_content` is false (blank, separators, page number), (2) merge forward if the next piece is the same section or a subsection, (3) else merge backward into the same section if the result is within 1.5x `CHUNK_SIZE`, (4) else keep. The merged piece takes the receiver's heading path. Pieces of one section are joined by offsets, so the overlap isn't repeated; others are joined with `"\n\n"`.
+  - Setting renamed `chunk_min_size` -> `MIN_CHUNK_SIZE`, default 100. The CHUNKER signature bumped to `md-header+recursive@v2/size=../overlap=../min=../merge=fwd,back1.5x,keep/breadcrumb=1`.
+  - README: configuration table + chunking rules. `.env.example` updated.
+  - Tests: 61 in `test_chunking.py` (end to end and the merge step alone, plus the invariants: every body line in some chunk, every heading in some path, all words in order when overlap=0). 126 tests in total.
+- [ ] 4a. Check the Voyage docs (models, dimensions, limits, request shape) and decide `httpx` vs `httpx2` for the client. Report before writing code.
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items

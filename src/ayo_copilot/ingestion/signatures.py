@@ -1,8 +1,10 @@
 import hashlib
 
+from ayo_copilot.ingestion.chunking import SMALL_CHUNK_POLICY
+
 # Bump when the chunking algorithm or the embedded text format changes,
 # so every stored document is reprocessed.
-CHUNKER_VERSION = "md-header+recursive@v1"
+CHUNKER_VERSION = "md-header+recursive@v2"
 
 
 def sig(*parts: object) -> str:
@@ -15,7 +17,10 @@ def content_hash(normalized_markdown: str) -> str:
 
 def chunker_descriptor(*, size: int, overlap: int, min_size: int) -> str:
     # breadcrumb=1: the heading path is prepended to the text that gets embedded.
-    return f"{CHUNKER_VERSION}/size={size}/overlap={overlap}/min={min_size}/breadcrumb=1"
+    return (
+        f"{CHUNKER_VERSION}/size={size}/overlap={overlap}/min={min_size}"
+        f"/{SMALL_CHUNK_POLICY}/breadcrumb=1"
+    )
 
 
 def embedder_descriptor(*, model: str, dimensions: int) -> str:
