@@ -1,6 +1,6 @@
 # 0001: Local database for integration tests
 
-- Status: proposed
+- Status: accepted (2026-10-22)
 - Date: 2026-10-22
 
 ## Context
@@ -96,7 +96,7 @@ Verified rather than assumed:
 | Isolation | fixtures | fresh DB per session | fresh DB per session | fresh DB per session | file per test | branch per run |
 | Works on this machine now | no (no Compose) | **yes** | not without installing pgvector | unknown | yes, but useless | yes |
 
-## Decision (proposed)
+## Decision
 
 **testcontainers** with `pgvector/pgvector:0.8.7-pg18-trixie` for integration
 tests, plus a plain `docker run` script for the dev database. No Compose.
@@ -145,6 +145,4 @@ uv run pytest -m "not integration" # explicitly without a database
 - Docker is required to run integration tests locally. Without Docker they are
   skipped, not failed. `TEST_DATABASE_URL` or pytest-postgresql (after
   installing pgvector) remain fallbacks.
-- The dev and test Postgres major version (18) should match Neon production.
-  **Open:** confirm the Neon project's Postgres version in the Neon console
-  (not checked, to avoid touching production) and pin the image tag to it.
+- Dev and test use Postgres 18, as agreed.

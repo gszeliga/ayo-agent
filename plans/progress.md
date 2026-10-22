@@ -51,8 +51,10 @@ Working rule: baby steps. One small step, then update this log, then continue.
 - [x] 0a. sqlite-vec index support checked (see above).
 - [-] 0b. Skipped: did not check the Manjaro pgvector package (command was rejected); recorded as unverified in the ADR.
 - [x] 0c. `docs/decisions/0001-test-database.md` written (status: proposed). Recommends testcontainers + `scripts/dev_db.sh` (docker run, port 5433), truncation per test, `TEST_DATABASE_URL` escape hatch with a Neon guard.
-- [~] 0d. Findings and recommendation reported on 2026-10-22; **waiting for user approval of ADR 0001** before any DB-layer work.
+- [x] 0d. ADR 0001 approved on 2026-10-22: testcontainers, Postgres 18 (`pgvector/pgvector:0.8.7-pg18-trixie`).
+- [ ] H1. Remove `ayodb.connect` (Neon secret) from git history locally (backup ref first).
+- [ ] H2. Force-push the rewritten `main` to origin, **only after explicit user confirmation**.
 - [ ] 1+. Implementation steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
-- Match the dev/test PG major version to Neon production (not queried; Neon must not be touched).
+- Neon password must be rotated by the user (history rewrite does not revoke a leaked secret).
