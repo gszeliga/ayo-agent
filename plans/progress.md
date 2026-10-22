@@ -53,7 +53,7 @@ Working rule: baby steps. One small step, then update this log, then continue.
 - [x] 0c. `docs/decisions/0001-test-database.md` written (status: proposed). Recommends testcontainers + `scripts/dev_db.sh` (docker run, port 5433), truncation per test, `TEST_DATABASE_URL` escape hatch with a Neon guard.
 - [x] 0d. ADR 0001 approved on 2026-10-22: testcontainers, Postgres 18 (`pgvector/pgvector:0.8.7-pg18-trixie`).
 - [x] H1. `ayodb.connect` removed from local `main` history via filter-branch (new root 761207f, head 5235df5). Old commits still kept locally in `backup/pre-secret-removal`, `refs/original/` and the reflog; purge them after the push.
-- [ ] H2. Force-push the rewritten `main` to origin, **only after explicit user confirmation**.
+- [x] H2. Force-pushed with the user's confirmation (origin/main d48b9bd -> ed02094). Local backup, refs/original and reflog purged; old commit 2799800 gone locally. It may still be reachable on GitHub by SHA until GitHub support purges cached views.
 - [ ] 1+. Implementation steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
