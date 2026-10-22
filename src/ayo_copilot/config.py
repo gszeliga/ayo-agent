@@ -10,13 +10,17 @@ HNSW_MAX_DIMENSIONS = 2000
 VOYAGE_MAX_BATCH_SIZE = 1000
 
 
-class Settings(BaseSettings):
-    """Application settings, read from environment variables (and `.env`)."""
+class DatabaseSettings(BaseSettings):
+    """The database settings alone, for tools such as Alembic that need nothing else."""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Defaults to the local dev database started by scripts/dev_db.sh, never production.
     database_url: SecretStr = SecretStr("postgresql://ayo:ayo@localhost:5433/ayo")
+
+
+class Settings(DatabaseSettings):
+    """Application settings, read from environment variables (and `.env`)."""
 
     # Provisional admin authentication (see routers/admin.py).
     admin_api_key: SecretStr

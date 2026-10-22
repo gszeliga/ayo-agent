@@ -5,7 +5,8 @@ Spec: `plans/claude-code-prompt-markdown-ingestion.md`. This file holds the agre
 ## Decisions from Q&A (these override the spec)
 - **Naming:** rename the package to `ayo_copilot`, `bootstrap.py` to `app.py` and `create_agent()` to `create_app()`. Update `[project.scripts]` and `main()` (which keeps `factory=True`) to match. The existing `/health` route stays.
 - **Test DB:** testcontainers is the leading candidate. It only needs the Docker daemon, which is running here (Compose is not installed). Step 0 still compares all six options in `docs/decisions/0001-test-database.md` and waits for your approval. For the dev DB used for manual runs, a scripted `docker run pgvector/pgvector:<pg-version>` (as `make`/`scripts` commands) replaces Compose.
-- **Neon = production.** No test or dev command ever touches it, and its URL is never read by default.
+- **Neon = production.** No test command ever touches it, and the production branch is never used for dev runs.
+  - Amended 2026-10-22 (step 5x): local manual runs may use a Neon **`dev` branch**. One gitignored `.env` holds the real `VOYAGE_API_KEY` and the Neon dev-branch URL; there is no separate env file. Tests never read `.env`.
 - **Embeddings: hosted Voyage AI, as the original spec says.** `VoyageEmbedder` is a thin httpx client (`input_type="document"`), sitting behind the `Embedder` protocol alongside `FakeEmbedder` for tests.
   - Before writing the client, check the official Voyage docs for the current model names, output dimensions, per-request limits and request shape. The working assumption is `voyage-4` at 1024 dims.
   - The API key goes only into the gitignored `.env` as `VOYAGE_API_KEY`. It never goes into any committed file, log or test fixture, and `.env.example` holds a placeholder.
@@ -22,6 +23,7 @@ Spec: `plans/claude-code-prompt-markdown-ingestion.md`. This file holds the agre
 3. `ingestion/chunking.py`, test-first, with Spanish fixtures and merging of heading-only chunks.
 4. `ingestion/embedding.py`: `VoyageEmbedder` and `FakeEmbedder`, tested with `httpx.MockTransport`.
 5. Alembic migration (`vector(1024)`, HNSW cosine index), `db/pool.py` and `db/repository.py` (`similar_chunks`), plus integration tests.
+   - 5x. Local runs against real services: the single `.env` holds `VOYAGE_API_KEY`, `DATABASE_URL` (Neon dev branch, pooled endpoint, `sslmode=require`), `MIGRATIONS_DATABASE_URL` (direct endpoint, for Alembic) and `ALLOW_REMOTE_DATABASE=true`. Settings guard: a non-localhost `DATABASE_URL` is refused unless `ALLOW_REMOTE_DATABASE=true`. To use the local Docker DB instead, override `DATABASE_URL` in the shell (environment variables win over `.env`). `.env.example` documents both setups. Prerequisite: rotate the Neon password, or use a new role for the dev branch.
 6. `ingestion/service.py`, `schemas.py`, `routers/admin.py` and the lifespan (pool plus a dimension check against the DB). API and OpenAPI tests, `scripts/export_openapi.py` and `docs/openapi.json`.
 7. README, a manual run (FakeEmbedder, then real Voyage) and the final report.
 
@@ -80,6 +82,16 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
   - `VoyageEmbedder`: httpx2 client (`client=` and `sleep=` injectable), `input_type=document`, explicit `output_dimension`, `output_dtype=float`, `truncation=false`, batches of `EMBEDDING_BATCH_SIZE`. Retries 429/500/502/503/504, timeouts and connection errors with full-jitter backoff (at most 1, 2, 4 s ...); other 4xx fail at once. Checks the response count, the indexes and the dimensions. No token-based batch splitting: 128 chunks of about 800 chars is far below 320K tokens.
   - `httpx2` moved from dev to runtime deps. `EMBEDDING_BATCH_SIZE` capped at 1000 (Voyage limit). README rows updated.
   - Tests: 34 in `test_embedding.py` + 1 config test; `tests/live/test_voyage_live.py` (reads the key from env or `.env`, skipped without one) **ran once and passed** against real Voyage (2 texts, 1024 dims). 160 tests by default, 1 deselected.
+- [x] 5a. Alembic + initial migration + migration integration tests:
+  - Deps: `psycopg[binary]` 3.3.6 and `alembic` 1.20.1 (pulls in SQLAlchemy 2.1.6; Alembic needs it, and the app itself stays on hand-written psycopg SQL). Dev: `testcontainers[postgres]` 4.15.0, imported from `testcontainers.community.postgres` (the old path is deprecated).
+  - `config.py`: new `DatabaseSettings` base (only `database_url`), which `Settings` extends, so Alembic needs no admin key.
+  - `alembic.ini` (no URL in it), `migrations/env.py` (URL from `Config.attributes` in tests, else `DATABASE_URL`; rewritten to `postgresql+psycopg://`; online mode only), `migrations/versions/0001_initial_schema.py` as hand-written SQL.
+  - **Deviations from the spec schema, to report:** (1) no separate `documents (tenant)` index, because the `unique (tenant, source_type, source_key)` index already starts with `tenant`; (2) the HNSW index is named `chunks_embedding_hnsw_idx`; (3) `vector(1024)` is fixed in the migration (a dimension change needs a new migration; the lifespan check in step 6 catches a mismatch); (4) downgrade drops the tables but leaves the `vector` extension.
+  - Tests: `tests/integration/conftest.py` (session server from `TEST_DATABASE_URL` or a testcontainer; skipped with a clear message without Docker; refuses Neon URLs), `scratch_database_url` (a fresh database per test, dropped with force). `tests/integration/support.py` (`is_neon_url`, `with_database`, `alembic_config`) and its 8 unit tests. 7 migration tests: schema from scratch (extension, tables, `vector(1024)`, HNSW cosine), downgrade then upgrade again, cascade, the 3 unique constraints, dimension enforced.
+  - Verified: 175 passed (about 9 s warm, 47 s with the first image pull); with no Docker, 7 skipped with the message; a Neon `TEST_DATABASE_URL` is refused; `uv run alembic history` works.
+- [ ] 5b. `scripts/dev_db.sh up|down` (port 5433) + `db/pool.py` + session-wide migrated DB fixture with per-test truncation.
+- [ ] 5c. `db/repository.py` (document upsert, atomic chunk replacement, `similar_chunks`) + integration tests.
+- [ ] 5x. Real services from the single `.env` (see Order of work).
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
