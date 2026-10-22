@@ -58,7 +58,11 @@ Working rule: baby steps. One small step, then update this log, then continue.
 - [x] 1b. Dev tooling: dev group (pytest 9.1.1, ruff 0.17.1, httpx2 2.16), markers `integration`/`live` (`live` deselected by default), ruff config (`*.md` excluded, because ruff formats Python blocks inside Markdown), `tests/api/test_health.py` passing. Existing code ruff-formatted.
   - Note: Starlette 1.9's TestClient needs `httpx2` (pydantic/httpx2, declared in Starlette's `full` extra), not `httpx`. In step 4, decide whether the Voyage client uses `httpx2` too; tell the user, since the spec says `httpx`.
 - [x] 1c. `config.py` (pydantic-settings 2.16.1) + 8 unit tests, `.env.example`, `data/` ignored. Voyage key required when `EMBEDDING_PROVIDER=voyage`; `fake` provider for tests; dims capped at 2000 (HNSW). Tests use `_env_file=None` so they never read the real `.env`. Embedding batch, timeout and retry defaults are placeholders until step 4 checks the Voyage docs. Other runtime deps are added in the step that needs them.
-- [ ] 2+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
+- [x] 2a. `ingestion/signatures.py` (sig, content_hash, chunker/embedder descriptors, chunk/embed signature, make_doc_id) and `normalize_markdown` in `ingestion/chunking.py`; 11 unit tests.
+  - Deviation to report: the CHUNKER descriptor also includes `min=<CHUNK_MIN_SIZE>` (`md-header+recursive@v1/size=800/overlap=80/min=50/breadcrumb=1`), because the minimum size changes the chunks.
+  - Normalization also converts lone `\r` to `\n`.
+- [ ] 2b. `ingestion/storage.py`: `validate_tenant`, `normalize_source_key` (NFC, basename only, no `..`, no control chars, reject empty) with path-traversal tests; then atomic write (`write_markdown_atomic`).
+- [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
 - Neon password must be rotated by the user (history rewrite does not revoke a leaked secret).
