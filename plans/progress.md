@@ -52,7 +52,7 @@ Working rule: baby steps. One small step, then update this log, then continue.
 - [-] 0b. Skipped: did not check the Manjaro pgvector package (command was rejected); recorded as unverified in the ADR.
 - [x] 0c. `docs/decisions/0001-test-database.md` written (status: proposed). Recommends testcontainers + `scripts/dev_db.sh` (docker run, port 5433), truncation per test, `TEST_DATABASE_URL` escape hatch with a Neon guard.
 - [x] 0d. ADR 0001 approved on 2026-10-22: testcontainers, Postgres 18 (`pgvector/pgvector:0.8.7-pg18-trixie`).
-- [ ] H1. Remove `ayodb.connect` (Neon secret) from git history locally (backup ref first).
+- [x] H1. `ayodb.connect` removed from local `main` history via filter-branch (new root 761207f, head 5235df5). Old commits still kept locally in `backup/pre-secret-removal`, `refs/original/` and the reflog; purge them after the push.
 - [ ] H2. Force-push the rewritten `main` to origin, **only after explicit user confirmation**.
 - [ ] 1+. Implementation steps as listed in "Order of work", each broken into small commits and logged here.
 
