@@ -57,7 +57,7 @@ Working rule: baby steps. One small step, then update this log, then continue.
 - [x] 1a. Renamed: project `ayo-copilot`, package `src/ayo_copilot`, `app.py` with `create_app()`, script `ayo-copilot`. App builds, `/health` route present.
 - [x] 1b. Dev tooling: dev group (pytest 9.1.1, ruff 0.17.1, httpx2 2.16), markers `integration`/`live` (`live` deselected by default), ruff config (`*.md` excluded, because ruff formats Python blocks inside Markdown), `tests/api/test_health.py` passing. Existing code ruff-formatted.
   - Note: Starlette 1.9's TestClient needs `httpx2` (pydantic/httpx2, declared in Starlette's `full` extra), not `httpx`. In step 4, decide whether the Voyage client uses `httpx2` too; tell the user, since the spec says `httpx`.
-- [ ] 1c. Runtime dependencies + `config.py` (pydantic-settings) + `.env.example`.
+- [x] 1c. `config.py` (pydantic-settings 2.16.1) + 8 unit tests, `.env.example`, `data/` ignored. Voyage key required when `EMBEDDING_PROVIDER=voyage`; `fake` provider for tests; dims capped at 2000 (HNSW). Tests use `_env_file=None` so they never read the real `.env`. Embedding batch, timeout and retry defaults are placeholders until step 4 checks the Voyage docs. Other runtime deps are added in the step that needs them.
 - [ ] 2+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items

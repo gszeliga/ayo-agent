@@ -13,3 +13,6 @@ ayodb.connect
 # Local secrets
 .env
 voyage.ai
+
+# Local knowledge files
+data/
