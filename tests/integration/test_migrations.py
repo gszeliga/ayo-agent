@@ -27,6 +27,10 @@ def test_upgrade_from_scratch_creates_schema(scratch_database_url: str) -> None:
             " where attrelid = 'chunks'::regclass and attname = 'embedding'"
         ).fetchone()
         assert column_type == "vector(1024)"
+        assert conn.execute(
+            "select data_type, is_nullable from information_schema.columns"
+            " where table_name = 'documents' and column_name = 'markdown'"
+        ).fetchone() == ("text", "NO")
         (index_def,) = conn.execute(
             "select indexdef from pg_indexes where indexname = 'chunks_embedding_hnsw_idx'"
         ).fetchone()
@@ -49,7 +53,7 @@ def test_downgrade_removes_tables_and_upgrade_works_again(scratch_database_url: 
 def _insert_document(conn: psycopg.Connection, doc_id: str, source_key: str) -> str:
     (document_id,) = conn.execute(
         """
-        insert into documents (doc_id, tenant, source_key, markdown_path,
+        insert into documents (doc_id, tenant, source_key, markdown,
                                content_hash, chunk_signature, embed_signature)
         values (%s, 'acme', %s, 'p', 'h', 'c', 'e') returning id
         """,

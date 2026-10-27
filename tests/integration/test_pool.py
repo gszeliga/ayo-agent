@@ -16,7 +16,7 @@ def _insert_document(pool: ConnectionPool, doc_id: str) -> None:
     with pool.connection() as conn:
         conn.execute(
             """
-            insert into documents (doc_id, tenant, source_key, markdown_path,
+            insert into documents (doc_id, tenant, source_key, markdown,
                                    content_hash, chunk_signature, embed_signature)
             values (%s, 'acme', 'a.md', 'p', 'h', 'c', 'e')
             """,

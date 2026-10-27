@@ -27,7 +27,7 @@ def make_document(
         "tenant": tenant,
         "source_key": source_key,
         "title": "PRO-014 Control de sellado",
-        "markdown_path": f"data/knowledge/{tenant}/upload/x.md",
+        "markdown": "# PRO-014 Control de sellado\n\nTexto original.\n",
         "content_hash": "content-1",
         "chunk_signature": "chunk-1",
         "embed_signature": "embed-1",
@@ -60,7 +60,8 @@ def chunk_texts(pool: ConnectionPool) -> list[str]:
 def document_row(pool: ConnectionPool) -> tuple:
     with pool.connection() as conn:
         return conn.execute(
-            "select id, title, content_hash, embed_signature, created_at, updated_at from documents"
+            "select id, title, content_hash, embed_signature, created_at, updated_at, markdown"
+            " from documents"
         ).fetchone()
 
 
@@ -78,21 +79,28 @@ def test_upsert_inserts_a_new_document(db_pool: ConnectionPool) -> None:
 
 def test_upsert_updates_the_same_row(db_pool: ConnectionPool) -> None:
     first_id = store(db_pool, make_document(), [])
-    _, _, _, _, created_at, first_updated_at = document_row(db_pool)
+    _, _, _, _, created_at, first_updated_at, _ = document_row(db_pool)
+    revised = "# Nuevo título\n\nTexto revisado, versión 2.\n"
 
     second_id = store(
         db_pool,
-        make_document(title="Nuevo título", content_hash="content-2", embed_signature="embed-2"),
+        make_document(
+            title="Nuevo título",
+            content_hash="content-2",
+            embed_signature="embed-2",
+            markdown=revised,
+        ),
         [],
     )
 
     assert second_id == first_id
-    row_id, title, content_hash, embed_signature, created, updated = document_row(db_pool)
-    assert (row_id, title, content_hash, embed_signature) == (
+    row_id, title, content_hash, embed_signature, created, updated, markdown = document_row(db_pool)
+    assert (row_id, title, content_hash, embed_signature, markdown) == (
         first_id,
         "Nuevo título",
         "content-2",
         "embed-2",
+        revised,
     )
     assert created == created_at
     assert updated > first_updated_at
@@ -125,7 +133,7 @@ def test_a_failure_midway_keeps_the_previous_document_and_chunks(db_pool: Connec
     bad = ChunkRecord(index=bad.index, heading=None, text=bad.text, embedding=[0.1, 0.2])
 
     with pytest.raises(psycopg.errors.DataException):
-        store(db_pool, make_document(embed_signature="embed-2"), [good, bad])
+        store(db_pool, make_document(embed_signature="embed-2", markdown="# Nuevo\n"), [good, bad])
 
     assert chunk_texts(db_pool) == ["uno", "dos"]
     assert document_row(db_pool) == before

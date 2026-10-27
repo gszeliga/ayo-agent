@@ -118,7 +118,7 @@ tests, plus a plain `docker run` script for the dev database. No Compose.
 
 Each integration test runs against the shared session database, and an
 autouse fixture runs `TRUNCATE documents, chunks RESTART IDENTITY CASCADE`
-**before** each test. `KNOWLEDGE_DIR` points to pytest's `tmp_path`.
+**before** each test.
 
 > Implementation note (step 5b): the truncation lives in the `db_pool` fixture
 > rather than an autouse one. The shared database is only reachable through

@@ -12,6 +12,9 @@ Spec: `plans/claude-code-prompt-markdown-ingestion.md`. This file holds the agre
   - The API key goes only into the gitignored `.env` as `VOYAGE_API_KEY`. It never goes into any committed file, log or test fixture, and `.env.example` holds a placeholder.
   - The `live` test does one real upload against Voyage and is skipped when there's no key.
 
+- **Markdown stored in Postgres, not on disk (2026-10-27, deviation from the spec):** `documents.markdown text not null` replaces `markdown_path`, and is written in the same transaction as the chunks. Reasons: one store, so the database and the file can never disagree; it survives container deployments (Neon keeps it). `KNOWLEDGE_DIR` and the atomic file write are removed. The original is still kept, because chunks can't rebuild it and reprocessing after a chunker or model change needs it.
+- **Zero-chunk uploads are rejected (2026-10-27):** a file that is valid UTF-8 and not empty but produces no chunks (only headings, separators, page numbers) gets `InvalidInputError` -> `422` "no indexable content", like an empty file. Implemented in 6b.
+
 ## Repo findings to report
 - **Security:** `ayodb.connect`, which holds the Neon (now production) connection string with its password, was committed in `2799800` and **pushed to origin/main**. Deleting it in `d48b9bd` doesn't remove it from history. Rotate the Neon password. Rewriting history is your call; I won't do it.
 - The Voyage key was pasted into the chat, so it is now in this session's transcript. Rotate it if that matters to you.
@@ -121,6 +124,11 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
   - `/health` unchanged; its test now runs without the lifespan (no DB).
   - Tests: 5 in `tests/integration/test_app_startup.py` (pool open/close and `/health`, dimension mismatch, no extension with the log cause, no table, log level applied). 207 passed, 1 deselected; ruff clean.
   - Manual: `uv run ayo-copilot` against the local dev DB with `DB_LOG_LEVEL=INFO` shows the pool events and "database ready at 'localhost', vector(1024)"; `/health` 200; `EMBEDDING_DIMENSIONS=512` exits with the clear message.
+- [x] 6a.1. Markdown in Postgres instead of on disk (see Decisions):
+  - Migration `0001` edited in place (only the Neon dev branch had it applied): `markdown text not null` instead of `markdown_path`.
+  - `DocumentRecord.markdown`; the upsert writes and updates it.
+  - Removed `markdown_path`, `write_markdown_atomic`, `DOC_ID_PATTERN` from `ingestion/storage.py` (it keeps tenant/source_key validation only; the name is now a little off, left as is) and `tests/unit/test_storage_write.py` (7 tests). Removed `KNOWLEDGE_DIR` from config, `.env.example`, README, ADR. `data/` stays in `.gitignore`.
+  - Tests: migration test checks `markdown` is `text not null`; repository tests check it is updated by the upsert and unchanged after a failed transaction. 200 passed, 1 deselected; ruff clean.
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items

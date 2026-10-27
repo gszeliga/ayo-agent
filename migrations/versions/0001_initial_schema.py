@@ -26,7 +26,9 @@ def upgrade() -> None:
           source_type text not null default 'upload',
           source_key text not null,
           title text,
-          markdown_path text not null,
+          -- The normalized Markdown as uploaded: the chunks can't rebuild it, and it allows
+          -- reprocessing after a chunker or model change without a new upload.
+          markdown text not null,
           content_hash text not null,
           chunk_signature text not null,
           embed_signature text not null,

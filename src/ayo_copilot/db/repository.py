@@ -19,7 +19,7 @@ class DocumentRecord:
     tenant: str
     source_key: str
     title: str | None
-    markdown_path: str
+    markdown: str
     content_hash: str
     chunk_signature: str
     embed_signature: str
@@ -52,15 +52,15 @@ def upsert_document(conn: Connection, document: DocumentRecord) -> UUID:
     """
     (document_id,) = conn.execute(
         """
-        insert into documents (doc_id, tenant, source_type, source_key, title, markdown_path,
+        insert into documents (doc_id, tenant, source_type, source_key, title, markdown,
                                content_hash, chunk_signature, embed_signature,
                                chunked_at, embedded_at)
         values (%(doc_id)s, %(tenant)s, %(source_type)s, %(source_key)s, %(title)s,
-                %(markdown_path)s, %(content_hash)s, %(chunk_signature)s, %(embed_signature)s,
+                %(markdown)s, %(content_hash)s, %(chunk_signature)s, %(embed_signature)s,
                 now(), now())
         on conflict (tenant, source_type, source_key) do update set
           title = excluded.title,
-          markdown_path = excluded.markdown_path,
+          markdown = excluded.markdown,
           content_hash = excluded.content_hash,
           chunk_signature = excluded.chunk_signature,
           embed_signature = excluded.embed_signature,
@@ -75,7 +75,7 @@ def upsert_document(conn: Connection, document: DocumentRecord) -> UUID:
             "source_type": document.source_type,
             "source_key": document.source_key,
             "title": document.title,
-            "markdown_path": document.markdown_path,
+            "markdown": document.markdown,
             "content_hash": document.content_hash,
             "chunk_signature": document.chunk_signature,
             "embed_signature": document.embed_signature,

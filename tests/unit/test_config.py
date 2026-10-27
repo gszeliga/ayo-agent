@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
@@ -25,7 +23,6 @@ def test_defaults() -> None:
     assert settings.embedding_dimensions == 1024
     assert settings.embedding_provider == "voyage"
     assert settings.docs_enabled is True
-    assert settings.knowledge_dir == Path("data/knowledge")
     assert "localhost:5433" in settings.database_url.get_secret_value()
 
 

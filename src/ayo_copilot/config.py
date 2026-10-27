@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
@@ -63,7 +62,6 @@ class Settings(DatabaseSettings):
     # Provisional admin authentication (see routers/admin.py).
     admin_api_key: SecretStr
 
-    knowledge_dir: Path = Path("data/knowledge")
     max_upload_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
     docs_enabled: bool = True
 
