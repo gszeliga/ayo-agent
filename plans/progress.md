@@ -112,6 +112,15 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
   - Tests: 10 new in `test_config.py`. 202 passed, 1 deselected; ruff clean.
   - **Manual check against the Neon dev branch on 2026-10-27** (the user filled `.env`; URLs never printed): Postgres 18.6, pgvector **0.8.6** available (tests use 0.8.7; patch-level difference). The database was empty. `alembic upgrade head` through the direct endpoint (the `-pooler` suffix removed in-process, since `.env` has no `MIGRATIONS_DATABASE_URL` yet) -> `0001 (head)`, HNSW index present. `open_pool` on the pooled endpoint: ready in 5.7 s (probably a scale-to-zero cold start). Prepared statements through PgBouncer work (12 repeats on one connection, and repeats across two), so `prepare_threshold=None` is **not** needed. upsert + replace_chunks + similar_chunks in a rolled-back transaction: exact match first, 0 rows left.
   - Not confirmed in the session: that the Neon password was rotated (role `ayodb_owner`) and that this endpoint is the dev branch, not production (the user was asked to use the dev branch).
+- Step 6 split (agreed 2026-10-27): 6a lifespan and startup checks; 6b `ingestion/service.py` (pipeline, signatures, ordering, disk write); 6c `schemas.py` + `routers/admin.py` + API tests; 6d OpenAPI polish, `scripts/export_openapi.py`, `docs/openapi.json`, contract tests.
+- [x] 6a. Lifespan and startup checks:
+  - `create_app(settings=None)`: settings are read from the environment **at startup** (in the lifespan), not at `create_app()`, so the app can be built without any configuration (needed for `/health` and the OpenAPI tests). 6d may revisit this for `DOCS_ENABLED`.
+  - Lifespan: applies `DB_LOG_LEVEL`, opens the pool (`POOL_OPEN_TIMEOUT_SECONDS = 30`, for Neon cold starts), checks the dimensions, yields `{"settings", "pool"}` (read through `request.state`), closes the pool on shutdown. `StartupError` messages: unreachable DB or no `vector` extension -> host + "check DATABASE_URL and that the migrations ran" (the exact cause is in the `psycopg.pool` WARNING log); no `chunks` table -> "run the migrations"; mismatch -> "chunks.embedding is vector(1024) but EMBEDDING_DIMENSIONS=512: add a migration or change the setting".
+  - `repository.embedding_dimensions(conn)` reads `atttypmod` of `chunks.embedding` (None if the table is missing).
+  - `main()`: `logging.basicConfig(level=INFO)`, so app and psycopg logs show next to uvicorn's.
+  - `/health` unchanged; its test now runs without the lifespan (no DB).
+  - Tests: 5 in `tests/integration/test_app_startup.py` (pool open/close and `/health`, dimension mismatch, no extension with the log cause, no table, log level applied). 207 passed, 1 deselected; ruff clean.
+  - Manual: `uv run ayo-copilot` against the local dev DB with `DB_LOG_LEVEL=INFO` shows the pool events and "database ready at 'localhost', vector(1024)"; `/health` 200; `EMBEDDING_DIMENSIONS=512` exits with the clear message.
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items

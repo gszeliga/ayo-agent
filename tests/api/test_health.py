@@ -3,9 +3,11 @@ from fastapi.testclient import TestClient
 from ayo_copilot.app import create_app
 
 
-def test_health_returns_ok() -> None:
-    with TestClient(create_app()) as client:
-        response = client.get("/health")
+def test_health_returns_ok_without_a_database() -> None:
+    # No `with`: the lifespan (and so the database) is not started.
+    client = TestClient(create_app())
+
+    response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}

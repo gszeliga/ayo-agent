@@ -136,3 +136,12 @@ def similar_chunks(
         {"query": Vector(list(embedding)), "tenant": tenant, "limit": limit},
     ).fetchall()
     return [SimilarChunk(*row) for row in rows]
+
+
+def embedding_dimensions(conn: Connection) -> int | None:
+    """The `n` of the `chunks.embedding vector(n)` column; None if the table is missing."""
+    row = conn.execute(
+        "select atttypmod from pg_attribute"
+        " where attrelid = to_regclass('chunks') and attname = 'embedding' and not attisdropped"
+    ).fetchone()
+    return row[0] if row else None
