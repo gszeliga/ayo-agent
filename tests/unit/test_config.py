@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from ayo_copilot.config import Settings
+from ayo_copilot.config import DatabaseSettings, Settings
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -88,3 +88,59 @@ def test_db_log_level_defaults_to_warning_and_rejects_unknown_levels() -> None:
     assert make_settings(db_log_level="DEBUG").db_log_level == "DEBUG"
     with pytest.raises(ValidationError):
         make_settings(db_log_level="LOUD")
+
+
+NEON_URL = "postgresql://ayo:NEON-PASSWORD@ep-dev-123-pooler.eu-central-1.aws.neon.tech/ayo"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql://ayo:ayo@localhost:5433/ayo",
+        "postgresql://ayo:ayo@127.0.0.1:5433/ayo",
+        "postgresql://ayo:ayo@[::1]:5433/ayo",
+        "postgresql:///ayo",
+    ],
+)
+def test_local_database_urls_are_accepted(url: str) -> None:
+    assert make_settings(database_url=url).database_url.get_secret_value() == url
+
+
+@pytest.mark.parametrize("field", ["database_url", "migrations_database_url"])
+def test_remote_database_is_refused_by_default(field: str) -> None:
+    with pytest.raises(ValidationError, match="ALLOW_REMOTE_DATABASE") as excinfo:
+        make_settings(**{field: NEON_URL})
+
+    assert "NEON-PASSWORD" not in str(excinfo.value)
+    assert field.upper() in str(excinfo.value)
+
+
+def test_remote_database_is_accepted_when_allowed() -> None:
+    settings = make_settings(database_url=NEON_URL, allow_remote_database=True)
+
+    assert settings.database_url.get_secret_value() == NEON_URL
+
+
+def test_validation_errors_never_echo_secret_inputs() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        make_settings(database_url="postgresql://u:pw-SECRET@h/x", voyage_api_key=None)
+
+    assert "pw-SECRET" not in str(excinfo.value)
+    assert "test-admin-key" not in str(excinfo.value)
+
+
+def test_migrations_use_their_own_url_when_set() -> None:
+    direct = "postgresql://ayo:ayo@localhost:5434/ayo"
+
+    assert make_settings().migrations_url() == make_settings().database_url.get_secret_value()
+    assert make_settings(migrations_database_url=direct).migrations_url() == direct
+
+
+def test_database_settings_alone_apply_the_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", NEON_URL)
+
+    with pytest.raises(ValidationError, match="ALLOW_REMOTE_DATABASE"):
+        DatabaseSettings(_env_file=None)
+
+    monkeypatch.setenv("ALLOW_REMOTE_DATABASE", "true")
+    assert DatabaseSettings(_env_file=None).migrations_url() == NEON_URL

@@ -5,10 +5,11 @@ from ayo_copilot.config import DatabaseSettings
 
 
 def _database_url() -> str:
-    # Tests pass the URL through `Config.attributes`; otherwise use DATABASE_URL.
+    # Tests pass the URL through `Config.attributes`; otherwise MIGRATIONS_DATABASE_URL,
+    # falling back to DATABASE_URL.
     url = context.config.attributes.get("database_url")
     if url is None:
-        url = DatabaseSettings().database_url.get_secret_value()
+        url = DatabaseSettings().migrations_url()
     # Alembic runs on SQLAlchemy; point it at psycopg 3 rather than psycopg2.
     scheme, _, rest = url.partition("://")
     if scheme in ("postgres", "postgresql"):
