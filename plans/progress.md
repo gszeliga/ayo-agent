@@ -96,7 +96,15 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
   - **psycopg logging (user request):** psycopg already logs through `logging`: logger `psycopg` (connection attempts at DEBUG, host and port only; checked in the source) and its child `psycopg.pool` (pool events at INFO). psycopg sets it to WARNING. New setting `DB_LOG_LEVEL` (in `DatabaseSettings`, default `WARNING`) and `set_db_log_level()`. **Wiring is left for step 6:** the lifespan calls `set_db_log_level`, and `main()` needs a root handler (`logging.basicConfig`), otherwise INFO records go nowhere.
   - Fixtures: session `migrated_database_url` (`ayo_test_<random>`, `alembic upgrade head` once, dropped at the end), session pool, function `db_pool` (truncates `documents, chunks` first). Small ADR deviation (truncation in `db_pool`, not autouse), noted in the ADR.
   - Tests: 7 in `tests/integration/test_pool.py` (vector round trip as parameter and from `chunks`, two simultaneous connections both configured, fail fast without the extension, truncation shown by two tests inserting the same `doc_id`, DEBUG logs show the pool and connection attempts but never the password of a throwaway role), 1 unit test for `set_db_log_level`, 1 config test. 184 passed, 1 deselected; ruff clean.
-- [ ] 5c. `db/repository.py` (document upsert, atomic chunk replacement, `similar_chunks`) + integration tests.
+- [x] 5c. `db/repository.py` (brief given and approved before starting):
+  - Dataclasses `DocumentRecord`, `ChunkRecord` (index, heading, text, embedding, metadata), `SimilarChunk` (doc_id, chunk_index, heading, chunk_text, distance).
+  - `upsert_document(conn, doc) -> UUID`: `ON CONFLICT (tenant, source_type, source_key)`, which updates title, path, hash, signatures, sets `chunked_at`/`embedded_at`/`updated_at` to `now()` and keeps `created_at`.
+  - `replace_chunks(conn, document_id, chunks)`: delete, then `executemany` insert (embedding as `pgvector.Vector`, metadata as `Jsonb`). It must run after `upsert_document` in the same transaction, because that row lock serializes concurrent replacements of the same document.
+  - `similar_chunks(conn, *, tenant, embedding, limit=5)`: cosine `<=>`, nearest first, joined to `documents` for the tenant filter.
+  - No function commits; the caller owns the transaction. Building the `metadata` (doc_id, tenant) is left to the service (step 6).
+  - **Noted for later (not done):** with HNSW and many tenants, the tenant filter is applied after the index scan and can return fewer than `limit` rows; a real search endpoint should enable pgvector's iterative scans (`hnsw.iterative_scan`). It's documented in the docstring.
+  - **Left for step 6:** a lookup of the stored `embed_signature` for the `up_to_date` check (it wasn't in the 5c brief).
+  - Tests: 8 in `tests/integration/test_repository.py` (insert, update of the same row keeping `created_at`, old chunks removed, heading/metadata/embedding stored, failure midway keeps the previous document and chunks, `similar_chunks` order and exact match first, tenant isolation, a concurrent second upload blocks on the row lock and then wins cleanly). 192 passed, 1 deselected; ruff clean.
 - [ ] 5x. Real services from the single `.env` (see Order of work).
 - [ ] 3+. Remaining steps as listed in "Order of work", each broken into small commits and logged here.
 
