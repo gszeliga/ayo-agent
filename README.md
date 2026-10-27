@@ -14,6 +14,7 @@ Copy `.env.example` to `.env` to start. Never commit `.env`.
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://ayo:ayo@localhost:5433/ayo` | Postgres with pgvector. The default is the local dev database; never point it at production by accident. |
+| `DB_LOG_LEVEL` | `WARNING` | Level of psycopg's logs: `INFO` shows pool events (connection requested, given, returned), `DEBUG` also connection attempts. Hosts and ports are logged, never passwords. |
 | `ADMIN_API_KEY` | *(required)* | Provisional admin key, sent as the `X-API-Key` header. |
 | `KNOWLEDGE_DIR` | `data/knowledge` | Uploaded Markdown is stored at `{KNOWLEDGE_DIR}/{tenant}/upload/{doc_id}.md`. |
 | `MAX_UPLOAD_BYTES` | `5242880` (5 MiB) | Larger uploads are rejected with `413`. |

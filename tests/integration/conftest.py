@@ -5,9 +5,12 @@ from collections.abc import Iterator
 import docker
 import psycopg
 import pytest
+from alembic import command
 from docker.errors import DockerException
+from psycopg_pool import ConnectionPool
 
-from tests.integration.support import PGVECTOR_IMAGE, is_neon_url, with_database
+from ayo_copilot.db.pool import open_pool
+from tests.integration.support import PGVECTOR_IMAGE, alembic_config, is_neon_url, with_database
 
 
 @pytest.fixture(scope="session")
@@ -42,3 +45,35 @@ def scratch_database_url(postgres_server_url: str) -> Iterator[str]:
     finally:
         with psycopg.connect(postgres_server_url, autocommit=True) as conn:
             conn.execute(f"drop database {name} with (force)")
+
+
+@pytest.fixture(scope="session")
+def migrated_database_url(postgres_server_url: str) -> Iterator[str]:
+    """A database migrated to head once per session, shared by the repository tests."""
+    name = f"ayo_test_{uuid.uuid4().hex[:12]}"
+    with psycopg.connect(postgres_server_url, autocommit=True) as conn:
+        conn.execute(f"create database {name}")
+    url = with_database(postgres_server_url, name)
+    try:
+        command.upgrade(alembic_config(url), "head")
+        yield url
+    finally:
+        with psycopg.connect(postgres_server_url, autocommit=True) as conn:
+            conn.execute(f"drop database {name} with (force)")
+
+
+@pytest.fixture(scope="session")
+def _session_pool(migrated_database_url: str) -> Iterator[ConnectionPool]:
+    pool = open_pool(migrated_database_url)
+    try:
+        yield pool
+    finally:
+        pool.close()
+
+
+@pytest.fixture
+def db_pool(_session_pool: ConnectionPool) -> ConnectionPool:
+    """The shared pool, with empty tables: truncated before each test (see ADR 0001)."""
+    with _session_pool.connection() as conn:
+        conn.execute("truncate documents, chunks restart identity cascade")
+    return _session_pool

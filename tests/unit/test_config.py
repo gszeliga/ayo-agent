@@ -81,3 +81,10 @@ def test_fake_provider_needs_no_api_key() -> None:
     settings = make_settings(embedding_provider="fake", voyage_api_key=None)
 
     assert settings.voyage_api_key is None
+
+
+def test_db_log_level_defaults_to_warning_and_rejects_unknown_levels() -> None:
+    assert make_settings().db_log_level == "WARNING"
+    assert make_settings(db_log_level="DEBUG").db_log_level == "DEBUG"
+    with pytest.raises(ValidationError):
+        make_settings(db_log_level="LOUD")

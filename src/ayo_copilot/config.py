@@ -17,6 +17,8 @@ class DatabaseSettings(BaseSettings):
 
     # Defaults to the local dev database started by scripts/dev_db.sh, never production.
     database_url: SecretStr = SecretStr("postgresql://ayo:ayo@localhost:5433/ayo")
+    # Level of the `psycopg` logger (pool events at INFO, connection attempts at DEBUG).
+    db_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "WARNING"
 
 
 class Settings(DatabaseSettings):

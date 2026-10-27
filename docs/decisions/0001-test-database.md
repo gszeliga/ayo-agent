@@ -120,6 +120,11 @@ Each integration test runs against the shared session database, and an
 autouse fixture runs `TRUNCATE documents, chunks RESTART IDENTITY CASCADE`
 **before** each test. `KNOWLEDGE_DIR` points to pytest's `tmp_path`.
 
+> Implementation note (step 5b): the truncation lives in the `db_pool` fixture
+> rather than an autouse one. The shared database is only reachable through
+> `db_pool`, so every test that uses it still starts with empty tables, and
+> tests that don't use it don't trigger the truncation.
+
 Why not wrap each test in a transaction and roll it back: the code under test
 opens its own transactions from the pool and commits them, and two of the
 tests check exactly that behaviour (atomic chunk replacement, nothing written
