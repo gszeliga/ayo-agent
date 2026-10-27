@@ -84,6 +84,14 @@ def upsert_document(conn: Connection, document: DocumentRecord) -> UUID:
     return document_id
 
 
+def get_embed_signature(conn: Connection, doc_id: str) -> str | None:
+    """The stored embed signature of the document, or None if it doesn't exist yet."""
+    row = conn.execute(
+        "select embed_signature from documents where doc_id = %s", (doc_id,)
+    ).fetchone()
+    return row[0] if row else None
+
+
 def replace_chunks(conn: Connection, document_id: UUID, chunks: Sequence[ChunkRecord]) -> None:
     """Delete the document's chunks and insert these ones.
 

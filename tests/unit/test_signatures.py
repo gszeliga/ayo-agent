@@ -35,7 +35,7 @@ def test_content_hash_changes_with_content() -> None:
 def test_chunker_descriptor_reflects_configuration() -> None:
     assert (
         chunker_descriptor(size=800, overlap=80, min_size=100)
-        == "md-header+recursive@v2/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
+        == "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
     )
 
 

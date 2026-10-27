@@ -88,8 +88,13 @@ def split_markdown(text: str, *, size: int, overlap: int) -> list[Piece]:
 
 
 def has_content(text: str) -> bool:
-    """False for text that carries no information: blank, separators only, or a page number."""
-    stripped = text.strip()
+    """False for text that carries no information: every line is blank, a separator or a
+    page number (so "---" followed by "- 4 -" carries none either)."""
+    return any(_line_has_content(line) for line in text.split("\n"))
+
+
+def _line_has_content(line: str) -> bool:
+    stripped = line.strip()
     if _NO_LETTERS_OR_DIGITS.fullmatch(stripped):
         return False
     # Decorations around page numbers, e.g. "- 4 -", "\u2013 4 \u2013" (en dash), "(4)".

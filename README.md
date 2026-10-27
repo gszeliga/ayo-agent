@@ -45,7 +45,8 @@ keeps its heading path, e.g. `PRO-014 Control de sellado > 3. Pasos`.
 Small chunks are merged, never silently discarded, because a short chunk can be the
 critical one (for example "Temperatura máxima: 180 °C"). The rules, in order:
 
-1. No content at all (blank, separators such as `---`, only a page number): dropped.
+1. No content at all (every line is blank, a separator such as `---`, or a page number):
+   dropped. A file left with no chunks at all is rejected (`422`, "no indexable content").
 2. Shorter than `MIN_CHUNK_SIZE` and followed by a chunk of the same section (same
    heading path or a subsection of it): merged forward into it. This covers lead-ins
    like "Los pasos son:".

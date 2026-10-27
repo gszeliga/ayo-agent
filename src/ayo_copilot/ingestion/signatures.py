@@ -4,7 +4,7 @@ from ayo_copilot.ingestion.chunking import SMALL_CHUNK_POLICY
 
 # Bump when the chunking algorithm or the embedded text format changes,
 # so every stored document is reprocessed.
-CHUNKER_VERSION = "md-header+recursive@v2"
+CHUNKER_VERSION = "md-header+recursive@v3"
 
 
 def sig(*parts: object) -> str:

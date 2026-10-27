@@ -288,6 +288,9 @@ def policy(pieces: list[Piece], *, min_size: int = 10, max_merged: int = 60) -> 
         ("180 °C", True),
         ("¡Peligro!", True),
         ("Ver anexo 2.", True),
+        ("---\n\n- 4 -", False),
+        ("Página 3\n\n* * *\n", False),
+        ("---\n\nTemperatura máxima: 180 °C", True),
     ],
 )
 def test_has_content(text: str, expected: bool) -> None:
