@@ -1,0 +1,551 @@
+{
+  "components": {
+    "schemas": {
+      "Body_upload_document": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "The Markdown file (`.md`, UTF-8).",
+            "title": "File",
+            "type": "string"
+          },
+          "force": {
+            "default": false,
+            "description": "Reindex even when the stored version is up to date.",
+            "title": "Force",
+            "type": "boolean"
+          },
+          "source_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name that identifies the document within the tenant; an upload with the same one replaces it. Paths are reduced to their last component. Default: the file name.",
+            "examples": [
+              "pro-014-control-sellado.md"
+            ],
+            "title": "Source Key"
+          },
+          "tenant": {
+            "description": "Tenant (plant or customer) the document belongs to: lowercase letters, digits and hyphens, 2 to 63 characters.",
+            "examples": [
+              "acme"
+            ],
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+            "title": "Tenant",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Title to store. Default: the first `# ` heading, else the file name.",
+            "examples": [
+              "PRO-014 Control de sellado"
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "file",
+          "tenant"
+        ],
+        "title": "Body_upload_document",
+        "type": "object"
+      },
+      "ErrorItem": {
+        "description": "One error. The items of FastAPI's `HTTPValidationError` have this shape too.",
+        "properties": {
+          "ctx": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Extra details, such as the expected pattern. Request validation errors only.",
+            "title": "Ctx"
+          },
+          "input": {
+            "description": "The rejected value. Request validation errors only.",
+            "title": "Input"
+          },
+          "loc": {
+            "description": "Where the error is: `[\"body\", \"<field>\"]`, `[\"header\", \"x-api-key\"]`, or `[]` when no single input is at fault.",
+            "examples": [
+              [
+                "body",
+                "file"
+              ]
+            ],
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Loc",
+            "type": "array"
+          },
+          "msg": {
+            "description": "Human-readable explanation.",
+            "examples": [
+              "file is empty"
+            ],
+            "title": "Msg",
+            "type": "string"
+          },
+          "type": {
+            "description": "Stable, machine-readable error code: branch on this, not on `msg`.",
+            "examples": [
+              "file_empty"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "loc",
+          "msg"
+        ],
+        "title": "ErrorItem",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "The body of every error response.",
+        "examples": [
+          {
+            "detail": [
+              {
+                "loc": [
+                  "body",
+                  "file"
+                ],
+                "msg": "file is empty",
+                "type": "file_empty"
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "detail": {
+            "description": "One or more errors.",
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "const": "ok",
+            "description": "Always `ok` when the process is serving.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "IngestResponse": {
+        "description": "The outcome of an upload. Sent without the optional fields when `up_to_date`.",
+        "examples": [
+          {
+            "chunk_count": 12,
+            "doc_id": "upload-1890b5dc5335",
+            "embed_signature": "17047d562b7e",
+            "embedding_model": "voyage-4",
+            "status": "indexed"
+          }
+        ],
+        "properties": {
+          "chunk_count": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of chunks stored. Only when `indexed`.",
+            "examples": [
+              12
+            ],
+            "title": "Chunk Count"
+          },
+          "doc_id": {
+            "description": "Stable id of the document, derived from the tenant and the source key.",
+            "examples": [
+              "upload-1890b5dc5335"
+            ],
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "embed_signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First 12 hex characters of the signature that decides whether a later upload is `up_to_date`. Only when `indexed`.",
+            "examples": [
+              "17047d562b7e"
+            ],
+            "title": "Embed Signature"
+          },
+          "embedding_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Embedding model used for the chunks. Only when `indexed`.",
+            "examples": [
+              "voyage-4"
+            ],
+            "title": "Embedding Model"
+          },
+          "status": {
+            "description": "`indexed`: chunked, embedded and stored (HTTP 201). `up_to_date`: the stored version has the same content and settings, nothing was done (HTTP 200).",
+            "enum": [
+              "indexed",
+              "up_to_date"
+            ],
+            "examples": [
+              "indexed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "status"
+        ],
+        "title": "IngestResponse",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "AdminApiKey": {
+        "description": "Provisional shared admin key (`ADMIN_API_KEY`).",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from.\n\n## Authentication\n\nThe `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and\npaste the key, then use **Try it out**. The key is **provisional**: one shared key, to be\nreplaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `bool_parsing`, ...) | 422 | the field |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
+    "title": "AYO Plant Copilot API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/admin/documents": {
+      "post": {
+        "description": "Index one Markdown file for a tenant, so the copilot can retrieve it.\n\nThe file is split into chunks along its headings (each chunk keeps its heading path),\neach chunk is embedded, and the document, its Markdown and its chunks are stored in one\ntransaction. A document is identified by `tenant` + `source_key` (by default the file\nname): uploading it again replaces its previous version.\n\n**Idempotent.** If the content and the chunking and embedding settings are the same as\nthe stored version, nothing is done and the answer is `200 up_to_date`, without calling\nthe embedding provider. Send `force=true` to reindex anyway.\n\n| Status | Meaning |\n|---|---|\n| `201` | Indexed (new document, or a changed one). |\n| `200` | Already up to date: nothing was done. |\n| `401` | `X-API-Key` missing or wrong. |\n| `413` | The file is larger than `MAX_UPLOAD_BYTES` (default 5 MiB). |\n| `422` | Not a `.md` file, not UTF-8, empty, nothing to index, or an invalid field. |\n| `502` | The embedding provider failed after retries. Nothing was stored. |\n\nErrors use the API's error format (see the API description) and are told apart by\n`detail[].type`.",
+        "operationId": "upload_document",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_document"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "up_to_date": {
+                    "summary": "Up to date",
+                    "value": {
+                      "doc_id": "upload-1890b5dc5335",
+                      "status": "up_to_date"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            },
+            "description": "Already up to date: same content and settings, nothing was done."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "indexed": {
+                    "summary": "Indexed",
+                    "value": {
+                      "chunk_count": 12,
+                      "doc_id": "upload-1890b5dc5335",
+                      "embed_signature": "17047d562b7e",
+                      "embedding_model": "voyage-4",
+                      "status": "indexed"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            },
+            "description": "Indexed: the document was chunked, embedded and stored."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "file_too_large": {
+                    "summary": "File too large",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "file"
+                          ],
+                          "msg": "file exceeds 5242880 bytes",
+                          "type": "file_too_large"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The file is larger than `MAX_UPLOAD_BYTES`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "file_encoding": {
+                    "summary": "Not UTF-8",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "file"
+                          ],
+                          "msg": "file is not valid UTF-8",
+                          "type": "file_encoding"
+                        }
+                      ]
+                    }
+                  },
+                  "file_extension": {
+                    "summary": "Not a .md file",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "file"
+                          ],
+                          "msg": "file must have a .md extension",
+                          "type": "file_extension"
+                        }
+                      ]
+                    }
+                  },
+                  "file_no_content": {
+                    "summary": "Nothing to index",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "file"
+                          ],
+                          "msg": "file has no indexable content",
+                          "type": "file_no_content"
+                        }
+                      ]
+                    }
+                  },
+                  "missing": {
+                    "summary": "Missing field (FastAPI validation)",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "tenant"
+                          ],
+                          "msg": "Field required",
+                          "type": "missing"
+                        }
+                      ]
+                    }
+                  },
+                  "string_pattern_mismatch": {
+                    "summary": "Invalid tenant (FastAPI validation)",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+                          },
+                          "input": "Acme Corp",
+                          "loc": [
+                            "body",
+                            "tenant"
+                          ],
+                          "msg": "String should match pattern '^[a-z0-9][a-z0-9-]{1,62}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The file or a field is not acceptable. `type` is one of `file_extension`, `file_encoding`, `file_empty`, `file_no_content`, `source_key_invalid`, or a FastAPI validation code such as `missing` or `string_pattern_mismatch`."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "embedding_failed": {
+                    "summary": "Provider failure",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "embedding provider failed",
+                          "type": "embedding_failed"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The embedding provider failed after retries. Nothing was stored; retrying later is safe."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Upload a Markdown document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Answers as soon as the process serves requests. It does not check the database or the embedding provider.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Check that the service is up",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Upload the Markdown documents the copilot retrieves from.",
+      "name": "documents"
+    },
+    {
+      "description": "Liveness of the service.",
+      "name": "health"
+    }
+  ]
+}

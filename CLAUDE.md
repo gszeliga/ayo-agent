@@ -48,6 +48,7 @@ uv run ruff check . && uv run ruff format --check .
 scripts/dev_db.sh up|down                 # local dev DB: pgvector/pgvector:0.8.7-pg18-trixie on localhost:5433
 uv run alembic upgrade head               # migrations (uses MIGRATIONS_DATABASE_URL, else DATABASE_URL)
 uv run ayo-copilot                        # run the API on 127.0.0.1:8000
+uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
 ```
 
 Integration tests start a Postgres container (Docker daemon required; no Compose here)
@@ -70,6 +71,7 @@ src/ayo_copilot/
   schemas.py           IngestResponse, ErrorItem, ErrorResponse
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
   routers/admin.py     POST /admin/documents (provisional X-API-Key auth, size limits)
+  openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), DocsSettings (app build) < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, similar_chunks, ...
@@ -79,6 +81,8 @@ src/ayo_copilot/
   ingestion/storage.py     tenant and source_key validation (name is historical)
   ingestion/service.py     the pipeline: ingest_document and its stages
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
+scripts/               dev_db.sh, export_openapi.py
+docs/                  openapi.json (generated, committed), decisions/
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 ```
 
@@ -100,7 +104,9 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
   string detail. Service validation raises `InvalidInputError(msg, field=..., code=...)`.
 - OpenAPI is part of the product: every endpoint has summary, description, tags,
   `operation_id` and every status in `responses` with examples; every schema field has a
-  description (`tests/api/test_openapi.py` enforces it). Tests build the app with
+  description (`tests/api/test_openapi.py` enforces it). After any API change, re-export
+  `docs/openapi.json` and commit it in the same commit (a snapshot test fails otherwise);
+  every documented status must be triggered for real in `tests/api/test_contract.py`. Tests build the app with
   `create_app(docs_enabled=True)` so they never read `.env`.
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)
   use the `db_pool` fixture (tables truncated before each test) or `scratch_database_url`
