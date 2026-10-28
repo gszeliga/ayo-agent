@@ -92,7 +92,9 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 - HTTP client is `httpx2` (pydantic's fork), not `httpx`; tests mock it with `MockTransport`.
 - Changing chunking behaviour or the embedded text format: bump `CHUNKER_VERSION`.
   Changing the vector size needs a new migration (startup checks it).
-- Settings tests pass `_env_file=None` so they never read the real `.env`.
+- Settings tests pass `_env_file=None` (or a tmp file) so they never read the real `.env`.
+  `.env` is read from the project root whatever the cwd (`AYO_ENV_FILE` overrides it);
+  empty values count as unset.
 - Errors: raise `ApiError(status, type, msg, loc)` in routers; never `HTTPException` with a
   string detail. Service validation raises `InvalidInputError(msg, field=..., code=...)`.
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)

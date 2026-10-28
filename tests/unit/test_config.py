@@ -1,7 +1,16 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from ayo_copilot.config import DatabaseSettings, Settings
+from ayo_copilot.config import (
+    ENV_FILE_VARIABLE,
+    DatabaseSettings,
+    Settings,
+    default_env_file,
+)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -141,3 +150,104 @@ def test_database_settings_alone_apply_the_guard(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setenv("ALLOW_REMOTE_DATABASE", "true")
     assert DatabaseSettings(_env_file=None).migrations_url() == NEON_URL
+
+
+# --- where settings come from ---
+
+
+def test_env_file_is_at_the_project_root_whatever_the_working_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv(ENV_FILE_VARIABLE, raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    assert default_env_file() == PROJECT_ROOT / ".env"
+    assert (PROJECT_ROOT / "pyproject.toml").is_file()
+
+
+def test_env_file_can_be_overridden(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv(ENV_FILE_VARIABLE, str(tmp_path / "other.env"))
+
+    assert default_env_file() == tmp_path / "other.env"
+
+
+def test_settings_are_read_from_an_env_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("ADMIN_API_KEY", raising=False)
+    monkeypatch.delenv("CHUNK_SIZE", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("ADMIN_API_KEY=from-file\nCHUNK_SIZE=600\nEMBEDDING_PROVIDER=fake\n")
+
+    settings = Settings(_env_file=env_file)
+
+    assert settings.admin_api_key.get_secret_value() == "from-file"
+    assert settings.chunk_size == 600
+
+
+def test_environment_wins_over_the_env_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("CHUNK_SIZE", "700")
+    env_file = tmp_path / ".env"
+    env_file.write_text("ADMIN_API_KEY=k\nCHUNK_SIZE=600\nEMBEDDING_PROVIDER=fake\n")
+
+    assert Settings(_env_file=env_file).chunk_size == 700
+
+
+# --- empty values count as unset ---
+
+
+@pytest.mark.parametrize(
+    ("variables", "message"),
+    [
+        ({"ADMIN_API_KEY": "", "EMBEDDING_PROVIDER": "fake"}, "admin_api_key"),
+        ({"ADMIN_API_KEY": "k", "VOYAGE_API_KEY": ""}, "VOYAGE_API_KEY is required"),
+    ],
+    ids=["admin", "voyage"],
+)
+def test_empty_environment_values_count_as_unset(
+    monkeypatch: pytest.MonkeyPatch, variables: dict[str, str], message: str
+) -> None:
+    monkeypatch.delenv("EMBEDDING_PROVIDER", raising=False)
+    for name, value in variables.items():
+        monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValidationError, match=message):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("ADMIN_API_KEY=\nEMBEDDING_PROVIDER=fake\n", "admin_api_key"),
+        ("ADMIN_API_KEY=k\nVOYAGE_API_KEY=\n", "VOYAGE_API_KEY is required"),
+    ],
+    ids=["admin", "voyage"],
+)
+def test_empty_env_file_values_count_as_unset(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content: str, message: str
+) -> None:
+    for name in ("ADMIN_API_KEY", "VOYAGE_API_KEY", "EMBEDDING_PROVIDER"):
+        monkeypatch.delenv(name, raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text(content)
+
+    with pytest.raises(ValidationError, match=message):
+        Settings(_env_file=env_file)
+
+
+@pytest.mark.parametrize("field", ["admin_api_key", "voyage_api_key"])
+def test_empty_secrets_are_refused(field: str) -> None:
+    with pytest.raises(ValidationError, match=field):
+        make_settings(**{field: ""})
+
+
+def test_empty_database_url_falls_back_to_the_local_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "")
+
+    settings = make_settings()
+
+    assert "localhost:5433" in settings.database_url.get_secret_value()

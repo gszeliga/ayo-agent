@@ -5,7 +5,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from fastapi import FastAPI
 from psycopg_pool import ConnectionPool, PoolTimeout
 
-from ayo_copilot.config import Settings, database_host
+from ayo_copilot.config import Settings, database_host, default_env_file
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
 from ayo_copilot.errors import install_error_handlers
@@ -27,6 +27,12 @@ def _make_lifespan(
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[dict]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[dict]:
+        if settings is None:
+            env_file = default_env_file()
+            if env_file.is_file():
+                logger.info("settings: environment and %s", env_file)
+            else:
+                logger.info("settings: environment only, no file at %s", env_file)
         resolved = settings or Settings()
         set_db_log_level(resolved.db_log_level)
         host = database_host(resolved.database_url.get_secret_value())

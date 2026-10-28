@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
@@ -12,6 +14,22 @@ VOYAGE_MAX_BATCH_SIZE = 1000
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
+# Set in the environment to read settings from another file than the project's `.env`.
+ENV_FILE_VARIABLE = "AYO_ENV_FILE"
+
+
+def default_env_file() -> Path:
+    """`AYO_ENV_FILE` if set, else `.env` at the project root, whatever the working directory.
+
+    Installed as a package there is no project root, so the path points nowhere and only
+    real environment variables apply (a missing file is skipped).
+    """
+    override = os.environ.get(ENV_FILE_VARIABLE)
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path(__file__).resolve().parents[2] / ".env"
+
+
 def database_host(url: str) -> str | None:
     """The host of a database URL; None for a Unix socket (no host in the URL)."""
     return urlsplit(url).hostname
@@ -21,8 +39,13 @@ class DatabaseSettings(BaseSettings):
     """The database settings alone, for tools such as Alembic that need nothing else."""
 
     # Validation errors would otherwise echo the raw input, URLs with passwords included.
+    # Empty values (`VOYAGE_API_KEY=`) count as unset, so a required one fails at startup.
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore", hide_input_in_errors=True
+        env_file=default_env_file(),
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+        hide_input_in_errors=True,
     )
 
     # Defaults to the local dev database started by scripts/dev_db.sh, never production.
@@ -60,7 +83,7 @@ class Settings(DatabaseSettings):
     """Application settings, read from environment variables (and `.env`)."""
 
     # Provisional admin authentication (see routers/admin.py).
-    admin_api_key: SecretStr
+    admin_api_key: SecretStr = Field(min_length=1)
 
     max_upload_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
     docs_enabled: bool = True
@@ -74,7 +97,7 @@ class Settings(DatabaseSettings):
     embedding_provider: Literal["voyage", "fake"] = "voyage"
     embedding_model: str = "voyage-4"
     embedding_dimensions: int = Field(default=1024, gt=0, le=HNSW_MAX_DIMENSIONS)
-    voyage_api_key: SecretStr | None = None
+    voyage_api_key: SecretStr | None = Field(default=None, min_length=1)
     voyage_base_url: str = "https://api.voyageai.com/v1"
     embedding_batch_size: int = Field(default=128, gt=0, le=VOYAGE_MAX_BATCH_SIZE)
     embedding_timeout_seconds: float = Field(default=30.0, gt=0)
