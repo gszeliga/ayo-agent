@@ -1,21 +1,67 @@
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from importlib.metadata import version
 
 from fastapi import FastAPI
 from psycopg_pool import ConnectionPool, PoolTimeout
 
-from ayo_copilot.config import Settings, database_host, default_env_file
+from ayo_copilot.config import DocsSettings, Settings, database_host, default_env_file
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
 from ayo_copilot.errors import install_error_handlers
 from ayo_copilot.ingestion.embedding import build_embedder
 from ayo_copilot.routers import admin
+from ayo_copilot.schemas import HealthResponse
 
 logger = logging.getLogger(__name__)
 
 # Generous, because a Neon compute that scaled to zero takes a few seconds to wake up.
 POOL_OPEN_TIMEOUT_SECONDS = 30.0
+
+API_DESCRIPTION = """\
+Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through
+structured problem solving. This API loads the plant knowledge (procedures, manuals) the
+copilot retrieves from.
+
+## Authentication
+
+The `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and
+paste the key, then use **Try it out**. The key is **provisional**: one shared key, to be
+replaced by real user identity and per-tenant permissions.
+
+## Errors
+
+Every error has the same body, the shape FastAPI uses for request validation errors:
+
+```json
+{"detail": [{"type": "file_empty", "loc": ["body", "file"], "msg": "file is empty"}]}
+```
+
+Branch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or
+is `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.
+
+| `type` | Status | `loc` |
+|---|---|---|
+| `invalid_api_key` | 401 | `["header", "x-api-key"]` |
+| `file_too_large` | 413 | `["body", "file"]` |
+| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `["body", "file"]` |
+| `source_key_invalid` | 422 | `["body", "source_key"]` (`["body", "file"]` if derived) |
+| FastAPI codes (`missing`, `string_pattern_mismatch`, `bool_parsing`, ...) | 422 | the field |
+| `embedding_failed` | 502 | `[]` |
+
+Requests the framework rejects use the same body: a malformed body is `400 bad_request`,
+an unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an
+unexpected failure `500 internal_error`.
+"""
+
+OPENAPI_TAGS = [
+    {
+        "name": "documents",
+        "description": "Upload the Markdown documents the copilot retrieves from.",
+    },
+    {"name": "health", "description": "Liveness of the service."},
+]
 
 
 class StartupError(RuntimeError):
@@ -80,14 +126,36 @@ def _check_embedding_dimensions(pool: ConnectionPool, expected: int) -> None:
         )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build the app. Settings are read from the environment at startup unless given."""
-    app = FastAPI(title="AYO Copilot API", lifespan=_make_lifespan(settings))
+def create_app(settings: Settings | None = None, *, docs_enabled: bool | None = None) -> FastAPI:
+    """Build the app. Settings are read from the environment at startup unless given.
+
+    Only `DOCS_ENABLED` is read now, because FastAPI needs the docs URLs up front; pass
+    `docs_enabled` to skip even that (tests, the OpenAPI export).
+    """
+    if docs_enabled is None:
+        docs_enabled = (settings or DocsSettings()).docs_enabled
+    app = FastAPI(
+        title="AYO Plant Copilot API",
+        version=version("ayo-copilot"),
+        description=API_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
+        lifespan=_make_lifespan(settings),
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
     install_error_handlers(app)
     app.include_router(admin.router)
 
-    @app.get("/health")
-    def health():
-        return {"status": "ok"}
+    @app.get(
+        "/health",
+        tags=["health"],
+        operation_id="health",
+        summary="Check that the service is up",
+        description="Answers as soon as the process serves requests. It does not check the"
+        " database or the embedding provider.",
+    )
+    def health() -> HealthResponse:
+        return HealthResponse(status="ok")
 
     return app

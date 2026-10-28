@@ -48,7 +48,10 @@ def error_response(
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     body = ErrorResponse(detail=[ErrorItem(type=type, loc=list(loc), msg=msg)])
-    return JSONResponse(body.model_dump(), status_code=status_code, headers=headers)
+    # exclude_unset: our items never carry `input` or `ctx`.
+    return JSONResponse(
+        body.model_dump(exclude_unset=True), status_code=status_code, headers=headers
+    )
 
 
 def _status_type(status_code: int) -> str:

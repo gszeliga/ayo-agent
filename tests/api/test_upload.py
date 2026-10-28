@@ -119,13 +119,7 @@ def test_same_upload_is_up_to_date_without_a_provider_call(
     response = upload(client)
 
     assert response.status_code == 200
-    assert response.json() == {
-        "doc_id": first["doc_id"],
-        "status": "up_to_date",
-        "chunk_count": None,
-        "embedding_model": None,
-        "embed_signature": None,
-    }
+    assert response.json() == {"doc_id": first["doc_id"], "status": "up_to_date"}
     assert len(embedder.calls) == 1
 
 
@@ -227,16 +221,28 @@ def test_invalid_files_are_rejected(
 ) -> None:
     response = upload(client, content, filename=filename)
 
-    assert_error(response, 422, type, ["body", "file"])
+    item = assert_error(response, 422, type, ["body", "file"])
+    assert "input" not in item
     assert SECRET_TEXT not in response.text
     assert len(embedder.calls) == 0
     assert document_count(db_pool) == 0
 
 
-def test_invalid_tenant_is_rejected(client: TestClient) -> None:
+def test_invalid_tenant_is_rejected_by_the_schema(
+    client: TestClient, embedder: FakeEmbedder
+) -> None:
+    # The pattern is in the OpenAPI schema, so FastAPI checks it before our code.
     response = upload(client, tenant="Acme Corp")
 
-    assert_error(response, 422, "tenant_invalid", ["body", "tenant"])
+    item = assert_error(response, 422, "string_pattern_mismatch", ["body", "tenant"])
+    assert item["input"] == "Acme Corp"
+    assert len(embedder.calls) == 0
+
+
+@pytest.mark.parametrize("tenant", ["acme\n", "a"])
+def test_schema_pattern_is_as_strict_as_the_service(client: TestClient, tenant: str) -> None:
+    # pydantic's regex engine differs from `re`: check a trailing newline and the length.
+    assert upload(client, tenant=tenant).status_code == 422
 
 
 def test_invalid_source_key_points_at_the_field(client: TestClient) -> None:

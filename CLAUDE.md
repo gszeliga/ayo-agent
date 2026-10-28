@@ -64,12 +64,13 @@ Migrations on Neon must use the direct endpoint (host without `-pooler`).
 ```
 src/ayo_copilot/
   __init__.py          main(): logging.basicConfig + uvicorn (factory=True)
-  app.py               create_app(settings=None), lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
+  app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
+                       lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, ErrorItem, ErrorResponse
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
   routers/admin.py     POST /admin/documents (provisional X-API-Key auth, size limits)
-  config.py            DatabaseSettings (DB only, used by Alembic) < Settings (pydantic-settings)
+  config.py            DatabaseSettings (Alembic), DocsSettings (app build) < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, similar_chunks, ...
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
@@ -97,6 +98,10 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
   empty values count as unset.
 - Errors: raise `ApiError(status, type, msg, loc)` in routers; never `HTTPException` with a
   string detail. Service validation raises `InvalidInputError(msg, field=..., code=...)`.
+- OpenAPI is part of the product: every endpoint has summary, description, tags,
+  `operation_id` and every status in `responses` with examples; every schema field has a
+  description (`tests/api/test_openapi.py` enforces it). Tests build the app with
+  `create_app(docs_enabled=True)` so they never read `.env`.
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)
   use the `db_pool` fixture (tables truncated before each test) or `scratch_database_url`
   (a throwaway database) for migration-level tests.

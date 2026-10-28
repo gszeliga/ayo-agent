@@ -35,18 +35,31 @@ def database_host(url: str) -> str | None:
     return urlsplit(url).hostname
 
 
+# Validation errors would otherwise echo the raw input, URLs with passwords included.
+# Empty values (`VOYAGE_API_KEY=`) count as unset, so a required one fails at startup.
+SETTINGS_CONFIG = SettingsConfigDict(
+    env_file=default_env_file(),
+    env_file_encoding="utf-8",
+    env_ignore_empty=True,
+    extra="ignore",
+    hide_input_in_errors=True,
+)
+
+
+class DocsSettings(BaseSettings):
+    """Read when the app is built, before the rest: FastAPI needs the docs URLs up front."""
+
+    model_config = SETTINGS_CONFIG
+
+    # Serve /docs, /redoc and /openapi.json. They are public when on: restricting who can
+    # reach them is left to the infrastructure (proxy or private network).
+    docs_enabled: bool = True
+
+
 class DatabaseSettings(BaseSettings):
     """The database settings alone, for tools such as Alembic that need nothing else."""
 
-    # Validation errors would otherwise echo the raw input, URLs with passwords included.
-    # Empty values (`VOYAGE_API_KEY=`) count as unset, so a required one fails at startup.
-    model_config = SettingsConfigDict(
-        env_file=default_env_file(),
-        env_file_encoding="utf-8",
-        env_ignore_empty=True,
-        extra="ignore",
-        hide_input_in_errors=True,
-    )
+    model_config = SETTINGS_CONFIG
 
     # Defaults to the local dev database started by scripts/dev_db.sh, never production.
     database_url: SecretStr = SecretStr("postgresql://ayo:ayo@localhost:5433/ayo")
@@ -79,14 +92,13 @@ class DatabaseSettings(BaseSettings):
         return url.get_secret_value()
 
 
-class Settings(DatabaseSettings):
+class Settings(DatabaseSettings, DocsSettings):
     """Application settings, read from environment variables (and `.env`)."""
 
     # Provisional admin authentication (see routers/admin.py).
     admin_api_key: SecretStr = Field(min_length=1)
 
     max_upload_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
-    docs_enabled: bool = True
 
     # Chunk sizes are measured in characters, not tokens.
     chunk_size: int = Field(default=800, gt=0)
