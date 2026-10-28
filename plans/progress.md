@@ -189,7 +189,7 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
  as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
-- **2026-10-28: the ingestion slice is complete (steps 0-7), committed, not pushed.** Next work is new scope: agree it with the user first.
+- **2026-10-28: the ingestion slice is complete (steps 0-7), committed, not pushed.** Next milestone (agreed 2026-10-28): documents CRUD, tracked in `plans/crud-progress.md`.
 - Follow-up (proposed, not approved): an autouse fixture that clears the settings variables from the process environment, so exported shell variables can't make unit tests fail.
 - `.env` now has `ADMIN_API_KEY` (added by the user, 2026-10-28). 6d documents the single error shape (`ErrorResponse`) per status.
 - 2026-10-27: resumed at 5b. New working rule: before starting each step, write a short brief (what it delivers, files, design choices and deviations, tests).

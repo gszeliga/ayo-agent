@@ -9,9 +9,12 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- Spec: `plans/claude-code-prompt-markdown-ingestion.md` (intentionally **untracked**; never commit it).
-- Plan, agreed deviations from the spec, and the progress log: `plans/progress.md`.
-  **Read it first**; resume from the first unchecked item, and check "Open items".
+- **Active milestone: documents CRUD.** Spec `plans/claude-code-prompt-documents-crud.md`;
+  plan, agreed deviations and progress log in `plans/crud-progress.md`. **Read it first**;
+  resume from the first unchecked item, and check "Open items".
+- Done: the ingestion slice. Spec `plans/claude-code-prompt-markdown-ingestion.md`; its
+  decisions and log in `plans/progress.md` (still the reference for earlier decisions).
+- Both spec files are intentionally **untracked**; never commit them.
 - Decision records: `docs/decisions/`.
 
 ## How we work (user's rules)
