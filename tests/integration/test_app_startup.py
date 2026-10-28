@@ -83,3 +83,39 @@ def test_startup_applies_the_db_log_level(migrated_database_url: str) -> None:
             assert psycopg_logger.level == logging.INFO
     finally:
         psycopg_logger.setLevel(previous)
+
+
+def test_startup_warns_about_the_fake_embedder(
+    migrated_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="ayo_copilot")
+
+    start(create_app(make_settings(migrated_database_url)))
+
+    [record] = [r for r in caplog.records if r.getMessage().startswith("embedder:")]
+    assert record.levelno == logging.WARNING
+    assert record.getMessage().startswith("embedder: fake")
+    assert "dimensions=1024" in record.getMessage()
+
+
+def test_startup_logs_the_voyage_embedder_without_the_key(
+    migrated_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    settings = make_settings(
+        migrated_database_url,
+        embedding_provider="voyage",
+        voyage_api_key="pa-test-secret-key",
+        embedding_batch_size=64,
+    )
+
+    # Building the client makes no request, so this never reaches Voyage.
+    start(create_app(settings))
+
+    [record] = [r for r in caplog.records if r.getMessage().startswith("embedder:")]
+    assert record.levelno == logging.INFO
+    assert record.getMessage() == (
+        "embedder: voyage model=voyage-4 dimensions=1024 batch_size=64"
+        " base_url=https://api.voyageai.com/v1"
+    )
+    assert "pa-test-secret-key" not in caplog.text

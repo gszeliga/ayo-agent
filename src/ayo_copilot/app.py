@@ -10,7 +10,12 @@ from ayo_copilot.config import DocsSettings, Settings, database_host, default_en
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
 from ayo_copilot.errors import install_error_handlers
-from ayo_copilot.ingestion.embedding import build_embedder
+from ayo_copilot.ingestion.embedding import (
+    Embedder,
+    FakeEmbedder,
+    VoyageEmbedder,
+    build_embedder,
+)
 from ayo_copilot.routers import admin
 from ayo_copilot.schemas import HealthResponse
 
@@ -98,6 +103,7 @@ def _make_lifespan(
             _check_embedding_dimensions(pool, resolved.embedding_dimensions)
             logger.info("database ready at %r, vector(%d)", host, resolved.embedding_dimensions)
             embedder = build_embedder(resolved)
+            _log_embedder(embedder, resolved)
             try:
                 # Endpoints read these through `request.state` (see dependencies.py).
                 yield {"settings": resolved, "pool": pool, "embedder": embedder}
@@ -110,6 +116,26 @@ def _make_lifespan(
             pool.close()
 
     return lifespan
+
+
+def _log_embedder(embedder: Embedder, settings: Settings) -> None:
+    """Say which embedder was built (never the key). Fake vectors are useless for retrieval."""
+    if isinstance(embedder, FakeEmbedder):
+        logger.warning(
+            "embedder: fake (deterministic vectors, no network) dimensions=%d:"
+            " not for real retrieval",
+            embedder.dimensions,
+        )
+    elif isinstance(embedder, VoyageEmbedder):
+        logger.info(
+            "embedder: voyage model=%s dimensions=%d batch_size=%d base_url=%s",
+            embedder.model,
+            embedder.dimensions,
+            embedder.batch_size,
+            settings.voyage_base_url,
+        )
+    else:
+        logger.info("embedder: %s", type(embedder).__name__)
 
 
 def _check_embedding_dimensions(pool: ConnectionPool, expected: int) -> None:
