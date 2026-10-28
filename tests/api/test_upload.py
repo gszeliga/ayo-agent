@@ -9,6 +9,7 @@ from psycopg_pool import ConnectionPool
 
 from ayo_copilot.app import create_app
 from ayo_copilot.config import Settings
+from ayo_copilot.db.repository import similar_chunks
 from ayo_copilot.dependencies import get_embedder
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
 from ayo_copilot.ingestion.signatures import make_doc_id
@@ -142,6 +143,26 @@ def test_given_source_key_and_title_are_used(client: TestClient) -> None:
 
     assert response.status_code == 201
     assert response.json()["doc_id"] == make_doc_id("acme", "sellado.md")
+
+
+def test_an_uploaded_section_can_be_found_by_similarity(
+    client: TestClient, db_pool: ConnectionPool, embedder: FakeEmbedder
+) -> None:
+    # End to end through HTTP: upload the multi-section fixture, then query its vectors.
+    doc_id = upload(client).json()["doc_id"]
+    [sent] = embedder.calls
+    target = next(text for text in sent if "Presión" in text)
+    [query] = FakeEmbedder(dimensions=1024).embed_documents([target])
+
+    with db_pool.connection() as conn:
+        best, *_ = similar_chunks(conn, tenant="acme", embedding=query, limit=3)
+        other_tenant = similar_chunks(conn, tenant="other", embedding=query, limit=3)
+
+    assert best.doc_id == doc_id
+    assert best.heading == "PRO-014 Control de sellado > 3. Pasos > 3.2 Medición"
+    assert "Presión" in best.chunk_text
+    assert best.distance == pytest.approx(0, abs=1e-6)
+    assert other_tenant == []
 
 
 # --- authentication ---

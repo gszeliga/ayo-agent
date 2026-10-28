@@ -18,6 +18,12 @@ Spec: `plans/claude-code-prompt-markdown-ingestion.md`. This file holds the agre
 - **Docs are public when enabled (2026-10-28):** `DOCS_ENABLED` only turns `/docs`, `/redoc` and `/openapi.json` on or off (`DocsSettings`, read when the app is built). Restricting who can see them is left to the infrastructure (proxy auth or a private network), not done in the app. Considered and declined: Basic auth on the docs routes, a key in the URL.
 - **Tenant pattern in the OpenAPI schema (2026-10-28):** `Form(pattern=TENANT_PATTERN)`, as the spec asks, so FastAPI rejects a bad tenant first: the 422 `type` is `string_pattern_mismatch` (with `input`/`ctx`), not `tenant_invalid`. The service keeps its own check for non-HTTP callers.
 - **200 body as in the spec (2026-10-28):** `response_model_exclude_none=True`, so `up_to_date` is `{"doc_id", "status"}` without null fields.
+- **Smaller deviations, recorded in the step entries below (collected 2026-10-28 for the final report):**
+  - HTTP client `httpx2` (pydantic's fork), not `httpx`: Starlette 1.9's TestClient needs it, and httpx had no release since 2024-12 (step 4).
+  - The chunker signature includes the minimum size and the merge policy (`.../min=../merge=...`), because both change the chunks (steps 2-3, now `@v3`).
+  - Schema: no separate `documents (tenant)` index (the unique index starts with `tenant`); HNSW index named `chunks_embedding_hnsw_idx`; `vector(1024)` fixed in the migration; downgrade keeps the `vector` extension (step 5).
+  - Test DB fixtures truncate in `db_pool`, not autouse (ADR 0001 note).
+  - Upload size limit: `Content-Length` checked before parsing and the read capped, but Starlette still receives the whole multipart body (spooled to disk past 1 MB). The spec's "streaming" read is only partly met; a hard cap belongs in the proxy (6c).
 
 ## Repo findings to report
 - **Security:** `ayodb.connect`, which holds the Neon (now production) connection string with its password, was committed in `2799800` and **pushed to origin/main**. Deleting it in `d48b9bd` doesn't remove it from history. Rotate the Neon password. Rewriting history is your call; I won't do it.
@@ -172,13 +178,20 @@ Working rule: baby steps. One small step, update this log, then STOP and wait fo
   - Contract test (`tests/api/test_contract.py`, integration): 201, 200, 401, 413, 422 x4 (FastAPI missing field and pattern, ours encoding and extension), 502 triggered for real; each body validated with `OAS31Validator` against its documented schema made strict (`additionalProperties: false` on our component schemas). FastAPI's 422 items pass strict, so they carry nothing undocumented. Guards: triggered statuses == documented statuses; the strict schema rejects an extra field; the fixture uses FakeEmbedder.
   - New dev dependency `openapi-schema-validator` (was transitive).
   - 302 passed, 1 deselected; ruff clean.
-  - **Pending, user:** manual Swagger check (Authorize, Try it out: 201 then 200).
-- [ ] 7. **Next.** README (local DB, running, tests, `curl` example), manual run (FakeEmbedder, then real Voyage), final report (list every deviation from the spec).
+  - Manual Swagger check done by the user on 2026-10-28 against the **Neon dev branch and real Voyage**: Authorize + Try it out, all good.
+- [x] 7. README, last checks, final report (brief approved 2026-10-28):
+  - README: what it does, quick start (uv, `.env`, `dev_db.sh`, migrations, run, Swagger), Neon dev branch, `curl` upload with 201/200 bodies and the error format, tests (all / no Docker / live, `TEST_DATABASE_URL`), API contract export, configuration (`.env` at the root, `AYO_ENV_FILE`, empty values, public docs), layout.
+  - End-to-end test through HTTP (`tests/api/test_upload.py`): upload the fixture, query with the vector of the text the API sent for the "3.2 Medición" section -> that chunk first (distance 0, heading path, doc_id), other tenant empty. 303 passed, 1 deselected; ruff clean.
+  - README followed as written on the local DB with the fake embedder: `uv sync`, `dev_db.sh up`, `alembic upgrade head`, `ayo-copilot`, `curl` -> 201, 200, 201 with force; `/docs` 200; `export_openapi.py --check` up to date.
+  - Incident during that run: a server was already on port 8000 (most likely the user's from the Swagger check); the first `curl`s reached it (401) and my stop-by-port command killed it. Told the user.
+  - Found: `tests/unit/test_config.py::test_defaults` and `tests/unit/test_embedding.py::test_build_voyage_embedder_uses_settings` fail when settings variables (e.g. `EMBEDDING_PROVIDER=fake`) are exported in the shell: `_env_file=None` doesn't isolate from the process environment. Pre-existing; follow-up below.
+  - Final report given in the chat.
  as listed in "Order of work", each broken into small commits and logged here.
 
 ### Open items
-- **2026-10-28: 6c to 6d.2 done and committed (not pushed).** Resume at 7: write its brief first. The manual Swagger check (6d.2) is still pending with the user.
-- `.env` has no `ADMIN_API_KEY` (found 2026-10-28): the user needs to add one before running the API against it. 6d documents the single error shape (`ErrorResponse`) per status.
+- **2026-10-28: the ingestion slice is complete (steps 0-7), committed, not pushed.** Next work is new scope: agree it with the user first.
+- Follow-up (proposed, not approved): an autouse fixture that clears the settings variables from the process environment, so exported shell variables can't make unit tests fail.
+- `.env` now has `ADMIN_API_KEY` (added by the user, 2026-10-28). 6d documents the single error shape (`ErrorResponse`) per status.
 - 2026-10-27: resumed at 5b. New working rule: before starting each step, write a short brief (what it delivers, files, design choices and deviations, tests).
 - **Awaiting user confirmation (asked after step 3):** chunk-policy interpretations: (1) "same section" = one path equal to, or a subsection of, the other, and the merged piece keeps the receiver's path; (2) heading-only sections never become pieces (the heading lives on in the path), and a heading with no content anywhere below it is dropped by rule 1; (3) the 1.5x cap applies only to backward merges; (4) same-section overlapping pieces are joined at their offsets, without repeating the overlap; (5) page-number patterns: `12`, `Página 3`, `pág. 3 de 10`, `3 / 10`, `- 4 -`, `(4)`.
 - Workflow reminders: push only when the user asks (they asked on 2026-10-22 after 5a; a normal push, never a force-push); the spec file `plans/claude-code-prompt-markdown-ingestion.md` is intentionally left untracked; the log-update edits go into the next step's commit.
