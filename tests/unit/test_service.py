@@ -24,14 +24,16 @@ def test_decode_normalizes_bom_and_line_endings() -> None:
 
 @pytest.mark.parametrize("raw", [b"", b"   \n\t\r\n", "﻿".encode()])
 def test_decode_rejects_blank_files(raw: bytes) -> None:
-    with pytest.raises(InvalidInputError, match="empty"):
+    with pytest.raises(InvalidInputError, match="empty") as exc:
         decode_markdown(raw)
+    assert (exc.value.field, exc.value.code) == ("file", "file_empty")
 
 
 @pytest.mark.parametrize("raw", [b"\xff\xfe# T\x00", "Señal".encode("latin-1")])
 def test_decode_rejects_invalid_utf8(raw: bytes) -> None:
-    with pytest.raises(InvalidInputError, match="UTF-8"):
+    with pytest.raises(InvalidInputError, match="UTF-8") as exc:
         decode_markdown(raw)
+    assert (exc.value.field, exc.value.code) == ("file", "file_encoding")
 
 
 @pytest.mark.parametrize(
@@ -59,8 +61,9 @@ def test_title_prefers_given_then_h1_then_file_name() -> None:
     ["# Solo un título\n", "# Título\n\n---\n\n## Otro\n\nPágina 3\n", "---\n\n- 4 -\n"],
 )
 def test_documents_without_indexable_content_are_rejected(markdown: str) -> None:
-    with pytest.raises(InvalidInputError, match="no indexable content"):
+    with pytest.raises(InvalidInputError, match="no indexable content") as exc:
         chunk_document(markdown, SETTINGS)
+    assert (exc.value.field, exc.value.code) == ("file", "file_no_content")
 
 
 def test_embedding_text_prefixes_the_heading_path() -> None:

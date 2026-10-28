@@ -31,8 +31,9 @@ def test_valid_tenants(tenant: str) -> None:
     ],
 )
 def test_invalid_tenants(tenant: str) -> None:
-    with pytest.raises(InvalidInputError, match="tenant"):
+    with pytest.raises(InvalidInputError, match="tenant") as exc:
         validate_tenant(tenant)
+    assert (exc.value.field, exc.value.code) == ("tenant", "tenant_invalid")
 
 
 @pytest.mark.parametrize(
@@ -62,10 +63,12 @@ def test_source_key_is_nfc_normalized() -> None:
     ["", "   ", ".", "..", "../", "a/..", "/", "\\", "bad\x00name.md", "bad\nname.md", "x\x1b.md"],
 )
 def test_invalid_source_keys(raw: str) -> None:
-    with pytest.raises(InvalidInputError, match="source_key"):
+    with pytest.raises(InvalidInputError, match="source_key") as exc:
         normalize_source_key(raw)
+    assert (exc.value.field, exc.value.code) == ("source_key", "source_key_invalid")
 
 
 def test_source_key_length_is_limited() -> None:
-    with pytest.raises(InvalidInputError, match="source_key"):
+    with pytest.raises(InvalidInputError, match="source_key") as exc:
         normalize_source_key("a" * 253 + ".md")
+    assert (exc.value.field, exc.value.code) == ("source_key", "source_key_invalid")

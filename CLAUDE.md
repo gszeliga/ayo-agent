@@ -64,7 +64,11 @@ Migrations on Neon must use the direct endpoint (host without `-pooler`).
 ```
 src/ayo_copilot/
   __init__.py          main(): logging.basicConfig + uvicorn (factory=True)
-  app.py               create_app(settings=None), lifespan: pool, DB_LOG_LEVEL, dimension check
+  app.py               create_app(settings=None), lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
+  errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
+  schemas.py           IngestResponse, ErrorItem, ErrorResponse
+  dependencies.py      get_settings / get_pool / get_embedder (from request.state)
+  routers/admin.py     POST /admin/documents (provisional X-API-Key auth, size limits)
   config.py            DatabaseSettings (DB only, used by Alembic) < Settings (pydantic-settings)
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, similar_chunks, ...
@@ -89,5 +93,8 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 - Changing chunking behaviour or the embedded text format: bump `CHUNKER_VERSION`.
   Changing the vector size needs a new migration (startup checks it).
 - Settings tests pass `_env_file=None` so they never read the real `.env`.
-- Integration tests use the `db_pool` fixture (tables truncated before each test) or
-  `scratch_database_url` (a throwaway database) for migration-level tests.
+- Errors: raise `ApiError(status, type, msg, loc)` in routers; never `HTTPException` with a
+  string detail. Service validation raises `InvalidInputError(msg, field=..., code=...)`.
+- Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)
+  use the `db_pool` fixture (tables truncated before each test) or `scratch_database_url`
+  (a throwaway database) for migration-level tests.

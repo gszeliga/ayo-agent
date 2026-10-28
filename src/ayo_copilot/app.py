@@ -8,6 +8,9 @@ from psycopg_pool import ConnectionPool, PoolTimeout
 from ayo_copilot.config import Settings, database_host
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
+from ayo_copilot.errors import install_error_handlers
+from ayo_copilot.ingestion.embedding import build_embedder
+from ayo_copilot.routers import admin
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +45,15 @@ def _make_lifespan(
         try:
             _check_embedding_dimensions(pool, resolved.embedding_dimensions)
             logger.info("database ready at %r, vector(%d)", host, resolved.embedding_dimensions)
-            # Endpoints read these through `request.state`.
-            yield {"settings": resolved, "pool": pool}
+            embedder = build_embedder(resolved)
+            try:
+                # Endpoints read these through `request.state` (see dependencies.py).
+                yield {"settings": resolved, "pool": pool, "embedder": embedder}
+            finally:
+                # FakeEmbedder holds no resources and has no close().
+                close = getattr(embedder, "close", None)
+                if close is not None:
+                    close()
         finally:
             pool.close()
 
@@ -67,6 +77,8 @@ def _check_embedding_dimensions(pool: ConnectionPool, expected: int) -> None:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the app. Settings are read from the environment at startup unless given."""
     app = FastAPI(title="AYO Copilot API", lifespan=_make_lifespan(settings))
+    install_error_handlers(app)
+    app.include_router(admin.router)
 
     @app.get("/health")
     def health():

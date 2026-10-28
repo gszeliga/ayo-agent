@@ -54,10 +54,12 @@ def decode_markdown(content: bytes) -> str:
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError:
-        raise InvalidInputError("file is not valid UTF-8") from None
+        raise InvalidInputError(
+            "file is not valid UTF-8", field="file", code="file_encoding"
+        ) from None
     markdown = normalize_markdown(text)
     if not markdown.strip():
-        raise InvalidInputError("file is empty")
+        raise InvalidInputError("file is empty", field="file", code="file_empty")
     return markdown
 
 
@@ -93,7 +95,9 @@ def chunk_document(markdown: str, settings: Settings) -> list[Chunk]:
         min_size=settings.min_chunk_size,
     )
     if not chunks:
-        raise InvalidInputError("file has no indexable content")
+        raise InvalidInputError(
+            "file has no indexable content", field="file", code="file_no_content"
+        )
     return chunks
 
 
