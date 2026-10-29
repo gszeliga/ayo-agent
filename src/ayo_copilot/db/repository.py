@@ -5,12 +5,19 @@ the document upsert and the chunk replacement can share one.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+from datetime import datetime
 from uuid import UUID
 
 from pgvector import Vector
-from psycopg import Connection
+from psycopg import Connection, sql
+from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
+
+# Sort keys the documents list accepts, prefixed with `-` for descending. Each one is a
+# column name; only these ever reach the SQL text.
+SORT_KEYS = ("updated_at", "created_at", "title", "chunk_count")
+DEFAULT_SORT = "-updated_at"
 
 
 @dataclass(frozen=True)
@@ -38,6 +45,32 @@ class ChunkRecord:
     text: str
     embedding: Sequence[float]
     metadata: Mapping[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DocumentRow:
+    """A stored document without its Markdown, as the admin API reads it."""
+
+    id: UUID
+    doc_id: str
+    tenant: str
+    source_type: str
+    source_key: str
+    title: str | None
+    content_hash: str
+    chunk_signature: str
+    embed_signature: str
+    chunk_count: int
+    size_bytes: int | None
+    chunker_config: str | None
+    embedder_config: str | None
+    created_at: datetime
+    updated_at: datetime
+    chunked_at: datetime | None
+    embedded_at: datetime | None
+
+
+_DOCUMENT_COLUMNS = sql.SQL(", ").join(sql.Identifier(f.name) for f in fields(DocumentRow))
 
 
 @dataclass(frozen=True)
@@ -135,6 +168,77 @@ def replace_chunks(conn: Connection, document_id: UUID, chunks: Sequence[ChunkRe
                 for chunk in chunks
             ],
         )
+
+
+def parse_sort(sort: str) -> tuple[str, bool]:
+    """`"-title"` -> `("title", True)`: the column and whether it is descending.
+
+    Raises ValueError for anything outside SORT_KEYS.
+    """
+    descending = sort.startswith("-")
+    key = sort[1:] if descending else sort
+    if key not in SORT_KEYS:
+        raise ValueError(f"unknown sort key {sort!r}")
+    return key, descending
+
+
+def escape_like(text: str) -> str:
+    """Escape `\\`, `%` and `_` so a LIKE pattern matches them literally."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def list_documents(
+    conn: Connection,
+    *,
+    tenant: str | None = None,
+    q: str | None = None,
+    sort: str = DEFAULT_SORT,
+    limit: int,
+    offset: int,
+) -> tuple[list[DocumentRow], int]:
+    """One page of documents and the total number matching the filters.
+
+    `q` is a case-insensitive substring of the title or the source key. Ordering always
+    ends with `id`, so rows never repeat or vanish across pages. The page and the count are
+    two statements: run them in a repeatable-read transaction for a consistent pair.
+    """
+    column, descending = parse_sort(sort)
+    conditions: list[sql.Composable] = []
+    params: dict[str, object] = {"limit": limit, "offset": offset}
+    if tenant is not None:
+        conditions.append(sql.SQL("tenant = %(tenant)s"))
+        params["tenant"] = tenant
+    if q:
+        conditions.append(
+            sql.SQL(
+                "(title ilike %(pattern)s escape '\\' or source_key ilike %(pattern)s escape '\\')"
+            )
+        )
+        params["pattern"] = f"%{escape_like(q)}%"
+    where = sql.SQL(" where ") + sql.SQL(" and ").join(conditions) if conditions else sql.SQL("")
+    order = sql.SQL("{} {}, id").format(
+        sql.Identifier(column), sql.SQL("desc" if descending else "asc")
+    )
+
+    with conn.cursor(row_factory=class_row(DocumentRow)) as cur:
+        rows = cur.execute(
+            sql.SQL(
+                "select {} from documents{} order by {} limit %(limit)s offset %(offset)s"
+            ).format(_DOCUMENT_COLUMNS, where, order),
+            params,
+        ).fetchall()
+    (total,) = conn.execute(
+        sql.SQL("select count(*) from documents{}").format(where), params
+    ).fetchone()
+    return rows, total
+
+
+def get_document(conn: Connection, doc_id: str) -> DocumentRow | None:
+    with conn.cursor(row_factory=class_row(DocumentRow)) as cur:
+        return cur.execute(
+            sql.SQL("select {} from documents where doc_id = %s").format(_DOCUMENT_COLUMNS),
+            (doc_id,),
+        ).fetchone()
 
 
 def similar_chunks(

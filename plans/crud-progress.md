@@ -18,15 +18,12 @@ is `plans/progress.md`.
    `title` if it wants to keep a rename. No `replace_document` operation.
 3. **Tracking** in this file.
 4. **Smaller choices, confirmed in each step's brief:**
-   - Status derivation lives in **one SQL `CASE` expression** (it serves both the response
-     field and the `status` filter), with the current descriptors as bound parameters.
-     Precedence: either config null -> `unknown`, then `chunker_changed`, then
-     `embedder_changed`. Tested through integration tests, not as a pure unit (the spec
-     asks for unit tests).
+   - Status derivation: superseded by Decision 7.
    - `size_bytes` = UTF-8 length of the stored normalized Markdown. The migration
      backfills it with `octet_length(markdown)` (the spec leaves it null).
-   - `total` comes from a separate `count(*)` in the same transaction (a window count
-     returns nothing for an offset past the end).
+   - `total` comes from a separate `count(*)` (a window count returns nothing for an
+     offset past the end). Under read committed two statements can see different data,
+     so C4 runs page and count in one `repeatable read, read only` transaction.
    - New error types: `document_not_found` (404, `["path","doc_id"]`) and
      `document_changed` (409, reprocess optimistic check), added to the error table of
      the API description.
@@ -44,6 +41,13 @@ is `plans/progress.md`.
    is (its chunks must not be overwritten with the old content's), and a delete meanwhile
    matches no row. Two named store functions instead of one with a mode parameter.
 
+7. **Status in Python, no `status` filter** (agreed 2026-10-29). The repository returns
+   the stored configs; `service.document_status(chunker_config, embedder_config,
+   settings)` derives `status`/`outdated_reason` (either null -> `unknown`, then
+   `chunker_changed`, then `embedder_changed`), unit-tested. A filter applied after SQL
+   pagination would give short pages and a wrong `total`, so the list has no `status`
+   filter for now; if needed later, add it as a plain equality filter on the two configs.
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
@@ -57,17 +61,20 @@ is `plans/progress.md`.
   upsert (same as the backfill). Shared stages for reprocess (C7): `compute_signatures`
   and `index_markdown` (chunk + embed, no DB); `store_document` (renamed from
   `replace_document_chunks`) stays upload-only; C7 adds its own store function.
-- **C3** Read-side repository: `list_documents` (tenant, escaped `ILIKE` on
-  title/source_key, status, whitelisted sort mapped to columns, `id` tiebreaker,
-  limit/offset, total), `get_document`, `list_chunks` (embedding optional),
-  `tenant_summaries`. Pure helpers `parse_sort`, `escape_like` with unit tests;
-  integration tests for filters, sort ties, pagination edges and status.
+- **C3** Read-side repository: `DocumentRow`, `list_documents` (tenant, escaped `ILIKE`
+  on title/source_key, whitelisted sort mapped to columns, `id` tiebreaker,
+  limit/offset, total), `get_document`. Pure helpers `parse_sort`, `escape_like`;
+  `service.current_configs` and `document_status` (Decision 7). `list_chunks` moved to
+  C5 and `tenant_summaries` to C9, each with its endpoint.
 - **C4** `GET /admin/documents` and `GET /admin/documents/{doc_id}`: `DocumentSummary`
   (8-character hash), `DocumentDetail`, generic `Page[T]` with clean OpenAPI names
-  (`DocumentPage`); query bounds validated by FastAPI (422). **Parametrized 401 test
+  (`DocumentPage`); query bounds validated by FastAPI (422); unknown `sort` -> 422;
+  `status`/`outdated_reason` from `document_status`; page + count in one
+  repeatable-read transaction. **Parametrized 401 test
   over every `/admin` route.** OpenAPI, contract tests (200/401/404/422), export.
 - **C5** `GET .../{doc_id}/content` (`text/markdown; charset=utf-8`, from the DB) and
-  `GET .../{doc_id}/chunks` (`ChunkPage`; `include_embedding` documented as heavy).
+  `GET .../{doc_id}/chunks` (`ChunkPage`; `include_embedding` documented as heavy);
+  repository `list_chunks` (embedding optional).
 - **C6** `PATCH /admin/documents/{doc_id}` (`{"title"}`, trimmed, 1-200 characters,
   `extra="forbid"`): only `title` and `updated_at` change; tests check the embedder is
   never called and the signatures stay the same.
@@ -82,7 +89,8 @@ is `plans/progress.md`.
 - **C8** `DELETE /admin/documents/{doc_id}` (204/404), one statement (`delete ...
   returning tenant, chunk_count`), one log line (Decision 5). Tests: cascade, 404,
   re-upload afterwards creates a new row.
-- **C9** `GET /admin/tenants`: counts from `documents.chunk_count`.
+- **C9** `GET /admin/tenants`: repository `tenant_summaries` (group by tenant, sum of
+  `documents.chunk_count`, ordered by tenant).
 - **C10** CORS: `CORS_ALLOWED_ORIGINS` (comma-separated, empty = off), `CORSMiddleware`
   in `create_app`; methods `GET, POST, PATCH, DELETE`; headers `X-API-Key`,
   `Content-Type`; no credentials. `.env.example`, README, tests (allowed preflight,
@@ -125,7 +133,14 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   columns on insert and update, service stores counts/bytes/configs and updates them on
   re-index and on a config change. `compute_signatures` reproduces the embed signatures
   stored on the local dev DB, so the refactor re-indexes nothing.
-- [ ] C3. Read-side repository.
+- [x] C3. Read-side repository (2026-10-29). Status moved to Python and the `status`
+  filter dropped (Decision 7); `list_chunks` -> C5, `tenant_summaries` -> C9. ORDER BY
+  built with `psycopg.sql` (`Identifier` from the whitelist), no `nulls` clause so the
+  default sort can use `documents_tenant_updated_at_id_idx`. Tests: unit (`parse_sort`,
+  `escape_like`, `document_status` incl. precedence, `current_configs` vs
+  `compute_signatures`), integration `test_document_queries.py` (default order, tenant,
+  `q` case-insensitive on both columns, literal `%`/`_`/`\`, combined filters + total,
+  every sort key both ways, tie paging with `limit=1`, offset past the end, get).
 - [ ] C4. List and detail endpoints; 401 over every `/admin` route.
 - [ ] C5. Content and chunks endpoints.
 - [ ] C6. PATCH rename.

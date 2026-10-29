@@ -7,7 +7,9 @@ from ayo_copilot.ingestion.embedding import FakeEmbedder
 from ayo_copilot.ingestion.service import (
     chunk_document,
     compute_signatures,
+    current_configs,
     decode_markdown,
+    document_status,
     embed_chunks,
     embedding_text,
     first_h1,
@@ -119,3 +121,37 @@ def test_compute_signatures_changes_with_the_settings() -> None:
     assert before.chunk_signature == after.chunk_signature
     assert before.embedder_config != after.embedder_config
     assert before.embed_signature != after.embed_signature
+
+
+CURRENT_CHUNKER, CURRENT_EMBEDDER = current_configs(SETTINGS)
+
+
+@pytest.mark.parametrize(
+    ("chunker", "embedder", "expected"),
+    [
+        (CURRENT_CHUNKER, CURRENT_EMBEDDER, ("indexed", None)),
+        ("old-chunker", CURRENT_EMBEDDER, ("outdated", "chunker_changed")),
+        (CURRENT_CHUNKER, "old-embedder", ("outdated", "embedder_changed")),
+        ("old-chunker", "old-embedder", ("outdated", "chunker_changed")),
+        (None, CURRENT_EMBEDDER, ("outdated", "unknown")),
+        (CURRENT_CHUNKER, None, ("outdated", "unknown")),
+        (None, None, ("outdated", "unknown")),
+    ],
+)
+def test_document_status(chunker: str | None, embedder: str | None, expected: tuple) -> None:
+    assert document_status(chunker, embedder, SETTINGS) == expected
+
+
+def test_a_settings_change_makes_stored_configs_outdated() -> None:
+    changed = Settings(_env_file=None, admin_api_key="k", embedding_provider="fake", chunk_size=300)
+
+    assert document_status(CURRENT_CHUNKER, CURRENT_EMBEDDER, changed) == (
+        "outdated",
+        "chunker_changed",
+    )
+
+
+def test_current_configs_are_what_compute_signatures_stores() -> None:
+    sigs = compute_signatures("# Título\n\nTexto.\n", SETTINGS)
+
+    assert current_configs(SETTINGS) == (sigs.chunker_config, sigs.embedder_config)

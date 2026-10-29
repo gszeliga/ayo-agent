@@ -39,6 +39,10 @@ _H1 = re.compile(r"#[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*")
 _FENCE = re.compile(r"(`{3,}|~{3,})")
 
 
+DocumentStatus = Literal["indexed", "outdated"]
+OutdatedReason = Literal["chunker_changed", "embedder_changed", "unknown"]
+
+
 @dataclass(frozen=True)
 class ProcessingSignatures:
     """What identifies an indexed version: the content and the settings it was processed with.
@@ -102,8 +106,8 @@ def resolve_title(title: str | None, markdown: str, source_key: str) -> str:
     return first_h1(markdown) or source_key
 
 
-def compute_signatures(markdown: str, settings: Settings) -> ProcessingSignatures:
-    content_hash = signatures.content_hash(markdown)
+def current_configs(settings: Settings) -> tuple[str, str]:
+    """The chunker and embedder descriptors the current settings index with."""
     chunker_config = signatures.chunker_descriptor(
         size=settings.chunk_size,
         overlap=settings.chunk_overlap,
@@ -112,6 +116,12 @@ def compute_signatures(markdown: str, settings: Settings) -> ProcessingSignature
     embedder_config = signatures.embedder_descriptor(
         model=settings.embedding_model, dimensions=settings.embedding_dimensions
     )
+    return chunker_config, embedder_config
+
+
+def compute_signatures(markdown: str, settings: Settings) -> ProcessingSignatures:
+    content_hash = signatures.content_hash(markdown)
+    chunker_config, embedder_config = current_configs(settings)
     chunk_signature = signatures.chunk_signature(content_hash, chunker_config)
     return ProcessingSignatures(
         content_hash=content_hash,
@@ -120,6 +130,24 @@ def compute_signatures(markdown: str, settings: Settings) -> ProcessingSignature
         chunk_signature=chunk_signature,
         embed_signature=signatures.embed_signature(chunk_signature, embedder_config),
     )
+
+
+def document_status(
+    chunker_config: str | None, embedder_config: str | None, settings: Settings
+) -> tuple[DocumentStatus, OutdatedReason | None]:
+    """Whether the current settings would index the document differently, and why.
+
+    Missing configs (rows indexed before they were stored) count as `unknown`; when both
+    differ, the chunker wins, since re-chunking implies re-embedding anyway.
+    """
+    current_chunker, current_embedder = current_configs(settings)
+    if chunker_config is None or embedder_config is None:
+        return "outdated", "unknown"
+    if chunker_config != current_chunker:
+        return "outdated", "chunker_changed"
+    if embedder_config != current_embedder:
+        return "outdated", "embedder_changed"
+    return "indexed", None
 
 
 def chunk_document(markdown: str, settings: Settings) -> list[Chunk]:
