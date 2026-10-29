@@ -120,3 +120,84 @@ def test_embedding_dimension_is_enforced(scratch_database_url: str) -> None:
                 " values (%s, 0, 'texto', '[1,2,3]'::vector)",
                 (document_id,),
             )
+
+
+NEW_DOCUMENT_COLUMNS = {"chunk_count", "size_bytes", "chunker_config", "embedder_config"}
+LIST_INDEX = "documents_tenant_updated_at_id_idx"
+
+
+def _document_columns(conn: psycopg.Connection) -> set[str]:
+    rows = conn.execute(
+        "select column_name from information_schema.columns where table_name = 'documents'"
+    ).fetchall()
+    return {name for (name,) in rows}
+
+
+def _has_index(conn: psycopg.Connection, name: str) -> bool:
+    return (
+        conn.execute("select 1 from pg_indexes where indexname = %s", (name,)).fetchone()
+        is not None
+    )
+
+
+def test_0002_backfills_existing_documents(scratch_database_url: str) -> None:
+    config = alembic_config(scratch_database_url)
+    command.upgrade(config, "0001")
+    markdown = "# Válvula de purga\n\nRevisión diaria del caudalímetro."
+    with psycopg.connect(scratch_database_url) as conn:
+        with_chunks = _insert_document(conn, "upload-000000000001", "a.md")
+        _insert_chunk(conn, with_chunks, 0)
+        _insert_chunk(conn, with_chunks, 1)
+        _insert_document(conn, "upload-000000000002", "b.md")
+        conn.execute(
+            "update documents set markdown = %s where doc_id = 'upload-000000000002'",
+            (markdown,),
+        )
+
+    command.upgrade(config, "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        rows = conn.execute(
+            "select doc_id, chunk_count, size_bytes, chunker_config, embedder_config, markdown"
+            " from documents order by doc_id"
+        ).fetchall()
+    assert rows == [
+        ("upload-000000000001", 2, 1, None, None, "p"),
+        ("upload-000000000002", 0, len(markdown.encode()), None, None, markdown),
+    ]
+    assert len(markdown.encode()) > len(markdown)  # bytes, not characters
+
+
+def test_0002_adds_columns_and_list_index(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        assert _document_columns(conn) >= NEW_DOCUMENT_COLUMNS
+        (index_def,) = conn.execute(
+            "select indexdef from pg_indexes where indexname = %s", (LIST_INDEX,)
+        ).fetchone()
+        assert "(tenant, updated_at DESC, id)" in index_def
+        _insert_document(conn, "upload-000000000001", "a.md")
+        assert conn.execute("select chunk_count, size_bytes from documents").fetchone() == (
+            0,
+            None,
+        )
+
+
+def test_0002_downgrade_keeps_documents(scratch_database_url: str) -> None:
+    config = alembic_config(scratch_database_url)
+    command.upgrade(config, "head")
+    with psycopg.connect(scratch_database_url) as conn:
+        _insert_document(conn, "upload-000000000001", "a.md")
+
+    command.downgrade(config, "0001")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        assert not NEW_DOCUMENT_COLUMNS & _document_columns(conn)
+        assert not _has_index(conn, LIST_INDEX)
+        assert conn.execute("select doc_id from documents").fetchall() == [("upload-000000000001",)]
+
+    command.upgrade(config, "head")
+    with psycopg.connect(scratch_database_url) as conn:
+        assert _document_columns(conn) >= NEW_DOCUMENT_COLUMNS
+        assert _has_index(conn, LIST_INDEX)

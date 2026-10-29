@@ -31,17 +31,20 @@ is `plans/progress.md`.
      `document_changed` (409, reprocess optimistic check), added to the error table of
      the API description.
    - `GET /admin/tenants` returns a plain array, as in the spec (not paginated).
-   - DELETE `reason`: optional, at most 500 characters. `X-Actor`: optional, at most 200
-     characters, default `"admin"`, documented as unauthenticated.
+5. **No deletion audit table** (agreed 2026-10-29). No `document_deletions`, no
+   `GET /admin/deletions`, no `reason` parameter and no `X-Actor` header. `DELETE` is one
+   plain statement (chunks go by cascade) and logs `doc_id`, tenant and the deleted chunk
+   count (no content); that log line is the only trace. Overrides the DELETE details of
+   Decision 1 and the spec.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
-  `size_bytes int`, `chunker_config text`, `embedder_config text`; new table
-  `document_deletions` with index `(tenant, deleted_at desc)`; index
-  `documents (tenant, updated_at desc, id)`. Backfill `chunk_count` and `size_bytes`;
-  configs stay null (`outdated`/`unknown`). Reversible. Tests: upgrade on a database
-  with documents, downgrade, upgrade again. `db_pool` truncates `document_deletions` too.
+  `size_bytes int` (nullable until C2 writes it), `chunker_config text`,
+  `embedder_config text`; index `documents_tenant_updated_at_id_idx`
+  `(tenant, updated_at desc, id)`. Backfill `chunk_count` and `size_bytes`; configs stay
+  null (`outdated`/`unknown`). Reversible. Tests: upgrade on a database with documents,
+  downgrade, upgrade again.
 - **C2** Ingestion writes the new columns: `DocumentRecord` gets `chunk_count`,
   `size_bytes`, `chunker_config`, `embedder_config`, set in the same upsert (same
   transaction as the chunks). Extract a shared `_index(...)` stage (chunk -> embed ->
@@ -65,16 +68,15 @@ is `plans/progress.md`.
   `repository.update_indexed_document(conn, doc_id, expected_updated_at, ...)`
   (`UPDATE ... WHERE doc_id=%s AND updated_at=%s`; no row -> roll back, 409
   `document_changed`). 200/404/409/502; a provider failure leaves the DB as it was.
-- **C8** `DELETE /admin/documents/{doc_id}` (204/404) in one statement (`with d as
-  (delete ... returning ...) insert into document_deletions ...`) and
-  `GET /admin/deletions` (`DeletionPage`, newest first, tenant filter). Tests: cascade,
-  exactly one audit row with the right `chunk_count`, re-upload creates a new row.
+- **C8** `DELETE /admin/documents/{doc_id}` (204/404), one statement (`delete ...
+  returning tenant, chunk_count`), one log line (Decision 5). Tests: cascade, 404,
+  re-upload afterwards creates a new row.
 - **C9** `GET /admin/tenants`: counts from `documents.chunk_count`.
 - **C10** CORS: `CORS_ALLOWED_ORIGINS` (comma-separated, empty = off), `CORSMiddleware`
-  in `create_app`; methods `GET, POST, PATCH, DELETE`; headers `X-API-Key`, `X-Actor`,
+  in `create_app`; methods `GET, POST, PATCH, DELETE`; headers `X-API-Key`,
   `Content-Type`; no credentials. `.env.example`, README, tests (allowed preflight,
   disallowed origin gets no CORS headers).
-- **C11** README (endpoints, `CORS_ALLOWED_ORIGINS`, `X-Actor`, curl for list, replace
+- **C11** README (endpoints, `CORS_ALLOWED_ORIGINS`, curl for list, replace
   via POST, reprocess, delete), `CLAUDE.md` layout, manual run on the local DB, final
   report (an API key in a browser is for internal or dev use only).
 
@@ -96,23 +98,29 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   only with the user's OK, after checking what is there.
 - End (C11), local DB + fake embedder, curl and Swagger: upload, list, chunks, rename,
   re-upload via POST, change `CHUNK_SIZE` -> `outdated` (`chunker_changed`), reprocess
-  -> `indexed`, delete -> audit row in `/admin/deletions`, tenant counts.
+  -> `indexed`, delete (log line, chunks gone), tenant counts.
 
 ## Progress log (update after every step; resume from the first unchecked item)
 - [x] C0. Plan agreed with the user (2026-10-28) and written here.
-- [ ] C1. Migration `0002`.
+- [x] C1. Migration `0002` (2026-10-29). Deletion table dropped from the plan
+  (Decision 5). Three migration tests: backfill on 0001 data (UTF-8 bytes, not
+  characters), columns + index + defaults at head, downgrade keeps documents and
+  upgrades again. Upgrade/downgrade/upgrade checked on the local dev DB (backfill
+  matched the real chunk counts); Neon not touched.
 - [ ] C2. Ingestion writes the new columns; shared `_index` stage.
 - [ ] C3. Read-side repository.
 - [ ] C4. List and detail endpoints; 401 over every `/admin` route.
 - [ ] C5. Content and chunks endpoints.
 - [ ] C6. PATCH rename.
 - [ ] C7. Reprocess.
-- [ ] C8. Delete and deletions listing.
+- [ ] C8. Delete.
 - [ ] C9. Tenants.
 - [ ] C10. CORS.
 - [ ] C11. README, manual run, final report.
 
 ## Open items
+- No deletion audit trail (Decision 5). Revisit with real authentication; deletions made
+  before then leave only log lines.
 - POST re-upload resets a PATCH rename unless the client sends `title`; the UI must know.
 - A POST still in flight while a DELETE commits re-creates the document. Acceptable
   (same as "upload after delete"); document it.

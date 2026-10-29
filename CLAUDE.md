@@ -84,6 +84,7 @@ src/ayo_copilot/
   ingestion/storage.py     tenant and source_key validation (name is historical)
   ingestion/service.py     the pipeline: ingest_document and its stages
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
+                       0002 = documents.chunk_count/size_bytes/*_config + list index
 scripts/               dev_db.sh, export_openapi.py
 docs/                  openapi.json (generated, committed), decisions/
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
