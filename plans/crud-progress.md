@@ -48,6 +48,13 @@ is `plans/progress.md`.
    pagination would give short pages and a wrong `total`, so the list has no `status`
    filter for now; if needed later, add it as a plain equality filter on the two configs.
 
+8. **`doc_id` path parameters are validated** (agreed 2026-10-29) with
+   `signatures.DOC_ID_PATTERN` (`^[a-z]+-[0-9a-f]{12}$`): malformed -> 422
+   `string_pattern_mismatch` at `["path","doc_id"]`, well-formed but unknown -> 404
+   `document_not_found`. Otherwise FastAPI documents a default 422 with its
+   `HTTPValidationError` schema that could never happen. Applies to every `{doc_id}`
+   route (C5-C8).
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
@@ -141,7 +148,18 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   `compute_signatures`), integration `test_document_queries.py` (default order, tenant,
   `q` case-insensitive on both columns, literal `%`/`_`/`\`, combined filters + total,
   every sort key both ways, tie paging with `limit=1`, offset past the end, get).
-- [ ] C4. List and detail endpoints; 401 over every `/admin` route.
+- [x] C4. List and detail endpoints; 401 over every `/admin` route (2026-10-29).
+  `documents.py` (service: page + count in one repeatable-read read-only transaction),
+  `DocumentSummary`/`DocumentDetail` (`from_row` computes the status, converts
+  timestamps to UTC), generic `Page[T]` with `DocumentPage`; `sort` is a `Literal`
+  (`literal_error` 422); `doc_id` pattern (Decision 8). Nullable fields are sent as
+  null. Found along the way: FastAPI 0.148 wraps included routers in a private
+  `_IncludedRouter`, so the auth test enumerates `/admin` operations from the OpenAPI
+  document; Starlette's `Allow` header on a 405 lists only the first matching route's
+  methods (says `POST` for `/admin/documents` although `GET` exists), left as is.
+  Contract tests now keyed by operation, plus a check that every `/admin` operation has
+  cases. Manual curl on the local dev DB: list, detail, 404, 422, 401 as expected;
+  the two pre-0002 documents show `outdated`/`unknown`.
 - [ ] C5. Content and chunks endpoints.
 - [ ] C6. PATCH rename.
 - [ ] C7. Reprocess.

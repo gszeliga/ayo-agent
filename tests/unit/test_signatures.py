@@ -1,7 +1,11 @@
 import hashlib
+import re
+
+import pytest
 
 from ayo_copilot.ingestion.chunking import normalize_markdown
 from ayo_copilot.ingestion.signatures import (
+    DOC_ID_PATTERN,
     chunk_signature,
     chunker_descriptor,
     content_hash,
@@ -83,3 +87,8 @@ def test_doc_id_is_deterministic_and_prefixed() -> None:
 
 def test_doc_id_differs_between_tenants() -> None:
     assert make_doc_id("acme", "pro-014.md") != make_doc_id("globex", "pro-014.md")
+
+
+@pytest.mark.parametrize(("tenant", "source_key"), [("acme", "pro-014.md"), ("b2", "Ñandú.md")])
+def test_doc_ids_match_the_documented_pattern(tenant: str, source_key: str) -> None:
+    assert re.fullmatch(DOC_ID_PATTERN, make_doc_id(tenant, source_key))

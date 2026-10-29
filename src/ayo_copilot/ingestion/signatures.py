@@ -35,5 +35,9 @@ def embed_signature(chunk_signature: str, embedder: str) -> str:
     return sig(chunk_signature, embedder)
 
 
+# Every id `make_doc_id` (or a future source type) produces: `<source type>-<12 hex>`.
+DOC_ID_PATTERN = r"^[a-z]+-[0-9a-f]{12}$"
+
+
 def make_doc_id(tenant: str, source_key: str) -> str:
     return "upload-" + hashlib.sha256(f"{tenant}:upload:{source_key}".encode()).hexdigest()[:12]

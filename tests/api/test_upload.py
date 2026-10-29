@@ -322,9 +322,11 @@ def test_unknown_path_is_a_404(client: TestClient) -> None:
 
 
 def test_wrong_method_is_a_405(client: TestClient) -> None:
-    response = client.get("/admin/documents", headers=HEADERS)
+    response = client.put("/admin/documents", headers=HEADERS)
 
     assert_error(response, 405, "method_not_allowed", [])
+    # Starlette fills Allow from the first route matching the path only (the upload's),
+    # so it says POST although GET exists too.
     assert response.headers["allow"] == "POST"
 
 

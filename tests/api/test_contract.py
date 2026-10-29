@@ -1,4 +1,4 @@
-"""Contract: every response the upload documents is triggered for real, and its body
+"""Contract: every response each operation documents is triggered for real, and its body
 validates against the schema documented for that status.
 
 The schemas are made strict (`additionalProperties: false`) for the check, so a body
@@ -57,8 +57,16 @@ def strict_spec() -> dict[str, Any]:
     return spec
 
 
-def documented_schema(spec: dict[str, Any], status: int) -> dict[str, Any]:
-    response = spec["paths"]["/admin/documents"]["post"]["responses"][str(status)]
+UPLOAD = ("post", "/admin/documents")
+LIST = ("get", "/admin/documents")
+GET = ("get", "/admin/documents/{doc_id}")
+
+
+def documented_schema(
+    spec: dict[str, Any], status: int, operation: tuple[str, str] = UPLOAD
+) -> dict[str, Any]:
+    method, path = operation
+    response = spec["paths"][path][method]["responses"][str(status)]
     schema = response["content"]["application/json"]["schema"]
     # Root-relative `$ref`s resolve against the components carried along.
     return {**schema, "components": spec["components"]}
@@ -77,29 +85,64 @@ def post(client: TestClient, content: bytes, filename: str = "pro-014.md", **kwa
 
 SMALL_DOC = "# Sellado\n\nComprobar la presión de la junta antes de cada turno.\n".encode()
 
-# name -> (expected status, how to trigger it)
+
+def get(client: TestClient, url: str, headers: dict[str, str] | None = None, **params: Any):
+    return client.get(
+        url, params=params, headers={"X-API-Key": API_KEY} if headers is None else headers
+    )
+
+
+def get_uploaded(client: TestClient):
+    doc_id = post(client, SMALL_DOC).json()["doc_id"]
+    return get(client, f"/admin/documents/{doc_id}")
+
+
+# name -> (operation, expected status, how to trigger it)
 CASES = {
-    "201 indexed": (201, lambda c: post(c, SMALL_DOC)),
-    "200 up_to_date": (200, lambda c: (post(c, SMALL_DOC), post(c, SMALL_DOC))[1]),
-    "401 no key": (401, lambda c: post(c, SMALL_DOC, headers={})),
-    "413 too large": (413, lambda c: post(c, b"# T\n\n" + b"a" * (MAX_UPLOAD_BYTES + 1))),
-    "422 FastAPI missing field": (422, lambda c: post(c, SMALL_DOC, data={})),
-    "422 FastAPI pattern": (422, lambda c: post(c, SMALL_DOC, data={"tenant": "Acme Corp"})),
-    "422 ours not UTF-8": (422, lambda c: post(c, "# Señal\n".encode("latin-1"))),
-    "422 ours extension": (422, lambda c: post(c, SMALL_DOC, filename="notas.txt")),
+    "upload 201 indexed": (UPLOAD, 201, lambda c: post(c, SMALL_DOC)),
+    "upload 200 up_to_date": (UPLOAD, 200, lambda c: (post(c, SMALL_DOC), post(c, SMALL_DOC))[1]),
+    "upload 401 no key": (UPLOAD, 401, lambda c: post(c, SMALL_DOC, headers={})),
+    "upload 413 too large": (
+        UPLOAD,
+        413,
+        lambda c: post(c, b"# T\n\n" + b"a" * (MAX_UPLOAD_BYTES + 1)),
+    ),
+    "upload 422 FastAPI missing field": (UPLOAD, 422, lambda c: post(c, SMALL_DOC, data={})),
+    "upload 422 FastAPI pattern": (
+        UPLOAD,
+        422,
+        lambda c: post(c, SMALL_DOC, data={"tenant": "Acme Corp"}),
+    ),
+    "upload 422 ours not UTF-8": (UPLOAD, 422, lambda c: post(c, "# Señal\n".encode("latin-1"))),
+    "upload 422 ours extension": (UPLOAD, 422, lambda c: post(c, SMALL_DOC, filename="notas.txt")),
+    "list 200 empty": (LIST, 200, lambda c: get(c, "/admin/documents")),
+    "list 200 items": (LIST, 200, lambda c: (post(c, SMALL_DOC), get(c, "/admin/documents"))[1]),
+    "list 401 no key": (LIST, 401, lambda c: get(c, "/admin/documents", headers={})),
+    "list 422 sort": (LIST, 422, lambda c: get(c, "/admin/documents", sort="size")),
+    "list 422 limit": (LIST, 422, lambda c: get(c, "/admin/documents", limit=500)),
+    "get 200": (GET, 200, get_uploaded),
+    "get 401 no key": (
+        GET,
+        401,
+        lambda c: get(c, "/admin/documents/upload-000000000000", headers={}),
+    ),
+    "get 404": (GET, 404, lambda c: get(c, "/admin/documents/upload-000000000000")),
+    "get 422 malformed id": (GET, 422, lambda c: get(c, "/admin/documents/pro-014.md")),
 }
+# Triggered by dedicated tests below.
+EXTRA_TRIGGERED = {UPLOAD: {502}}
 
 
 @pytest.mark.parametrize("case", CASES)
 def test_response_matches_its_documented_schema(
     client: TestClient, strict_spec: dict[str, Any], case: str
 ) -> None:
-    status, trigger = CASES[case]
+    operation, status, trigger = CASES[case]
 
     response = trigger(client)
 
     assert response.status_code == status, response.text
-    OAS31Validator(documented_schema(strict_spec, status)).validate(response.json())
+    OAS31Validator(documented_schema(strict_spec, status, operation)).validate(response.json())
 
 
 def test_provider_failure_matches_its_documented_schema(
@@ -113,11 +156,26 @@ def test_provider_failure_matches_its_documented_schema(
     OAS31Validator(documented_schema(strict_spec, 502)).validate(response.json())
 
 
-def test_every_documented_status_is_triggered(strict_spec: dict[str, Any]) -> None:
-    documented = {int(s) for s in strict_spec["paths"]["/admin/documents"]["post"]["responses"]}
-    triggered = {status for status, _ in CASES.values()} | {502}
+@pytest.mark.parametrize("operation", [UPLOAD, LIST, GET], ids=lambda op: " ".join(op))
+def test_every_documented_status_is_triggered(
+    strict_spec: dict[str, Any], operation: tuple[str, str]
+) -> None:
+    method, path = operation
+    documented = {int(s) for s in strict_spec["paths"][path][method]["responses"]}
+    triggered = {status for op, status, _ in CASES.values() if op == operation}
 
-    assert triggered == documented
+    assert triggered | EXTRA_TRIGGERED.get(operation, set()) == documented
+
+
+def test_every_admin_operation_has_contract_cases(strict_spec: dict[str, Any]) -> None:
+    documented = {
+        (method, path)
+        for path, item in strict_spec["paths"].items()
+        if path.startswith("/admin")
+        for method in item
+    }
+
+    assert documented == {UPLOAD, LIST, GET}
 
 
 def test_strict_schemas_reject_undocumented_fields(strict_spec: dict[str, Any]) -> None:

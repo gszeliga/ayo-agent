@@ -62,6 +62,508 @@
         "title": "Body_upload_document",
         "type": "object"
       },
+      "DocumentDetail": {
+        "description": "A stored document with everything that decides whether it must be reprocessed.",
+        "examples": [
+          {
+            "chunk_count": 12,
+            "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
+            "chunked_at": "2026-10-15T09:30:01Z",
+            "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
+            "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
+            "created_at": "2026-10-15T09:30:00Z",
+            "doc_id": "upload-1890b5dc5335",
+            "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
+            "embedded_at": "2026-10-15T09:30:04Z",
+            "embedder_config": "voyage-4/document/1024",
+            "size_bytes": 8421,
+            "source_key": "pro-014-control-sellado.md",
+            "status": "indexed",
+            "tenant": "acme",
+            "title": "PRO-014 Control de sellado",
+            "updated_at": "2026-10-15T09:30:00Z"
+          }
+        ],
+        "properties": {
+          "chunk_count": {
+            "description": "Number of stored chunks.",
+            "examples": [
+              12
+            ],
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "chunk_signature": {
+            "description": "Hash of the content and `chunker_config`.",
+            "examples": [
+              "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b"
+            ],
+            "title": "Chunk Signature",
+            "type": "string"
+          },
+          "chunked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the current chunks were made (UTC).",
+            "examples": [
+              "2026-10-15T09:30:01Z"
+            ],
+            "title": "Chunked At"
+          },
+          "chunker_config": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Chunking settings the document was processed with (null if indexed before they were recorded).",
+            "examples": [
+              "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
+            ],
+            "title": "Chunker Config"
+          },
+          "content_hash": {
+            "description": "SHA-256 (hex) of the stored Markdown.",
+            "examples": [
+              "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a"
+            ],
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "First upload (UTC).",
+            "examples": [
+              "2026-10-15T09:30:00Z"
+            ],
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "doc_id": {
+            "description": "Stable id of the document, derived from the tenant and the source key.",
+            "examples": [
+              "upload-1890b5dc5335"
+            ],
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "embed_signature": {
+            "description": "Hash of `chunk_signature` and `embedder_config`. An upload whose signature equals it is `up_to_date`.",
+            "examples": [
+              "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c"
+            ],
+            "title": "Embed Signature",
+            "type": "string"
+          },
+          "embedded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the current chunks were embedded (UTC).",
+            "examples": [
+              "2026-10-15T09:30:04Z"
+            ],
+            "title": "Embedded At"
+          },
+          "embedder_config": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Embedding model and dimensions the document was processed with (null if indexed before they were recorded).",
+            "examples": [
+              "voyage-4/document/1024"
+            ],
+            "title": "Embedder Config"
+          },
+          "outdated_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "chunker_changed",
+                  "embedder_changed",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is `outdated` (null when `indexed`): the chunking settings changed, the embedding model changed, or `unknown` (indexed before the settings were recorded). The chunker wins when both changed.",
+            "examples": [
+              null
+            ],
+            "title": "Outdated Reason"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Size of the stored Markdown in bytes (UTF-8, after normalization).",
+            "examples": [
+              8421
+            ],
+            "title": "Size Bytes"
+          },
+          "source_key": {
+            "description": "Name that identifies the document within the tenant. Uploading with the same `tenant` and `source_key` replaces it.",
+            "examples": [
+              "pro-014-control-sellado.md"
+            ],
+            "title": "Source Key",
+            "type": "string"
+          },
+          "status": {
+            "description": "`indexed`: processed with the current chunking and embedding settings. `outdated`: the current settings would index it differently; reprocess or upload it again.",
+            "enum": [
+              "indexed",
+              "outdated"
+            ],
+            "examples": [
+              "indexed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant": {
+            "description": "Tenant the document belongs to.",
+            "examples": [
+              "acme"
+            ],
+            "title": "Tenant",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display title: given at upload, else the first `# ` heading, else the file name.",
+            "examples": [
+              "PRO-014 Control de sellado"
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "description": "Last change: upload or rename (UTC).",
+            "examples": [
+              "2026-10-15T09:30:00Z"
+            ],
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "tenant",
+          "title",
+          "source_key",
+          "status",
+          "outdated_reason",
+          "chunk_count",
+          "size_bytes",
+          "content_hash",
+          "created_at",
+          "updated_at",
+          "chunked_at",
+          "embedded_at",
+          "chunk_signature",
+          "embed_signature",
+          "chunker_config",
+          "embedder_config"
+        ],
+        "title": "DocumentDetail",
+        "type": "object"
+      },
+      "DocumentPage": {
+        "description": "A page of documents.",
+        "examples": [
+          {
+            "items": [
+              {
+                "chunk_count": 12,
+                "chunked_at": "2026-10-15T09:30:01Z",
+                "content_hash": "9f2c1a7e",
+                "created_at": "2026-10-15T09:30:00Z",
+                "doc_id": "upload-1890b5dc5335",
+                "embedded_at": "2026-10-15T09:30:04Z",
+                "size_bytes": 8421,
+                "source_key": "pro-014-control-sellado.md",
+                "status": "indexed",
+                "tenant": "acme",
+                "title": "PRO-014 Control de sellado",
+                "updated_at": "2026-10-15T09:30:00Z"
+              }
+            ],
+            "limit": 25,
+            "offset": 0,
+            "total": 1
+          }
+        ],
+        "properties": {
+          "items": {
+            "description": "The items of this page, possibly empty.",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size requested.",
+            "examples": [
+              25
+            ],
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Number of matching items skipped.",
+            "examples": [
+              0
+            ],
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Number of items matching the filters, across all pages.",
+            "examples": [
+              42
+            ],
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "DocumentPage",
+        "type": "object"
+      },
+      "DocumentSummary": {
+        "description": "A stored document, as listed. `status` compares it with the current settings.",
+        "examples": [
+          {
+            "chunk_count": 12,
+            "chunked_at": "2026-10-15T09:30:01Z",
+            "content_hash": "9f2c1a7e",
+            "created_at": "2026-10-15T09:30:00Z",
+            "doc_id": "upload-1890b5dc5335",
+            "embedded_at": "2026-10-15T09:30:04Z",
+            "size_bytes": 8421,
+            "source_key": "pro-014-control-sellado.md",
+            "status": "indexed",
+            "tenant": "acme",
+            "title": "PRO-014 Control de sellado",
+            "updated_at": "2026-10-15T09:30:00Z"
+          }
+        ],
+        "properties": {
+          "chunk_count": {
+            "description": "Number of stored chunks.",
+            "examples": [
+              12
+            ],
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "chunked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the current chunks were made (UTC).",
+            "examples": [
+              "2026-10-15T09:30:01Z"
+            ],
+            "title": "Chunked At"
+          },
+          "content_hash": {
+            "description": "First 8 hex characters of the SHA-256 of the stored Markdown; equal hashes mean equal content.",
+            "examples": [
+              "9f2c1a7e"
+            ],
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "First upload (UTC).",
+            "examples": [
+              "2026-10-15T09:30:00Z"
+            ],
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "doc_id": {
+            "description": "Stable id of the document, derived from the tenant and the source key.",
+            "examples": [
+              "upload-1890b5dc5335"
+            ],
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "embedded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the current chunks were embedded (UTC).",
+            "examples": [
+              "2026-10-15T09:30:04Z"
+            ],
+            "title": "Embedded At"
+          },
+          "outdated_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "chunker_changed",
+                  "embedder_changed",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is `outdated` (null when `indexed`): the chunking settings changed, the embedding model changed, or `unknown` (indexed before the settings were recorded). The chunker wins when both changed.",
+            "examples": [
+              null
+            ],
+            "title": "Outdated Reason"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Size of the stored Markdown in bytes (UTF-8, after normalization).",
+            "examples": [
+              8421
+            ],
+            "title": "Size Bytes"
+          },
+          "source_key": {
+            "description": "Name that identifies the document within the tenant. Uploading with the same `tenant` and `source_key` replaces it.",
+            "examples": [
+              "pro-014-control-sellado.md"
+            ],
+            "title": "Source Key",
+            "type": "string"
+          },
+          "status": {
+            "description": "`indexed`: processed with the current chunking and embedding settings. `outdated`: the current settings would index it differently; reprocess or upload it again.",
+            "enum": [
+              "indexed",
+              "outdated"
+            ],
+            "examples": [
+              "indexed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant": {
+            "description": "Tenant the document belongs to.",
+            "examples": [
+              "acme"
+            ],
+            "title": "Tenant",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display title: given at upload, else the first `# ` heading, else the file name.",
+            "examples": [
+              "PRO-014 Control de sellado"
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "description": "Last change: upload or rename (UTC).",
+            "examples": [
+              "2026-10-15T09:30:00Z"
+            ],
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "tenant",
+          "title",
+          "source_key",
+          "status",
+          "outdated_reason",
+          "chunk_count",
+          "size_bytes",
+          "content_hash",
+          "created_at",
+          "updated_at",
+          "chunked_at",
+          "embedded_at"
+        ],
+        "title": "DocumentSummary",
+        "type": "object"
+      },
       "ErrorItem": {
         "description": "One error. The items of FastAPI's `HTTPValidationError` have this shape too.",
         "properties": {
@@ -272,13 +774,254 @@
     }
   },
   "info": {
-    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from.\n\n## Authentication\n\nThe `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and\npaste the key, then use **Try it out**. The key is **provisional**: one shared key, to be\nreplaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `bool_parsing`, ...) | 422 | the field |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
+    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from.\n\n## Authentication\n\nThe `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and\npaste the key, then use **Try it out**. The key is **provisional**: one shared key, to be\nreplaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |\n| `document_not_found` | 404 | `[\"path\", \"doc_id\"]` |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
     "title": "AYO Plant Copilot API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
     "/admin/documents": {
+      "get": {
+        "description": "List the stored documents, one page at a time, newest change first.\n\nFilter by `tenant` and by `q`, a case-insensitive substring of the title or the source key\n(`%` and `_` match themselves). `total` counts every match, so a client can page with\n`offset` until it has `total` items; the order is stable across pages, even on ties.\n\nEach item carries a `status` computed now against the current settings: `outdated` means\nthe chunking or embedding settings changed since the document was indexed.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page, possibly empty. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | A query parameter is out of range or not allowed (FastAPI validation). |",
+        "operationId": "list_documents",
+        "parameters": [
+          {
+            "description": "Only this tenant's documents.",
+            "in": "query",
+            "name": "tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this tenant's documents.",
+              "examples": [
+                "acme"
+              ],
+              "title": "Tenant"
+            }
+          },
+          {
+            "description": "Case-insensitive substring of the title or the source key.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Case-insensitive substring of the title or the source key.",
+              "examples": [
+                "sellado"
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Sort key; prefix `-` for descending. Ties are broken by an internal id, so the order is stable.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "-updated_at",
+              "description": "Sort key; prefix `-` for descending. Ties are broken by an internal id, so the order is stable.",
+              "enum": [
+                "updated_at",
+                "-updated_at",
+                "created_at",
+                "-created_at",
+                "title",
+                "-title",
+                "chunk_count",
+                "-chunk_count"
+              ],
+              "examples": [
+                "-updated_at"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Page size, 1 to 100.",
+              "examples": [
+                25
+              ],
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of matching documents to skip.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Number of matching documents to skip.",
+              "examples": [
+                0
+              ],
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "empty": {
+                    "summary": "No match",
+                    "value": {
+                      "items": [],
+                      "limit": 25,
+                      "offset": 0,
+                      "total": 0
+                    }
+                  },
+                  "page": {
+                    "summary": "One page",
+                    "value": {
+                      "items": [
+                        {
+                          "chunk_count": 12,
+                          "chunked_at": "2026-10-15T09:30:01Z",
+                          "content_hash": "9f2c1a7e",
+                          "created_at": "2026-10-15T09:30:00Z",
+                          "doc_id": "upload-1890b5dc5335",
+                          "embedded_at": "2026-10-15T09:30:04Z",
+                          "size_bytes": 8421,
+                          "source_key": "pro-014-control-sellado.md",
+                          "status": "indexed",
+                          "tenant": "acme",
+                          "title": "PRO-014 Control de sellado",
+                          "updated_at": "2026-10-15T09:30:00Z"
+                        }
+                      ],
+                      "limit": 25,
+                      "offset": 0,
+                      "total": 1
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPage"
+                }
+              }
+            },
+            "description": "A page of documents."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "less_than_equal": {
+                    "summary": "Page too large",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "le": 100
+                          },
+                          "input": "500",
+                          "loc": [
+                            "query",
+                            "limit"
+                          ],
+                          "msg": "Input should be less than or equal to 100",
+                          "type": "less_than_equal"
+                        }
+                      ]
+                    }
+                  },
+                  "literal_error": {
+                    "summary": "Unknown sort key",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "expected": "'updated_at', '-updated_at', 'created_at', '-created_at', 'title', '-title', 'chunk_count' or '-chunk_count'"
+                          },
+                          "input": "size",
+                          "loc": [
+                            "query",
+                            "sort"
+                          ],
+                          "msg": "Input should be 'updated_at', '-updated_at', 'created_at', '-created_at', 'title', '-title', 'chunk_count' or '-chunk_count'",
+                          "type": "literal_error"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `sort`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`) or `string_pattern_mismatch` (`tenant`)."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "List documents",
+        "tags": [
+          "documents"
+        ]
+      },
       "post": {
         "description": "Index one Markdown file for a tenant, so the copilot can retrieve it.\n\nThe file is split into chunks along its headings (each chunk keeps its heading path),\neach chunk is embedded, and the document, its Markdown and its chunks are stored in one\ntransaction. A document is identified by `tenant` + `source_key` (by default the file\nname): uploading it again replaces its previous version.\n\n**Idempotent.** If the content and the chunking and embedding settings are the same as\nthe stored version, nothing is done and the answer is `200 up_to_date`, without calling\nthe embedding provider. Send `force=true` to reindex anyway.\n\n| Status | Meaning |\n|---|---|\n| `201` | Indexed (new document, or a changed one). |\n| `200` | Already up to date: nothing was done. |\n| `401` | `X-API-Key` missing or wrong. |\n| `413` | The file is larger than `MAX_UPLOAD_BYTES` (default 5 MiB). |\n| `422` | Not a `.md` file, not UTF-8, empty, nothing to index, or an invalid field. |\n| `502` | The embedding provider failed after retries. Nothing was stored. |\n\nErrors use the API's error format (see the API description) and are told apart by\n`detail[].type`.",
         "operationId": "upload_document",
@@ -515,6 +1258,158 @@
         ]
       }
     },
+    "/admin/documents/{doc_id}": {
+      "get": {
+        "description": "One document: everything in the listing, plus the full content hash,\nthe signatures and the chunking and embedding settings it was processed with.\n\n| Status | Meaning |\n|---|---|\n| `200` | The document. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `422` | `doc_id` is malformed (FastAPI validation). |",
+        "operationId": "get_document",
+        "parameters": [
+          {
+            "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+              "examples": [
+                "upload-1890b5dc5335"
+              ],
+              "pattern": "^[a-z]+-[0-9a-f]{12}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document": {
+                    "summary": "A document",
+                    "value": {
+                      "chunk_count": 12,
+                      "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
+                      "chunked_at": "2026-10-15T09:30:01Z",
+                      "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
+                      "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
+                      "created_at": "2026-10-15T09:30:00Z",
+                      "doc_id": "upload-1890b5dc5335",
+                      "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
+                      "embedded_at": "2026-10-15T09:30:04Z",
+                      "embedder_config": "voyage-4/document/1024",
+                      "size_bytes": 8421,
+                      "source_key": "pro-014-control-sellado.md",
+                      "status": "indexed",
+                      "tenant": "acme",
+                      "title": "PRO-014 Control de sellado",
+                      "updated_at": "2026-10-15T09:30:00Z"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            },
+            "description": "The document."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document_not_found": {
+                    "summary": "Unknown document",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "document not found",
+                          "type": "document_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No document has this `doc_id`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "string_pattern_mismatch": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z]+-[0-9a-f]{12}$"
+                          },
+                          "input": "pro-014.md",
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "String should match pattern '^[a-z]+-[0-9a-f]{12}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`doc_id` is not a document id (FastAPI validation): it never matches a document."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Get a document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "description": "Answers as soon as the process serves requests. It does not check the database or the embedding provider.",
@@ -540,7 +1435,7 @@
   },
   "tags": [
     {
-      "description": "Upload the Markdown documents the copilot retrieves from.",
+      "description": "Upload, list and inspect the Markdown documents the copilot retrieves from.",
       "name": "documents"
     },
     {

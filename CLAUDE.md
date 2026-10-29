@@ -71,9 +71,10 @@ src/ayo_copilot/
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
-  schemas.py           IngestResponse, ErrorItem, ErrorResponse
+  schemas.py           IngestResponse, DocumentSummary/Detail, Page[T] -> DocumentPage, errors
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
-  routers/admin.py     POST /admin/documents (provisional X-API-Key auth, size limits)
+  routers/admin.py     /admin: upload, list, get (provisional X-API-Key auth, size limits)
+  documents.py         admin read/write operations on stored documents (own transactions)
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), DocsSettings (app build) < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
@@ -112,6 +113,9 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
   `docs/openapi.json` and commit it in the same commit (a snapshot test fails otherwise);
   every documented status must be triggered for real in `tests/api/test_contract.py`. Tests build the app with
   `create_app(docs_enabled=True)` so they never read `.env`.
+- `{doc_id}` path parameters use `DOC_ID_PATTERN` (malformed -> 422, unknown -> 404
+  `document_not_found`). Every `/admin` route needs the key: `tests/api/test_admin_auth.py`
+  enumerates them from the OpenAPI document, so never hide an `/admin` route from it.
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)
   use the `db_pool` fixture (tables truncated before each test) or `scratch_database_url`
   (a throwaway database) for migration-level tests.
