@@ -31,6 +31,9 @@ def make_document(
         "content_hash": "content-1",
         "chunk_signature": "chunk-1",
         "embed_signature": "embed-1",
+        "chunk_count": 0,
+        "chunker_config": "chunker-1",
+        "embedder_config": "embedder-1",
     }
     values.update(overrides)
     return DocumentRecord(**values)
@@ -104,6 +107,31 @@ def test_upsert_updates_the_same_row(db_pool: ConnectionPool) -> None:
     )
     assert created == created_at
     assert updated > first_updated_at
+
+
+def admin_columns(pool: ConnectionPool) -> tuple:
+    with pool.connection() as conn:
+        return conn.execute(
+            "select chunk_count, size_bytes, chunker_config, embedder_config from documents"
+        ).fetchone()
+
+
+def test_upsert_writes_the_admin_columns(db_pool: ConnectionPool) -> None:
+    markdown = "# Válvula\n\nPresión máxima: 6 bar.\n"
+    store(db_pool, make_document(markdown=markdown, chunk_count=1), make_chunks("uno"))
+
+    assert admin_columns(db_pool) == (1, len(markdown.encode()), "chunker-1", "embedder-1")
+
+    revised = "# Válvula\n\nPresión máxima: 8 bar. Revisión anual.\n"
+    store(
+        db_pool,
+        make_document(
+            markdown=revised, chunk_count=2, chunker_config="chunker-2", embedder_config=None
+        ),
+        make_chunks("uno", "dos"),
+    )
+
+    assert admin_columns(db_pool) == (2, len(revised.encode()), "chunker-2", None)
 
 
 def test_replace_chunks_removes_the_old_ones(db_pool: ConnectionPool) -> None:

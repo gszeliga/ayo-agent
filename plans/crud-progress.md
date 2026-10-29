@@ -37,6 +37,13 @@ is `plans/progress.md`.
    count (no content); that log line is the only trace. Overrides the DELETE details of
    Decision 1 and the spec.
 
+6. **Reprocess (C7) skips up-to-date documents and guards on the content** (agreed
+   2026-10-29). The spec's "always reprocess" served only failure recovery, which doesn't
+   exist (a failed upload writes nothing). The final write is conditional on
+   `content_hash`, not `updated_at`: a rename meanwhile is no conflict, a newer upload
+   is (its chunks must not be overwritten with the old content's), and a delete meanwhile
+   matches no row. Two named store functions instead of one with a mode parameter.
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
@@ -46,9 +53,10 @@ is `plans/progress.md`.
   null (`outdated`/`unknown`). Reversible. Tests: upgrade on a database with documents,
   downgrade, upgrade again.
 - **C2** Ingestion writes the new columns: `DocumentRecord` gets `chunk_count`,
-  `size_bytes`, `chunker_config`, `embedder_config`, set in the same upsert (same
-  transaction as the chunks). Extract a shared `_index(...)` stage (chunk -> embed ->
-  store) from `ingest_document` for reprocess (C7).
+  `chunker_config`, `embedder_config`; `size_bytes` is `octet_length(markdown)` in the
+  upsert (same as the backfill). Shared stages for reprocess (C7): `compute_signatures`
+  and `index_markdown` (chunk + embed, no DB); `store_document` (renamed from
+  `replace_document_chunks`) stays upload-only; C7 adds its own store function.
 - **C3** Read-side repository: `list_documents` (tenant, escaped `ILIKE` on
   title/source_key, status, whitelisted sort mapped to columns, `id` tiebreaker,
   limit/offset, total), `get_document`, `list_chunks` (embedding optional),
@@ -63,11 +71,14 @@ is `plans/progress.md`.
 - **C6** `PATCH /admin/documents/{doc_id}` (`{"title"}`, trimmed, 1-200 characters,
   `extra="forbid"`): only `title` and `updated_at` change; tests check the embedder is
   never called and the signatures stay the same.
-- **C7** `POST .../{doc_id}/reprocess`: stored Markdown, always re-chunk and re-embed via
-  `_index`; provider outside any transaction; optimistic concurrency through
-  `repository.update_indexed_document(conn, doc_id, expected_updated_at, ...)`
-  (`UPDATE ... WHERE doc_id=%s AND updated_at=%s`; no row -> roll back, 409
-  `document_changed`). 200/404/409/502; a provider failure leaves the DB as it was.
+- **C7** `POST .../{doc_id}/reprocess` (Decision 6): stored Markdown; if the stored
+  `embed_signature` equals today's, `up_to_date` without calling the provider; else
+  `compute_signatures` + `index_markdown` outside any transaction, then
+  `store_reprocessed_document(pool, document, chunks, vectors) -> bool`, which runs
+  `repository.update_indexed_document` (`UPDATE ... WHERE doc_id=%s AND content_hash=%s`,
+  never inserts; writes only chunk/embedding columns, not `title` or `markdown`). No row
+  -> nothing written, 409 `document_changed` (404 vs 409 for a delete in the meantime:
+  decide in C7). 200/404/409/502; a provider failure leaves the DB as it was.
 - **C8** `DELETE /admin/documents/{doc_id}` (204/404), one statement (`delete ...
   returning tenant, chunk_count`), one log line (Decision 5). Tests: cascade, 404,
   re-upload afterwards creates a new row.
@@ -107,7 +118,13 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   characters), columns + index + defaults at head, downgrade keeps documents and
   upgrades again. Upgrade/downgrade/upgrade checked on the local dev DB (backfill
   matched the real chunk counts); Neon not touched.
-- [ ] C2. Ingestion writes the new columns; shared `_index` stage.
+- [x] C2. Ingestion writes the new columns (2026-10-29). `compute_signatures`,
+  `index_markdown`, `_chunk_records`, `store_document`. `DocumentRecord`'s new fields
+  are required (configs nullable, no default), so a caller can't forget them. Tests:
+  unit (`compute_signatures` vs the signature functions), repository upsert writes the
+  columns on insert and update, service stores counts/bytes/configs and updates them on
+  re-index and on a config change. `compute_signatures` reproduces the embed signatures
+  stored on the local dev DB, so the refactor re-indexes nothing.
 - [ ] C3. Read-side repository.
 - [ ] C4. List and detail endpoints; 401 over every `/admin` route.
 - [ ] C5. Content and chunks endpoints.

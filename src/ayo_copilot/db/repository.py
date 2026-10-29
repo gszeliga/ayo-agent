@@ -23,6 +23,11 @@ class DocumentRecord:
     content_hash: str
     chunk_signature: str
     embed_signature: str
+    chunk_count: int
+    # The descriptors the signatures were built from; null on rows indexed before they
+    # were stored, which the admin API reports as outdated.
+    chunker_config: str | None
+    embedder_config: str | None
     source_type: str = "upload"
 
 
@@ -47,6 +52,7 @@ class SimilarChunk:
 def upsert_document(conn: Connection, document: DocumentRecord) -> UUID:
     """Insert the document, or update the row with the same tenant, source type and key.
 
+    `size_bytes` is derived here from the Markdown, the same way migration 0002 backfills it.
     The upsert locks the row until the transaction ends, so a concurrent upload of the
     same document waits here and its chunk replacement runs after this one commits.
     """
@@ -54,16 +60,22 @@ def upsert_document(conn: Connection, document: DocumentRecord) -> UUID:
         """
         insert into documents (doc_id, tenant, source_type, source_key, title, markdown,
                                content_hash, chunk_signature, embed_signature,
+                               chunk_count, size_bytes, chunker_config, embedder_config,
                                chunked_at, embedded_at)
         values (%(doc_id)s, %(tenant)s, %(source_type)s, %(source_key)s, %(title)s,
                 %(markdown)s, %(content_hash)s, %(chunk_signature)s, %(embed_signature)s,
-                now(), now())
+                %(chunk_count)s, octet_length(%(markdown)s), %(chunker_config)s,
+                %(embedder_config)s, now(), now())
         on conflict (tenant, source_type, source_key) do update set
           title = excluded.title,
           markdown = excluded.markdown,
           content_hash = excluded.content_hash,
           chunk_signature = excluded.chunk_signature,
           embed_signature = excluded.embed_signature,
+          chunk_count = excluded.chunk_count,
+          size_bytes = excluded.size_bytes,
+          chunker_config = excluded.chunker_config,
+          embedder_config = excluded.embedder_config,
           chunked_at = excluded.chunked_at,
           embedded_at = excluded.embedded_at,
           updated_at = now()
@@ -79,6 +91,9 @@ def upsert_document(conn: Connection, document: DocumentRecord) -> UUID:
             "content_hash": document.content_hash,
             "chunk_signature": document.chunk_signature,
             "embed_signature": document.embed_signature,
+            "chunk_count": document.chunk_count,
+            "chunker_config": document.chunker_config,
+            "embedder_config": document.embedder_config,
         },
     ).fetchone()
     return document_id

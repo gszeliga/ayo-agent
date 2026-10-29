@@ -1,10 +1,12 @@
 import pytest
 
 from ayo_copilot.config import Settings
+from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.chunking import Chunk
 from ayo_copilot.ingestion.embedding import FakeEmbedder
 from ayo_copilot.ingestion.service import (
     chunk_document,
+    compute_signatures,
     decode_markdown,
     embed_chunks,
     embedding_text,
@@ -82,3 +84,38 @@ def test_embed_chunks_sends_the_prefixed_texts_in_order() -> None:
 
     assert embedder.calls == [["A\n\nPrimero.", "B\n\nSegundo."]]
     assert len(vectors) == 2
+
+
+def test_compute_signatures_matches_the_signature_functions() -> None:
+    markdown = "# Título\n\nTexto del procedimiento.\n"
+
+    sigs = compute_signatures(markdown, SETTINGS)
+
+    content_hash = signatures.content_hash(markdown)
+    chunker = signatures.chunker_descriptor(
+        size=SETTINGS.chunk_size, overlap=SETTINGS.chunk_overlap, min_size=SETTINGS.min_chunk_size
+    )
+    embedder = signatures.embedder_descriptor(
+        model=SETTINGS.embedding_model, dimensions=SETTINGS.embedding_dimensions
+    )
+    chunk_signature = signatures.chunk_signature(content_hash, chunker)
+    assert (sigs.content_hash, sigs.chunker_config, sigs.embedder_config) == (
+        content_hash,
+        chunker,
+        embedder,
+    )
+    assert sigs.chunk_signature == chunk_signature
+    assert sigs.embed_signature == signatures.embed_signature(chunk_signature, embedder)
+
+
+def test_compute_signatures_changes_with_the_settings() -> None:
+    markdown = "# Título\n\nTexto.\n"
+    other = Settings(
+        _env_file=None, admin_api_key="k", embedding_provider="fake", embedding_model="voyage-x"
+    )
+
+    before, after = compute_signatures(markdown, SETTINGS), compute_signatures(markdown, other)
+
+    assert before.chunk_signature == after.chunk_signature
+    assert before.embedder_config != after.embedder_config
+    assert before.embed_signature != after.embed_signature

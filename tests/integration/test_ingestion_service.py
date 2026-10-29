@@ -9,7 +9,7 @@ from ayo_copilot.db.repository import similar_chunks
 from ayo_copilot.ingestion import service
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
 from ayo_copilot.ingestion.service import IngestResult, chunk_document, embedding_text
-from ayo_copilot.ingestion.signatures import make_doc_id
+from ayo_copilot.ingestion.signatures import chunker_descriptor, make_doc_id
 from ayo_copilot.ingestion.storage import InvalidInputError
 
 pytestmark = pytest.mark.integration
@@ -70,6 +70,22 @@ def snapshot(pool: ConnectionPool) -> tuple[list, list]:
     return documents, chunks
 
 
+def configured_chunker(settings: Settings) -> str:
+    return chunker_descriptor(
+        size=settings.chunk_size,
+        overlap=settings.chunk_overlap,
+        min_size=settings.min_chunk_size,
+    )
+
+
+def admin_columns(pool: ConnectionPool) -> tuple:
+    with pool.connection() as conn:
+        return conn.execute(
+            "select chunk_count, (select count(*) from chunks), size_bytes, chunker_config,"
+            " embedder_config from documents"
+        ).fetchone()
+
+
 def stored_chunks(pool: ConnectionPool) -> list[tuple]:
     with pool.connection() as conn:
         return conn.execute(
@@ -97,6 +113,35 @@ def test_first_upload_indexes_the_document(db_pool: ConnectionPool, embedder) ->
         title, markdown = conn.execute("select title, markdown from documents").fetchone()
     assert title == "PRO-014 Control de sellado"
     assert markdown == CONTENT.decode()
+
+
+def test_upload_stores_counts_size_and_configs(db_pool: ConnectionPool, embedder) -> None:
+    result = ingest(db_pool, embedder)
+
+    chunk_count, stored_chunk_rows, size_bytes, chunker_config, embedder_config = admin_columns(
+        db_pool
+    )
+    assert chunk_count == stored_chunk_rows == result.chunk_count
+    assert size_bytes == len(CONTENT) > len(CONTENT.decode())  # bytes, not characters
+    assert chunker_config == configured_chunker(make_settings())
+    assert embedder_config == "voyage-4/document/1024"
+
+
+def test_reindexing_updates_counts_size_and_configs(db_pool: ConnectionPool, embedder) -> None:
+    ingest(db_pool, embedder)
+    revised = b"# PRO-014 Control de sellado (rev. 2)\n\nNuevo procedimiento simplificado.\n"
+    ingest(db_pool, embedder, revised)
+
+    assert admin_columns(db_pool)[:3] == (1, 1, len(revised))
+
+    settings = make_settings(chunk_size=300)
+    ingest(db_pool, embedder, revised, settings=settings)
+
+    assert (
+        admin_columns(db_pool)[3]
+        == configured_chunker(settings)
+        != configured_chunker(make_settings())
+    )
 
 
 def test_identical_upload_is_up_to_date_without_calling_the_embedder(

@@ -40,6 +40,21 @@ _FENCE = re.compile(r"(`{3,}|~{3,})")
 
 
 @dataclass(frozen=True)
+class ProcessingSignatures:
+    """What identifies an indexed version: the content and the settings it was processed with.
+
+    The configs are the descriptors the signatures are built from, stored so the admin API
+    can tell which documents the current settings would index differently.
+    """
+
+    content_hash: str
+    chunker_config: str
+    embedder_config: str
+    chunk_signature: str
+    embed_signature: str
+
+
+@dataclass(frozen=True)
 class IngestResult:
     doc_id: str
     status: Literal["indexed", "up_to_date"]
@@ -87,6 +102,26 @@ def resolve_title(title: str | None, markdown: str, source_key: str) -> str:
     return first_h1(markdown) or source_key
 
 
+def compute_signatures(markdown: str, settings: Settings) -> ProcessingSignatures:
+    content_hash = signatures.content_hash(markdown)
+    chunker_config = signatures.chunker_descriptor(
+        size=settings.chunk_size,
+        overlap=settings.chunk_overlap,
+        min_size=settings.min_chunk_size,
+    )
+    embedder_config = signatures.embedder_descriptor(
+        model=settings.embedding_model, dimensions=settings.embedding_dimensions
+    )
+    chunk_signature = signatures.chunk_signature(content_hash, chunker_config)
+    return ProcessingSignatures(
+        content_hash=content_hash,
+        chunker_config=chunker_config,
+        embedder_config=embedder_config,
+        chunk_signature=chunk_signature,
+        embed_signature=signatures.embed_signature(chunk_signature, embedder_config),
+    )
+
+
 def chunk_document(markdown: str, settings: Settings) -> list[Chunk]:
     chunks = chunk_markdown(
         markdown,
@@ -112,14 +147,19 @@ def embed_chunks(embedder: Embedder, chunks: Sequence[Chunk]) -> list[list[float
     return embedder.embed_documents([embedding_text(chunk) for chunk in chunks])
 
 
-def replace_document_chunks(
-    pool: ConnectionPool,
-    document: DocumentRecord,
-    chunks: Sequence[Chunk],
-    vectors: Sequence[Sequence[float]],
-) -> None:
-    """Store the document, its Markdown and its chunks in one transaction."""
-    records = [
+def index_markdown(
+    markdown: str, settings: Settings, embedder: Embedder
+) -> tuple[list[Chunk], list[list[float]]]:
+    """Chunk and embed, without touching the database: the provider call that can fail or
+    take seconds stays outside any transaction."""
+    chunks = chunk_document(markdown, settings)
+    return chunks, embed_chunks(embedder, chunks)
+
+
+def _chunk_records(
+    document: DocumentRecord, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]
+) -> list[ChunkRecord]:
+    return [
         ChunkRecord(
             index=chunk.index,
             heading=chunk.heading_path or None,
@@ -129,6 +169,16 @@ def replace_document_chunks(
         )
         for chunk, vector in zip(chunks, vectors, strict=True)
     ]
+
+
+def store_document(
+    pool: ConnectionPool,
+    document: DocumentRecord,
+    chunks: Sequence[Chunk],
+    vectors: Sequence[Sequence[float]],
+) -> None:
+    """Insert or overwrite the document, its Markdown and its chunks in one transaction."""
+    records = _chunk_records(document, chunks, vectors)
     with pool.connection() as conn, conn.transaction():
         document_id = upsert_document(conn, document)
         replace_chunks(conn, document_id, records)
@@ -158,42 +208,30 @@ def ingest_document(
     markdown = decode_markdown(content)
     doc_id = signatures.make_doc_id(tenant, source_key)
 
-    content_hash = signatures.content_hash(markdown)
-    chunk_signature = signatures.chunk_signature(
-        content_hash,
-        signatures.chunker_descriptor(
-            size=settings.chunk_size,
-            overlap=settings.chunk_overlap,
-            min_size=settings.min_chunk_size,
-        ),
-    )
-    embed_signature = signatures.embed_signature(
-        chunk_signature,
-        signatures.embedder_descriptor(
-            model=settings.embedding_model, dimensions=settings.embedding_dimensions
-        ),
-    )
+    sigs = compute_signatures(markdown, settings)
 
     if not force:
         with pool.connection() as conn:
             stored = get_embed_signature(conn, doc_id)
-        if stored == embed_signature:
+        if stored == sigs.embed_signature:
             _log_result(doc_id, tenant, "up_to_date", 0, started)
             return IngestResult(doc_id=doc_id, status="up_to_date")
 
-    chunks = chunk_document(markdown, settings)
-    vectors = embed_chunks(embedder, chunks)
+    chunks, vectors = index_markdown(markdown, settings, embedder)
     document = DocumentRecord(
         doc_id=doc_id,
         tenant=tenant,
         source_key=source_key,
         title=resolve_title(title, markdown, source_key),
         markdown=markdown,
-        content_hash=content_hash,
-        chunk_signature=chunk_signature,
-        embed_signature=embed_signature,
+        content_hash=sigs.content_hash,
+        chunk_signature=sigs.chunk_signature,
+        embed_signature=sigs.embed_signature,
+        chunk_count=len(chunks),
+        chunker_config=sigs.chunker_config,
+        embedder_config=sigs.embedder_config,
     )
-    replace_document_chunks(pool, document, chunks, vectors)
+    store_document(pool, document, chunks, vectors)
 
     _log_result(doc_id, tenant, "indexed", len(chunks), started)
     return IngestResult(
@@ -201,7 +239,7 @@ def ingest_document(
         status="indexed",
         chunk_count=len(chunks),
         embedding_model=settings.embedding_model,
-        embed_signature=embed_signature[:SHORT_SIGNATURE_LENGTH],
+        embed_signature=sigs.embed_signature[:SHORT_SIGNATURE_LENGTH],
     )
 
 
