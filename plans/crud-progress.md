@@ -115,7 +115,8 @@ is `plans/progress.md`.
 Every endpoint step: `ApiError` for errors; `operation_id` from the spec's list; every
 status in `responses` with examples and every field described; each documented status
 triggered for real in `tests/api/test_contract.py`; `docs/openapi.json` re-exported in
-the same commit; `CLAUDE.md` updated when layout or conventions change.
+the same commit; `README.md` updated for every new or changed endpoint (user's rule,
+2026-10-30); `CLAUDE.md` updated when layout or conventions change.
 
 Code to reuse: `ingestion/service.py` stages (`decode_markdown`, `chunk_document`,
 `embed_chunks`, `replace_document_chunks`, signature computation);
@@ -177,9 +178,20 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   takes the documented media type from the response's `Content-Type`, so a body in an
   undocumented media type fails. Tests: exact text and header, BOM/CRLF/CR come back
   normalized and hash to `content_hash`, JSON 404, 422; repository `get_markdown`.
-- [ ] C5b. Chunks endpoint (`ChunkPage`; `embedding` always present, null unless
-  `include_embedding`; `total` = `documents.chunk_count` read in the same repeatable-read
-  transaction, which also gives the 404).
+- [x] C5b. `GET .../{doc_id}/chunks` (2026-10-30). `ChunkPage` of `Chunk`
+  (`chunk_index`, `heading`, `chunk_text`, `char_count` = `char_length`, `embedding`).
+  `embedding` is always present, null unless `include_embedding` (one shape, as Decision
+  9); the column is only selected when asked for. `total` is `documents.chunk_count`
+  (`repository.get_chunk_count`, which also gives the 404), read with the page in one
+  repeatable-read transaction; no `count(*)`. Order by `chunk_index` alone (unique per
+  document). `chunk_text` is documented as not exactly the embedded text (heading path +
+  blank line + text). `limit` 1-200, default 50, kept with vectors and documented as heavy.
+  Tests: repository (order with out-of-order inserts, paging, past the end, characters
+  not bytes, vectors only when asked and equal to float4 precision, other documents
+  excluded, `get_chunk_count`), API (default page, paging, the vector equals the fake
+  embedder's for heading + text, 404, 422s), OpenAPI parameters, contract cases.
+  README gained "Reading documents" (list, detail, content, chunks), catching up on C4
+  and C5a; keeping it current is now a rule in `CLAUDE.md`.
 - [ ] C6. PATCH rename.
 - [ ] C7. Reprocess.
 - [ ] C8. Delete.
@@ -193,5 +205,10 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
 - POST re-upload resets a PATCH rename unless the client sends `title`; the UI must know.
 - A POST still in flight while a DELETE commits re-creates the document. Acceptable
   (same as "upload after delete"); document it.
+- **Null values vanish from OpenAPI examples** (found in C5b). FastAPI renders the
+  document with `exclude_none=True`, so `"outdated_reason": null` (Document) and
+  `"embedding": null` (Chunk) are missing from the examples, which then fail their own
+  schemas (required fields). Fix in its own step, with a test that every example validates
+  against its schema.
 - Carried over from `progress.md`: the settings-env isolation fixture (proposed), the
   iterative HNSW scan before any search endpoint, Neon password rotation unconfirmed.

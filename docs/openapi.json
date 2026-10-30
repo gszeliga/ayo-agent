@@ -62,6 +62,145 @@
         "title": "Body_upload_document",
         "type": "object"
       },
+      "Chunk": {
+        "description": "One stored chunk of a document.",
+        "examples": [
+          {
+            "char_count": 86,
+            "chunk_index": 2,
+            "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
+            "heading": "PRO-014 Control de sellado > 3. Pasos"
+          }
+        ],
+        "properties": {
+          "char_count": {
+            "description": "Length of `chunk_text` in characters (not bytes).",
+            "examples": [
+              86
+            ],
+            "title": "Char Count",
+            "type": "integer"
+          },
+          "chunk_index": {
+            "description": "Position of the chunk in the document, from 0.",
+            "examples": [
+              2
+            ],
+            "title": "Chunk Index",
+            "type": "integer"
+          },
+          "chunk_text": {
+            "description": "The chunk's text. The text that was embedded is `heading`, a blank line and this text (only this text when `heading` is null).",
+            "examples": [
+              "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro."
+            ],
+            "title": "Chunk Text",
+            "type": "string"
+          },
+          "embedding": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stored vector, one float per dimension of the embedding model. Null unless `include_embedding=true`.",
+            "examples": [
+              null
+            ],
+            "title": "Embedding"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Path of the Markdown headings the chunk sits under, joined with ` > `; null before the first heading.",
+            "examples": [
+              "PRO-014 Control de sellado > 3. Pasos"
+            ],
+            "title": "Heading"
+          }
+        },
+        "required": [
+          "chunk_index",
+          "heading",
+          "chunk_text",
+          "char_count",
+          "embedding"
+        ],
+        "title": "Chunk",
+        "type": "object"
+      },
+      "ChunkPage": {
+        "description": "A page of a document's chunks.",
+        "examples": [
+          {
+            "items": [
+              {
+                "char_count": 86,
+                "chunk_index": 2,
+                "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
+                "heading": "PRO-014 Control de sellado > 3. Pasos"
+              }
+            ],
+            "limit": 50,
+            "offset": 0,
+            "total": 12
+          }
+        ],
+        "properties": {
+          "items": {
+            "description": "The items of this page, possibly empty.",
+            "items": {
+              "$ref": "#/components/schemas/Chunk"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size requested.",
+            "examples": [
+              25
+            ],
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Number of matching items skipped.",
+            "examples": [
+              0
+            ],
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Number of items matching the filters, across all pages.",
+            "examples": [
+              42
+            ],
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ChunkPage",
+        "type": "object"
+      },
       "Document": {
         "description": "A stored document, the same in the listing and on its own. `status` compares it with\nthe current settings.",
         "examples": [
@@ -1223,6 +1362,241 @@
           }
         ],
         "summary": "Get a document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/admin/documents/{doc_id}/chunks": {
+      "get": {
+        "description": "The document's chunks in order, one page at a time: how the chunker\nsplit it, and what the embeddings were computed from.\n\n`total` is the document's `chunk_count`. Vectors are left out (`embedding` is null) unless\n`include_embedding=true`: each one is a float per dimension (1024 with the default model),\nso a full page with vectors is several megabytes of JSON.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page of chunks, possibly empty. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `422` | `doc_id` is malformed or a query parameter is out of range (FastAPI validation). |",
+        "operationId": "list_document_chunks",
+        "parameters": [
+          {
+            "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+              "examples": [
+                "upload-1890b5dc5335"
+              ],
+              "pattern": "^[a-z]+-[0-9a-f]{12}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1 to 200.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size, 1 to 200.",
+              "examples": [
+                50
+              ],
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of chunks to skip.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Number of chunks to skip.",
+              "examples": [
+                0
+              ],
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Also return each chunk's vector. Heavy: one float per dimension.",
+            "in": "query",
+            "name": "include_embedding",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Also return each chunk's vector. Heavy: one float per dimension.",
+              "examples": [
+                false
+              ],
+              "title": "Include Embedding",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "page": {
+                    "summary": "One page",
+                    "value": {
+                      "items": [
+                        {
+                          "char_count": 86,
+                          "chunk_index": 2,
+                          "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
+                          "heading": "PRO-014 Control de sellado > 3. Pasos"
+                        }
+                      ],
+                      "limit": 50,
+                      "offset": 0,
+                      "total": 12
+                    }
+                  },
+                  "with_embedding": {
+                    "summary": "With vectors (shortened here to 3 values)",
+                    "value": {
+                      "items": [
+                        {
+                          "char_count": 86,
+                          "chunk_index": 2,
+                          "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
+                          "embedding": [
+                            0.0213,
+                            -0.0472,
+                            0.0108
+                          ],
+                          "heading": "PRO-014 Control de sellado > 3. Pasos"
+                        }
+                      ],
+                      "limit": 1,
+                      "offset": 2,
+                      "total": 12
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkPage"
+                }
+              }
+            },
+            "description": "A page of chunks."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document_not_found": {
+                    "summary": "Unknown document",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "document not found",
+                          "type": "document_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No document has this `doc_id`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "less_than_equal": {
+                    "summary": "Page too large",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "le": 200
+                          },
+                          "input": "500",
+                          "loc": [
+                            "query",
+                            "limit"
+                          ],
+                          "msg": "Input should be less than or equal to 200",
+                          "type": "less_than_equal"
+                        }
+                      ]
+                    }
+                  },
+                  "string_pattern_mismatch": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z]+-[0-9a-f]{12}$"
+                          },
+                          "input": "pro-014.md",
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "String should match pattern '^[a-z]+-[0-9a-f]{12}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`doc_id` is not a document id, or a query parameter is not acceptable. `type` is a FastAPI validation code such as `string_pattern_mismatch` (`doc_id`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`) or `bool_parsing` (`include_embedding`)."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "List a document's chunks",
         "tags": [
           "documents"
         ]

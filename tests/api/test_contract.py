@@ -61,6 +61,7 @@ UPLOAD = ("post", "/admin/documents")
 LIST = ("get", "/admin/documents")
 GET = ("get", "/admin/documents/{doc_id}")
 CONTENT = ("get", "/admin/documents/{doc_id}/content")
+CHUNKS = ("get", "/admin/documents/{doc_id}/chunks")
 
 
 def documented_schema(
@@ -144,6 +145,23 @@ CASES = {
         422,
         lambda c: get(c, "/admin/documents/pro-014.md/content"),
     ),
+    "chunks 200": (CHUNKS, 200, lambda c: get_uploaded(c, "/chunks")),
+    "chunks 200 with embedding": (
+        CHUNKS,
+        200,
+        lambda c: get_uploaded(c, "/chunks?include_embedding=true"),
+    ),
+    "chunks 401 no key": (
+        CHUNKS,
+        401,
+        lambda c: get(c, "/admin/documents/upload-000000000000/chunks", headers={}),
+    ),
+    "chunks 404": (CHUNKS, 404, lambda c: get(c, "/admin/documents/upload-000000000000/chunks")),
+    "chunks 422 limit": (
+        CHUNKS,
+        422,
+        lambda c: get(c, "/admin/documents/upload-000000000000/chunks", limit=201),
+    ),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}}
@@ -176,7 +194,9 @@ def test_provider_failure_matches_its_documented_schema(
     OAS31Validator(documented_schema(strict_spec, 502)).validate(response.json())
 
 
-@pytest.mark.parametrize("operation", [UPLOAD, LIST, GET, CONTENT], ids=lambda op: " ".join(op))
+@pytest.mark.parametrize(
+    "operation", [UPLOAD, LIST, GET, CONTENT, CHUNKS], ids=lambda op: " ".join(op)
+)
 def test_every_documented_status_is_triggered(
     strict_spec: dict[str, Any], operation: tuple[str, str]
 ) -> None:
@@ -195,7 +215,7 @@ def test_every_admin_operation_has_contract_cases(strict_spec: dict[str, Any]) -
         for method in item
     }
 
-    assert documented == {UPLOAD, LIST, GET, CONTENT}
+    assert documented == {UPLOAD, LIST, GET, CONTENT, CHUNKS}
 
 
 def test_strict_schemas_reject_undocumented_fields(strict_spec: dict[str, Any]) -> None:

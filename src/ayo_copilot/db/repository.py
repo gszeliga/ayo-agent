@@ -74,6 +74,17 @@ _DOCUMENT_COLUMNS = sql.SQL(", ").join(sql.Identifier(f.name) for f in fields(Do
 
 
 @dataclass(frozen=True)
+class ChunkRow:
+    """A stored chunk, as the admin API reads it. `embedding` is None unless requested."""
+
+    chunk_index: int
+    heading: str | None
+    chunk_text: str
+    char_count: int
+    embedding: list[float] | None
+
+
+@dataclass(frozen=True)
 class SimilarChunk:
     doc_id: str
     chunk_index: int
@@ -239,6 +250,37 @@ def get_document(conn: Connection, doc_id: str) -> DocumentRow | None:
             sql.SQL("select {} from documents where doc_id = %s").format(_DOCUMENT_COLUMNS),
             (doc_id,),
         ).fetchone()
+
+
+def get_chunk_count(conn: Connection, doc_id: str) -> tuple[UUID, int] | None:
+    """The document's row id and `chunk_count`; None if there is no such document."""
+    return conn.execute(
+        "select id, chunk_count from documents where doc_id = %s", (doc_id,)
+    ).fetchone()
+
+
+def list_chunks(
+    conn: Connection,
+    document_id: UUID,
+    *,
+    limit: int,
+    offset: int,
+    include_embedding: bool = False,
+) -> list[ChunkRow]:
+    """One page of a document's chunks by `chunk_index`, which is unique per document, so
+    the order is stable without a tiebreaker. Vectors are read only when asked for."""
+    embedding = sql.SQL("embedding" if include_embedding else "null")
+    rows = conn.execute(
+        sql.SQL(
+            "select chunk_index, heading, chunk_text, char_length(chunk_text), {} from chunks"
+            " where document_id = %s order by chunk_index limit %s offset %s"
+        ).format(embedding),
+        (document_id, limit, offset),
+    ).fetchall()
+    return [
+        ChunkRow(index, heading, text, chars, vector.to_list() if vector is not None else None)
+        for index, heading, text, chars, vector in rows
+    ]
 
 
 def get_markdown(conn: Connection, doc_id: str) -> str | None:

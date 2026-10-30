@@ -4,7 +4,7 @@ lives in `db/repository.py`."""
 from psycopg_pool import ConnectionPool
 
 from ayo_copilot.db import repository
-from ayo_copilot.db.repository import DocumentRow
+from ayo_copilot.db.repository import ChunkRow, DocumentRow
 
 
 def read_document_page(
@@ -31,6 +31,26 @@ def read_document_page(
 def read_document(pool: ConnectionPool, doc_id: str) -> DocumentRow | None:
     with pool.connection() as conn:
         return repository.get_document(conn, doc_id)
+
+
+def read_chunk_page(
+    pool: ConnectionPool, doc_id: str, *, limit: int, offset: int, include_embedding: bool
+) -> tuple[list[ChunkRow], int] | None:
+    """One page of the document's chunks and their total; None if there is no such document.
+
+    The total is `documents.chunk_count`, which every write keeps in step with the chunks.
+    Repeatable read, so a re-upload between the two statements can't split the pair.
+    """
+    with pool.connection() as conn, conn.transaction():
+        conn.execute("set transaction isolation level repeatable read, read only")
+        found = repository.get_chunk_count(conn, doc_id)
+        if found is None:
+            return None
+        document_id, total = found
+        chunks = repository.list_chunks(
+            conn, document_id, limit=limit, offset=offset, include_embedding=include_embedding
+        )
+        return chunks, total
 
 
 def read_markdown(pool: ConnectionPool, doc_id: str) -> str | None:

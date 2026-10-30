@@ -7,6 +7,8 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.db.repository import (
     ChunkRecord,
     DocumentRecord,
+    get_chunk_count,
+    list_chunks,
     replace_chunks,
     similar_chunks,
     upsert_document,
@@ -223,3 +225,60 @@ def test_concurrent_replacements_of_one_document_do_not_interleave(
     assert not errors
     assert chunk_texts(db_pool) == ["b1", "b2"]
     assert document_row(db_pool)[3] == "embed-3"
+
+
+def test_list_chunks_pages_in_chunk_index_order(db_pool: ConnectionPool) -> None:
+    # Inserted out of order, so the order comes from the query.
+    chunks = make_chunks("Paso uno.", "Paso dos.", "Paso tres.", "Paso cuatro.")
+    document_id = store(db_pool, make_document(), [chunks[2], chunks[0], chunks[3], chunks[1]])
+
+    with db_pool.connection() as conn:
+        full = list_chunks(conn, document_id, limit=10, offset=0)
+        middle = list_chunks(conn, document_id, limit=2, offset=1)
+        past_end = list_chunks(conn, document_id, limit=2, offset=4)
+
+    assert [c.chunk_index for c in full] == [0, 1, 2, 3]
+    assert [c.chunk_text for c in middle] == ["Paso dos.", "Paso tres."]
+    assert past_end == []
+    first = full[0]
+    assert (first.heading, first.char_count, first.embedding) == ("PRO-014 > 3. Pasos", 9, None)
+
+
+def test_list_chunks_counts_characters_not_bytes(db_pool: ConnectionPool) -> None:
+    document_id = store(db_pool, make_document(), make_chunks("Presión ñ"))
+
+    with db_pool.connection() as conn:
+        (chunk,) = list_chunks(conn, document_id, limit=10, offset=0)
+
+    assert chunk.char_count == len("Presión ñ") == 9
+
+
+def test_list_chunks_reads_vectors_only_when_asked(db_pool: ConnectionPool) -> None:
+    chunks = make_chunks("Paso uno.")
+    document_id = store(db_pool, make_document(), chunks)
+
+    with db_pool.connection() as conn:
+        (chunk,) = list_chunks(conn, document_id, limit=10, offset=0, include_embedding=True)
+
+    assert isinstance(chunk.embedding, list) and len(chunk.embedding) == 1024
+    # Stored as float4: equal to the provider's vector up to single precision.
+    assert chunk.embedding == pytest.approx(chunks[0].embedding, rel=1e-6, abs=1e-7)
+
+
+def test_list_chunks_never_returns_another_documents_chunks(db_pool: ConnectionPool) -> None:
+    document_id = store(db_pool, make_document(), make_chunks("Propio."))
+    store(db_pool, make_document(source_key="otro.md"), make_chunks("Ajeno uno.", "Ajeno dos."))
+
+    with db_pool.connection() as conn:
+        chunks = list_chunks(conn, document_id, limit=10, offset=0)
+
+    assert [c.chunk_text for c in chunks] == ["Propio."]
+
+
+def test_get_chunk_count_gives_the_row_id_and_the_stored_count(db_pool: ConnectionPool) -> None:
+    document = make_document(chunk_count=2)
+    document_id = store(db_pool, document, make_chunks("a", "b"))
+
+    with db_pool.connection() as conn:
+        assert get_chunk_count(conn, document.doc_id) == (document_id, 2)
+        assert get_chunk_count(conn, "upload-000000000000") is None

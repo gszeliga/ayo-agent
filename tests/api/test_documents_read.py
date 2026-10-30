@@ -1,5 +1,5 @@
-"""GET /admin/documents, GET /admin/documents/{doc_id} and its /content, through HTTP on a
-real database.
+"""GET /admin/documents, GET /admin/documents/{doc_id} and its /content and /chunks, through
+HTTP on a real database.
 
 Documents are created with the upload endpoint, so these tests also check that what the
 upload stores is what the listing shows.
@@ -8,6 +8,7 @@ upload stores is what the listing shows.
 import hashlib
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,11 +18,13 @@ from psycopg_pool import ConnectionPool
 
 from ayo_copilot.app import create_app
 from ayo_copilot.config import Settings
+from ayo_copilot.ingestion.embedding import FakeEmbedder
 from ayo_copilot.ingestion.service import current_configs
 from ayo_copilot.ingestion.signatures import make_doc_id
 
 pytestmark = pytest.mark.integration
 
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "pro-014-control-sellado.md"
 API_KEY = "test-admin-key"
 HEADERS = {"X-API-Key": API_KEY}
 DOCUMENT_FIELDS = {
@@ -256,3 +259,81 @@ def test_content_with_a_malformed_doc_id_is_a_422(client: TestClient) -> None:
     assert response.status_code == 422
     (item,) = response.json()["detail"]
     assert (item["type"], item["loc"]) == ("string_pattern_mismatch", ["path", "doc_id"])
+
+
+def chunk_page(client: TestClient, doc_id: str, **params: Any) -> dict[str, Any]:
+    response = client.get(f"/admin/documents/{doc_id}/chunks", params=params)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_chunks_are_listed_in_order_without_vectors(client: TestClient) -> None:
+    doc_id = upload(client, "pro-014.md", FIXTURE.read_text())
+    chunk_count = client.get(f"/admin/documents/{doc_id}").json()["chunk_count"]
+
+    page = chunk_page(client, doc_id)
+
+    assert chunk_count > 3
+    assert (page["total"], page["limit"], page["offset"]) == (chunk_count, 50, 0)
+    assert [c["chunk_index"] for c in page["items"]] == list(range(chunk_count))
+    for chunk in page["items"]:
+        assert set(chunk) == {"chunk_index", "heading", "chunk_text", "char_count", "embedding"}
+        assert chunk["char_count"] == len(chunk["chunk_text"])
+        assert chunk["embedding"] is None
+    assert page["items"][0]["heading"].startswith("PRO-014")
+
+
+def test_chunks_page_with_limit_and_offset(client: TestClient) -> None:
+    doc_id = upload(client, "pro-014.md", FIXTURE.read_text())
+    every = chunk_page(client, doc_id)["items"]
+
+    page = chunk_page(client, doc_id, limit=2, offset=1)
+    past_end = chunk_page(client, doc_id, offset=len(every))
+
+    assert page["items"] == every[1:3]
+    assert page["total"] == len(every)
+    assert (past_end["items"], past_end["total"]) == ([], len(every))
+
+
+def test_include_embedding_returns_the_vector_of_the_embedded_text(client: TestClient) -> None:
+    doc_id = upload(client, "pro-014.md", FIXTURE.read_text())
+
+    (chunk,) = chunk_page(client, doc_id, limit=1, offset=1, include_embedding=True)["items"]
+
+    dimensions = make_settings("postgresql://unused").embedding_dimensions
+    assert len(chunk["embedding"]) == dimensions
+    # The embedded text is the heading path, a blank line and the chunk text.
+    embedded_text = f"{chunk['heading']}\n\n{chunk['chunk_text']}"
+    (expected,) = FakeEmbedder(dimensions=dimensions).embed_documents([embedded_text])
+    assert chunk["embedding"] == pytest.approx(expected, rel=1e-6, abs=1e-7)
+
+
+def test_chunks_of_an_unknown_document_is_a_404(client: TestClient) -> None:
+    response = client.get("/admin/documents/upload-000000000000/chunks")
+
+    assert response.status_code == 404
+    assert response.json()["detail"][0]["type"] == "document_not_found"
+
+
+@pytest.mark.parametrize(
+    ("url", "loc", "type"),
+    [
+        ("pro-014.md/chunks", ["path", "doc_id"], "string_pattern_mismatch"),
+        ("upload-000000000000/chunks?limit=0", ["query", "limit"], "greater_than_equal"),
+        ("upload-000000000000/chunks?limit=201", ["query", "limit"], "less_than_equal"),
+        ("upload-000000000000/chunks?offset=-1", ["query", "offset"], "greater_than_equal"),
+        (
+            "upload-000000000000/chunks?include_embedding=maybe",
+            ["query", "include_embedding"],
+            "bool_parsing",
+        ),
+    ],
+)
+def test_invalid_chunk_requests_are_a_422(
+    client: TestClient, url: str, loc: list[str], type: str
+) -> None:
+    response = client.get(f"/admin/documents/{url}")
+
+    assert response.status_code == 422
+    (item,) = response.json()["detail"]
+    assert (item["type"], item["loc"]) == (type, loc)

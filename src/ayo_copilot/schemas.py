@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ayo_copilot.config import Settings
-from ayo_copilot.db.repository import DocumentRow
+from ayo_copilot.db.repository import ChunkRow, DocumentRow
 from ayo_copilot.ingestion.service import IngestResult, document_status
 
 # The sort keys of `db.repository.SORT_KEYS`, each also with `-` for descending.
@@ -268,5 +268,63 @@ class DocumentPage(Page[Document]):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [{"items": [DOCUMENT_EXAMPLE], "total": 1, "limit": 25, "offset": 0}]
+        }
+    )
+
+
+CHUNK_EXAMPLE: dict[str, Any] = {
+    "chunk_index": 2,
+    "heading": "PRO-014 Control de sellado > 3. Pasos",
+    "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el"
+    " registro.",
+    "char_count": 86,
+    "embedding": None,
+}
+
+
+class Chunk(BaseModel):
+    """One stored chunk of a document."""
+
+    model_config = ConfigDict(json_schema_extra={"examples": [CHUNK_EXAMPLE]})
+
+    chunk_index: int = Field(
+        description="Position of the chunk in the document, from 0.", examples=[2]
+    )
+    heading: str | None = Field(
+        description="Path of the Markdown headings the chunk sits under, joined with ` > `;"
+        " null before the first heading.",
+        examples=[CHUNK_EXAMPLE["heading"]],
+    )
+    chunk_text: str = Field(
+        description="The chunk's text. The text that was embedded is `heading`, a blank line"
+        " and this text (only this text when `heading` is null).",
+        examples=[CHUNK_EXAMPLE["chunk_text"]],
+    )
+    char_count: int = Field(
+        description="Length of `chunk_text` in characters (not bytes).", examples=[86]
+    )
+    embedding: list[float] | None = Field(
+        description="The stored vector, one float per dimension of the embedding model. Null"
+        " unless `include_embedding=true`.",
+        examples=[None],
+    )
+
+    @classmethod
+    def from_row(cls, row: ChunkRow) -> "Chunk":
+        return cls(
+            chunk_index=row.chunk_index,
+            heading=row.heading,
+            chunk_text=row.chunk_text,
+            char_count=row.char_count,
+            embedding=row.embedding,
+        )
+
+
+class ChunkPage(Page[Chunk]):
+    """A page of a document's chunks."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"items": [CHUNK_EXAMPLE], "total": 12, "limit": 50, "offset": 0}]
         }
     )

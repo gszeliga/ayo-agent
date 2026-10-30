@@ -67,6 +67,36 @@ Errors all have one shape, told apart by `type`:
 `/docs` lists every status and `type`. The `X-API-Key` authentication is provisional:
 one shared key, to be replaced by real identity and per-tenant permissions.
 
+## Reading documents
+
+Every `/admin` route needs the `X-API-Key` header. A document is addressed by the
+`doc_id` that the upload and the listing return.
+
+```sh
+H="X-API-Key: $ADMIN_API_KEY"
+API=http://127.0.0.1:8000/admin/documents
+
+curl -H "$H" "$API?tenant=acme&q=sellado&sort=-updated_at&limit=25&offset=0"  # list
+curl -H "$H" "$API/upload-1890b5dc5335"                                      # one document
+curl -H "$H" "$API/upload-1890b5dc5335/content"                              # its Markdown
+curl -H "$H" "$API/upload-1890b5dc5335/chunks?limit=50&offset=0"             # its chunks
+```
+
+- **List**: a page `{"items": [...], "total": N, "limit": N, "offset": N}`. Filters:
+  `tenant`, `q` (case-insensitive substring of the title or the source key). `sort` is
+  one of `updated_at`, `created_at`, `title`, `chunk_count`, with `-` for descending
+  (default `-updated_at`). `limit` is 1 to 100 (default 25).
+- **One document**: the same object as a list item. `status` is `indexed`, or `outdated`
+  when the chunking or embedding settings changed since it was indexed (`outdated_reason`
+  says which).
+- **Content**: the stored Markdown as `text/markdown; charset=utf-8`, after normalization
+  (no BOM, LF line endings).
+- **Chunks**: a page of `{chunk_index, heading, chunk_text, char_count, embedding}` in
+  order. `limit` is 1 to 200 (default 50). `embedding` is null unless
+  `include_embedding=true`, which is heavy (one float per dimension, per chunk).
+
+An unknown `doc_id` gives `404` (`document_not_found`); a malformed one gives `422`.
+
 ## Tests
 
 ```sh

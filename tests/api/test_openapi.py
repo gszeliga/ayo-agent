@@ -140,6 +140,12 @@ def test_every_schema_property_is_described(spec: dict[str, Any]) -> None:
             {"200", "401", "404", "422"},
             "Document",
         ),
+        (
+            "/admin/documents/{doc_id}/chunks",
+            "list_document_chunks",
+            {"200", "401", "404", "422"},
+            "ChunkPage",
+        ),
     ],
 )
 def test_read_operations_document_exactly_their_status_codes(
@@ -202,7 +208,7 @@ def test_doc_id_path_parameter_has_the_id_pattern(spec: dict[str, Any]) -> None:
 def test_page_schemas_have_clean_names(spec: dict[str, Any]) -> None:
     names = set(spec["components"]["schemas"])
 
-    assert {"DocumentPage", "Document"} <= names
+    assert {"DocumentPage", "Document", "ChunkPage", "Chunk"} <= names
     assert not names & {"DocumentSummary", "DocumentDetail"}
     assert not [name for name in names if "[" in name or name.startswith("Page")]
 
@@ -222,3 +228,23 @@ def test_nullable_document_fields_are_declared_nullable(spec: dict[str, Any]) ->
         "chunker_config",
         "embedder_config",
     }
+
+
+def test_chunk_parameters_are_described_with_their_bounds(spec: dict[str, Any]) -> None:
+    operation = spec["paths"]["/admin/documents/{doc_id}/chunks"]["get"]
+    parameters = {p["name"]: p for p in operation["parameters"]}
+
+    assert set(parameters) == {"doc_id", "limit", "offset", "include_embedding"}
+    assert all(p["description"] for p in parameters.values())
+    assert parameters["doc_id"]["schema"]["pattern"] == DOC_ID_PATTERN
+    limit = parameters["limit"]["schema"]
+    assert (limit["minimum"], limit["maximum"], limit["default"]) == (1, 200, 50)
+    include_embedding = parameters["include_embedding"]["schema"]
+    assert (include_embedding["type"], include_embedding["default"]) == ("boolean", False)
+
+
+def test_chunk_embedding_is_declared_nullable(spec: dict[str, Any]) -> None:
+    properties = spec["components"]["schemas"]["Chunk"]["properties"]
+
+    assert {"type": "null"} in properties["embedding"]["anyOf"]
+    assert {"type": "null"} in properties["heading"]["anyOf"]

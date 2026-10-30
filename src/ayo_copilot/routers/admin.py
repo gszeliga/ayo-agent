@@ -18,14 +18,22 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import DEFAULT_SORT
 from ayo_copilot.dependencies import get_embedder, get_pool, get_settings
-from ayo_copilot.documents import read_document, read_document_page, read_markdown
+from ayo_copilot.documents import (
+    read_chunk_page,
+    read_document,
+    read_document_page,
+    read_markdown,
+)
 from ayo_copilot.errors import ApiError
 from ayo_copilot.ingestion.embedding import Embedder, EmbeddingError
 from ayo_copilot.ingestion.service import ingest_document
 from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
 from ayo_copilot.ingestion.storage import TENANT_PATTERN, InvalidInputError
 from ayo_copilot.schemas import (
+    CHUNK_EXAMPLE,
     DOCUMENT_EXAMPLE,
+    Chunk,
+    ChunkPage,
     Document,
     DocumentPage,
     DocumentSort,
@@ -548,3 +556,106 @@ def get_document_content(
     if markdown is None:
         raise _not_found()
     return Response(markdown, media_type=MARKDOWN_MEDIA_TYPE)
+
+
+CHUNKS_DESCRIPTION = """The document's chunks in order, one page at a time: how the chunker
+split it, and what the embeddings were computed from.
+
+`total` is the document's `chunk_count`. Vectors are left out (`embedding` is null) unless
+`include_embedding=true`: each one is a float per dimension (1024 with the default model),
+so a full page with vectors is several megabytes of JSON.
+
+| Status | Meaning |
+|---|---|
+| `200` | A page of chunks, possibly empty. |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No document has this `doc_id`. |
+| `422` | `doc_id` is malformed or a query parameter is out of range (FastAPI validation). |
+"""
+
+
+@router.get(
+    "/documents/{doc_id}/chunks",
+    operation_id="list_document_chunks",
+    summary="List a document's chunks",
+    description=CHUNKS_DESCRIPTION,
+    responses={
+        200: {
+            "description": "A page of chunks.",
+            "content": _examples(
+                page=(
+                    "One page",
+                    {"items": [CHUNK_EXAMPLE], "total": 12, "limit": 50, "offset": 0},
+                ),
+                with_embedding=(
+                    "With vectors (shortened here to 3 values)",
+                    {
+                        "items": [{**CHUNK_EXAMPLE, "embedding": [0.0213, -0.0472, 0.0108]}],
+                        "total": 12,
+                        "limit": 1,
+                        "offset": 2,
+                    },
+                ),
+            ),
+        },
+        404: NOT_FOUND_RESPONSE,
+        422: {
+            "model": ErrorResponse,
+            "description": "`doc_id` is not a document id, or a query parameter is not"
+            " acceptable. `type` is a FastAPI validation code such as"
+            " `string_pattern_mismatch` (`doc_id`), `greater_than_equal` or"
+            " `less_than_equal` (`limit`, `offset`) or `bool_parsing` (`include_embedding`).",
+            "content": _examples(
+                string_pattern_mismatch=(
+                    "Malformed id",
+                    _error(
+                        "string_pattern_mismatch",
+                        ["path", "doc_id"],
+                        f"String should match pattern '{DOC_ID_PATTERN}'",
+                        input="pro-014.md",
+                        ctx={"pattern": DOC_ID_PATTERN},
+                    ),
+                ),
+                less_than_equal=(
+                    "Page too large",
+                    _error(
+                        "less_than_equal",
+                        ["query", "limit"],
+                        "Input should be less than or equal to 200",
+                        input="500",
+                        ctx={"le": 200},
+                    ),
+                ),
+            ),
+        },
+    },
+)
+def list_document_chunks(
+    doc_id: Annotated[
+        str,
+        PathParam(
+            pattern=DOC_ID_PATTERN, description=DOC_ID_PARAM, examples=["upload-1890b5dc5335"]
+        ),
+    ],
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    limit: Annotated[
+        int, Query(ge=1, le=200, description="Page size, 1 to 200.", examples=[50])
+    ] = 50,
+    offset: Annotated[int, Query(ge=0, description="Number of chunks to skip.", examples=[0])] = 0,
+    include_embedding: Annotated[
+        bool,
+        Query(
+            description="Also return each chunk's vector. Heavy: one float per dimension.",
+            examples=[False],
+        ),
+    ] = False,
+) -> ChunkPage:
+    found = read_chunk_page(
+        pool, doc_id, limit=limit, offset=offset, include_embedding=include_embedding
+    )
+    if found is None:
+        raise _not_found()
+    chunks, total = found
+    return ChunkPage(
+        items=[Chunk.from_row(chunk) for chunk in chunks], total=total, limit=limit, offset=offset
+    )

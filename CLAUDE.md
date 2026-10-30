@@ -21,6 +21,8 @@ working rules, update this file in that step's commit.
 
 - **Baby steps.** One small step at a time. Before starting a step, write a short brief:
   what it delivers, files, design choices and deviations, tests. Wait for approval.
+- Keep `README.md` current: any step that adds or changes an endpoint, a setting or a
+  command updates it in the same commit.
 - After the step: update `plans/progress.md`, make **exactly one commit** (code + tests
   + log together), summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
@@ -71,9 +73,9 @@ src/ayo_copilot/
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
-  schemas.py           IngestResponse, Document, Page[T] -> DocumentPage, errors
+  schemas.py           IngestResponse, Document, Chunk, Page[T] -> DocumentPage/ChunkPage, errors
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
-  routers/admin.py     /admin: upload, list, get, content (provisional X-API-Key auth, size limits)
+  routers/admin.py     /admin: upload, list, get, content, chunks (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), DocsSettings (app build) < Settings
