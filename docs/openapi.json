@@ -585,7 +585,7 @@
         "type": "object"
       },
       "IngestResponse": {
-        "description": "The outcome of an upload. Sent without the optional fields when `up_to_date`.",
+        "description": "The outcome of an upload or a reprocess. Sent without the optional fields when\n`up_to_date`.",
         "examples": [
           {
             "chunk_count": 12,
@@ -651,7 +651,7 @@
             "title": "Embedding Model"
           },
           "status": {
-            "description": "`indexed`: chunked, embedded and stored (HTTP 201). `up_to_date`: the stored version has the same content and settings, nothing was done (HTTP 200).",
+            "description": "`indexed`: chunked, embedded and stored (HTTP 201 on upload, 200 on reprocess). `up_to_date`: the stored version has the same content and settings, nothing was done (HTTP 200).",
             "enum": [
               "indexed",
               "up_to_date"
@@ -681,7 +681,7 @@
     }
   },
   "info": {
-    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from.\n\n## Authentication\n\nThe `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and\npaste the key, then use **Try it out**. The key is **provisional**: one shared key, to be\nreplaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |\n| `document_not_found` | 404 | `[\"path\", \"doc_id\"]` |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
+    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from.\n\n## Authentication\n\nThe `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and\npaste the key, then use **Try it out**. The key is **provisional**: one shared key, to be\nreplaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |\n| `document_not_found` | 404 | `[\"path\", \"doc_id\"]` |\n| `document_changed` | 409 | `[]` |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
     "title": "AYO Plant Copilot API",
     "version": "0.1.0"
   },
@@ -1738,6 +1738,217 @@
           }
         ],
         "summary": "Get a document's Markdown",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/admin/documents/{doc_id}/reprocess": {
+      "post": {
+        "description": "Re-chunk and re-embed a document from its stored Markdown, with the\ncurrent chunking and embedding settings: the way to bring an `outdated` document back to\n`indexed` without uploading it again. The title, the Markdown and `updated_at` are kept;\n`chunked_at` and `embedded_at` record the reprocess.\n\nA document that is already up to date is not reprocessed (`up_to_date`, no call to the\nembedding provider) unless `force=true`. One indexed before its settings were recorded\n(`outdated_reason: unknown`) but processed exactly as the current settings would, gets\nthem recorded and becomes `indexed`, also without a provider call.\n\nThe provider is called before anything is written. If a newer upload replaces the\ndocument meanwhile, the reprocess writes nothing and answers `409`; if the document is\ndeleted meanwhile, `404`.\n\n| Status | Meaning |\n|---|---|\n| `200` | Reprocessed (`indexed`) or nothing to do (`up_to_date`). |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `409` | A newer upload replaced the document meanwhile; nothing was written. |\n| `422` | `doc_id` is malformed or `force` is not a boolean (FastAPI validation). |\n| `502` | The embedding provider failed; nothing was written. |",
+        "operationId": "reprocess_document",
+        "parameters": [
+          {
+            "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+              "examples": [
+                "upload-1890b5dc5335"
+              ],
+              "pattern": "^[a-z]+-[0-9a-f]{12}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Reprocess even when the document is up to date.",
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Reprocess even when the document is up to date.",
+              "examples": [
+                false
+              ],
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "indexed": {
+                    "summary": "Reprocessed",
+                    "value": {
+                      "chunk_count": 12,
+                      "doc_id": "upload-1890b5dc5335",
+                      "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
+                      "embedding_model": "voyage-4",
+                      "status": "indexed"
+                    }
+                  },
+                  "up_to_date": {
+                    "summary": "Already up to date",
+                    "value": {
+                      "doc_id": "upload-1890b5dc5335",
+                      "status": "up_to_date"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            },
+            "description": "Reprocessed, or already up to date."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document_not_found": {
+                    "summary": "Unknown document",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "document not found",
+                          "type": "document_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No document has this `doc_id`."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document_changed": {
+                    "summary": "Replaced meanwhile",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "document was replaced by a newer upload while being reprocessed",
+                          "type": "document_changed"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A newer upload replaced the document while it was being reprocessed. Nothing was written; the newer version stays."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "string_pattern_mismatch": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z]+-[0-9a-f]{12}$"
+                          },
+                          "input": "pro-014.md",
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "String should match pattern '^[a-z]+-[0-9a-f]{12}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`doc_id` is not a document id (`string_pattern_mismatch`) or `force` is not a boolean (`bool_parsing`); FastAPI validation."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "embedding_failed": {
+                    "summary": "Provider failure",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "embedding provider failed",
+                          "type": "embedding_failed"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The embedding provider failed after retries. Nothing was stored; retrying later is safe."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Reprocess a document",
         "tags": [
           "documents"
         ]

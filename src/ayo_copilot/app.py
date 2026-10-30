@@ -54,6 +54,7 @@ is `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` an
 | `source_key_invalid` | 422 | `["body", "source_key"]` (`["body", "file"]` if derived) |
 | FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |
 | `document_not_found` | 404 | `["path", "doc_id"]` |
+| `document_changed` | 409 | `[]` |
 | `embedding_failed` | 502 | `[]` |
 
 Requests the framework rejects use the same body: a malformed body is `400 bad_request`,

@@ -63,7 +63,8 @@ GET = ("get", "/admin/documents/{doc_id}")
 CONTENT = ("get", "/admin/documents/{doc_id}/content")
 CHUNKS = ("get", "/admin/documents/{doc_id}/chunks")
 UPDATE = ("patch", "/admin/documents/{doc_id}")
-OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE]
+REPROCESS = ("post", "/admin/documents/{doc_id}/reprocess")
+OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE, REPROCESS]
 
 
 def documented_schema(
@@ -113,6 +114,17 @@ def patch(client: TestClient, url: str, body: Any, headers: dict[str, str] | Non
 def rename_uploaded(client: TestClient):
     doc_id = post(client, SMALL_DOC).json()["doc_id"]
     return patch(client, f"/admin/documents/{doc_id}", {"title": "Sellado (rev. 2)"})
+
+
+def reprocess_uploaded(client: TestClient, query: str = ""):
+    doc_id = post(client, SMALL_DOC).json()["doc_id"]
+    return client.post(
+        f"/admin/documents/{doc_id}/reprocess{query}", headers={"X-API-Key": API_KEY}
+    )
+
+
+def reprocess(client: TestClient, url: str, headers: dict[str, str] | None = None):
+    return client.post(url, headers={"X-API-Key": API_KEY} if headers is None else headers)
 
 
 UNKNOWN = "/admin/documents/upload-000000000000"
@@ -191,9 +203,22 @@ CASES = {
         422,
         lambda c: patch(c, "/admin/documents/pro-014.md", {"title": "x"}),
     ),
+    "reprocess 200 up_to_date": (REPROCESS, 200, reprocess_uploaded),
+    "reprocess 200 indexed": (REPROCESS, 200, lambda c: reprocess_uploaded(c, "?force=true")),
+    "reprocess 401 no key": (
+        REPROCESS,
+        401,
+        lambda c: reprocess(c, f"{UNKNOWN}/reprocess", headers={}),
+    ),
+    "reprocess 404": (REPROCESS, 404, lambda c: reprocess(c, f"{UNKNOWN}/reprocess")),
+    "reprocess 422 force": (
+        REPROCESS,
+        422,
+        lambda c: reprocess(c, f"{UNKNOWN}/reprocess?force=maybe"),
+    ),
 }
 # Triggered by dedicated tests below.
-EXTRA_TRIGGERED = {UPLOAD: {502}}
+EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}}
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -250,6 +275,39 @@ def test_strict_schemas_reject_undocumented_fields(strict_spec: dict[str, Any]) 
     body = {"detail": [{"type": "x", "loc": [], "msg": "m", "surprise": 1}]}
 
     assert not OAS31Validator(documented_schema(strict_spec, 422)).is_valid(body)
+
+
+def test_reprocess_provider_failure_matches_its_documented_schema(
+    client: TestClient, strict_spec: dict[str, Any]
+) -> None:
+    doc_id = post(client, SMALL_DOC).json()["doc_id"]
+    client.app.dependency_overrides[get_embedder] = FailingEmbedder
+
+    response = reprocess(client, f"/admin/documents/{doc_id}/reprocess?force=true")
+
+    assert response.status_code == 502
+    OAS31Validator(documented_schema(strict_spec, 502, REPROCESS)).validate(response.json())
+
+
+def test_reprocess_conflict_matches_its_documented_schema(
+    client: TestClient, strict_spec: dict[str, Any], db_pool: ConnectionPool
+) -> None:
+    doc_id = post(client, SMALL_DOC).json()["doc_id"]
+
+    class ReplacingEmbedder(FakeEmbedder):
+        """Simulates a newer upload landing while the reprocess embeds."""
+
+        def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+            with db_pool.connection() as conn:
+                conn.execute("update documents set content_hash = 'newer'")
+            return super().embed_documents(texts)
+
+    client.app.dependency_overrides[get_embedder] = lambda: ReplacingEmbedder(dimensions=1024)
+
+    response = reprocess(client, f"/admin/documents/{doc_id}/reprocess?force=true")
+
+    assert response.status_code == 409, response.text
+    OAS31Validator(documented_schema(strict_spec, 409, REPROCESS)).validate(response.json())
 
 
 def test_fake_embedder_is_used(client: TestClient) -> None:

@@ -9,7 +9,7 @@ import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, NoReturn
 
 from psycopg_pool import ConnectionPool
 
@@ -17,8 +17,12 @@ from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import (
     ChunkRecord,
     DocumentRecord,
+    get_document,
     get_embed_signature,
+    get_markdown,
+    record_configs,
     replace_chunks,
+    update_indexed_document,
     upsert_document,
 )
 from ayo_copilot.ingestion import signatures
@@ -53,6 +57,14 @@ class ProcessingSignatures:
     embedder_config: str
     chunk_signature: str
     embed_signature: str
+
+
+class DocumentNotFoundError(Exception):
+    """No document has this `doc_id`, or it was deleted while being reprocessed."""
+
+
+class DocumentChangedError(Exception):
+    """A newer upload replaced the document's content while it was being reprocessed."""
 
 
 @dataclass(frozen=True)
@@ -209,6 +221,98 @@ def store_document(
         replace_chunks(conn, document_id, records)
 
 
+def store_reprocessed_document(
+    pool: ConnectionPool,
+    document: DocumentRecord,
+    chunks: Sequence[Chunk],
+    vectors: Sequence[Sequence[float]],
+) -> bool:
+    """Replace the chunks of a stored document whose content is still
+    `document.content_hash`, in one transaction. False, with nothing written, if the
+    document is gone or its content changed: a newer upload's chunks must survive."""
+    records = _chunk_records(document, chunks, vectors)
+    with pool.connection() as conn, conn.transaction():
+        document_id = update_indexed_document(conn, document)
+        if document_id is None:
+            return False
+        replace_chunks(conn, document_id, records)
+    return True
+
+
+def reprocess_document(
+    *,
+    settings: Settings,
+    pool: ConnectionPool,
+    embedder: Embedder,
+    doc_id: str,
+    force: bool = False,
+) -> IngestResult:
+    """Re-chunk and re-embed a stored document, from its stored Markdown, with the current
+    settings. Its title, Markdown and `updated_at` are kept.
+
+    Skipped (`up_to_date`, no provider call) when its embed signature already matches,
+    unless `force`; a document indexed before its configs were stored only gets them
+    recorded then. Raises DocumentNotFoundError, DocumentChangedError and EmbeddingError;
+    in each case nothing is written. As on upload, the provider is called outside any
+    transaction.
+    """
+    started = time.monotonic()
+    with pool.connection() as conn, conn.transaction():
+        conn.execute("set transaction isolation level repeatable read, read only")
+        row = get_document(conn, doc_id)
+        markdown = get_markdown(conn, doc_id)
+    if row is None or markdown is None:
+        raise DocumentNotFoundError(doc_id)
+
+    sigs = compute_signatures(markdown, settings)
+    if not force and row.embed_signature == sigs.embed_signature:
+        if row.chunker_config is None or row.embedder_config is None:
+            with pool.connection() as conn, conn.transaction():
+                recorded = record_configs(
+                    conn, doc_id, sigs.embed_signature, sigs.chunker_config, sigs.embedder_config
+                )
+            if not recorded:
+                _raise_conflict(pool, doc_id)
+        _log_result(doc_id, row.tenant, "up_to_date", 0, started, action="reprocess")
+        return IngestResult(doc_id=doc_id, status="up_to_date")
+
+    chunks, vectors = index_markdown(markdown, settings, embedder)
+    document = DocumentRecord(
+        doc_id=doc_id,
+        tenant=row.tenant,
+        source_type=row.source_type,
+        source_key=row.source_key,
+        title=row.title,
+        markdown=markdown,
+        content_hash=sigs.content_hash,
+        chunk_signature=sigs.chunk_signature,
+        embed_signature=sigs.embed_signature,
+        chunk_count=len(chunks),
+        chunker_config=sigs.chunker_config,
+        embedder_config=sigs.embedder_config,
+    )
+    if not store_reprocessed_document(pool, document, chunks, vectors):
+        _raise_conflict(pool, doc_id)
+
+    _log_result(doc_id, row.tenant, "indexed", len(chunks), started, action="reprocess")
+    return IngestResult(
+        doc_id=doc_id,
+        status="indexed",
+        chunk_count=len(chunks),
+        embedding_model=settings.embedding_model,
+        embed_signature=sigs.embed_signature,
+    )
+
+
+def _raise_conflict(pool: ConnectionPool, doc_id: str) -> NoReturn:
+    """A guarded write matched no row: the document is gone, or its content changed."""
+    with pool.connection() as conn:
+        exists = get_document(conn, doc_id) is not None
+    if exists:
+        raise DocumentChangedError(doc_id)
+    raise DocumentNotFoundError(doc_id)
+
+
 def ingest_document(
     *,
     settings: Settings,
@@ -268,11 +372,20 @@ def ingest_document(
     )
 
 
-def _log_result(doc_id: str, tenant: str, status: str, chunk_count: int, started: float) -> None:
+def _log_result(
+    doc_id: str,
+    tenant: str,
+    status: str,
+    chunk_count: int,
+    started: float,
+    *,
+    action: str = "upload",
+) -> None:
     logger.info(
-        "document %s tenant=%s status=%s chunks=%d in %.0f ms",
+        "document %s tenant=%s %s status=%s chunks=%d in %.0f ms",
         doc_id,
         tenant,
+        action,
         status,
         chunk_count,
         (time.monotonic() - started) * 1000,

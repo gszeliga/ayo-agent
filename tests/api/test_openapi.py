@@ -349,3 +349,30 @@ def test_update_operation_takes_a_json_title(spec: dict[str, Any]) -> None:
     assert schema["additionalProperties"] is False
     title = schema["properties"]["title"]
     assert (title["minLength"], title["maxLength"]) == (1, 200)
+
+
+def test_reprocess_operation_documents_its_outcomes(spec: dict[str, Any]) -> None:
+    operation = spec["paths"]["/admin/documents/{doc_id}/reprocess"]["post"]
+
+    assert operation["operationId"] == "reprocess_document"
+    assert operation["security"] == [{"AdminApiKey": []}]
+    assert "requestBody" not in operation
+    assert set(operation["responses"]) == {"200", "401", "404", "409", "422", "502"}
+    responses = operation["responses"]
+    assert responses["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/IngestResponse"
+    }
+    assert set(responses["200"]["content"]["application/json"]["examples"]) == {
+        "indexed",
+        "up_to_date",
+    }
+    (conflict,) = responses["409"]["content"]["application/json"]["examples"].values()
+    assert conflict["value"]["detail"][0]["type"] == "document_changed"
+    parameters = {p["name"]: p for p in operation["parameters"]}
+    assert set(parameters) == {"doc_id", "force"}
+    force = parameters["force"]["schema"]
+    assert (parameters["force"]["in"], force["type"], force["default"]) == (
+        "query",
+        "boolean",
+        False,
+    )

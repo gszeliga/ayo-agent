@@ -113,6 +113,23 @@ To replace a document's content, upload the new file with the same `tenant` and
 `source_key`. That upload sets the title again (the `title` field, else the first `# `
 heading, else the file name), so send `-F title=...` with it to keep a rename.
 
+## Reprocessing a document
+
+After changing the chunking or embedding settings (`CHUNK_SIZE`, `EMBEDDING_MODEL`, ...),
+documents indexed before show `"status": "outdated"`. Reprocess one from its stored
+Markdown, without uploading it again:
+
+```sh
+curl -X POST -H "$H" "$API/upload-1890b5dc5335/reprocess"
+```
+
+The answer has the upload's shape, always with `200`: `indexed` (re-chunked and
+re-embedded) or `up_to_date` (nothing to do, no Voyage call). `?force=true` reprocesses
+anyway. The title, the Markdown and `updated_at` are kept. A document indexed before its
+settings were recorded (`outdated_reason: unknown`) but still matching them just gets
+them recorded. `409 document_changed` means a newer upload replaced the document
+meanwhile (nothing was written); `502` means Voyage failed (nothing was written either).
+
 ## Tests
 
 ```sh

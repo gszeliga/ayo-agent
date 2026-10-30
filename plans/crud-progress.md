@@ -244,7 +244,23 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   `SHORT_SIGNATURE_LENGTH` removed; examples share `schemas.EMBED_SIGNATURE_EXAMPLE`
   with `Document`'s field example. Tests: the upload's signature equals the detail's and
   the stored one. README sample updated.
-- [ ] C7b. Reprocess endpoint (Decision 13).
+- [x] C7b. `POST .../{doc_id}/reprocess` (2026-10-30, Decision 13).
+  `service.reprocess_document` (reads row + Markdown in one repeatable-read transaction;
+  `compute_signatures`; up to date -> `up_to_date`, or `record_configs` when a config is
+  null; else `index_markdown` outside any transaction and `store_reprocessed_document`),
+  `_raise_conflict` (gone -> `DocumentNotFoundError`, else `DocumentChangedError`).
+  Repository `update_indexed_document` (guarded on `content_hash`, processing columns
+  only) and `record_configs` (guarded on `embed_signature`). Route: `force` query
+  parameter, `response_model_exclude_none` like the upload (a test caught the nulls),
+  shared `EMBEDDING_FAILED_RESPONSE`; `document_changed` added to the API's error table;
+  the upload log line now says `upload`/`reprocess`. Tests: service in the new
+  `tests/integration/test_reprocess.py` (up to date, force, chunk change from the stored
+  Markdown keeping title/hash/size/`updated_at`, null configs recorded without the
+  provider, 502 writes nothing, unknown; races via an embedder that changes the DB while
+  called: newer upload -> 409 and its chunks survive, delete -> 404, rename kept),
+  repository guards, API, OpenAPI, contract (409 and 502 in dedicated tests). Checked
+  read-only on the local dev DB: both pre-0002 documents have null configs and matching
+  signatures, so reprocess would only record their configs. README "Reprocessing".
 - [ ] C8. Delete.
 - [ ] C9. Tenants.
 - [ ] C10. CORS.

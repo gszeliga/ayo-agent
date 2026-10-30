@@ -143,6 +143,53 @@ def upsert_document(conn: Connection, document: DocumentRecord) -> UUID:
     return document_id
 
 
+def update_indexed_document(conn: Connection, document: DocumentRecord) -> UUID | None:
+    """Write a reprocessed version of a stored document: its signatures, chunk count,
+    configs and processing times, and nothing else (not the title, the Markdown or
+    `updated_at`). Only while the stored content is still `document.content_hash`, and
+    never inserts. Returns the row id, or None if no row matched (the document was deleted
+    or its content replaced). Locks the row, like `upsert_document`.
+    """
+    row = conn.execute(
+        """
+        update documents set
+          chunk_signature = %(chunk_signature)s,
+          embed_signature = %(embed_signature)s,
+          chunk_count = %(chunk_count)s,
+          chunker_config = %(chunker_config)s,
+          embedder_config = %(embedder_config)s,
+          chunked_at = now(),
+          embedded_at = now()
+        where doc_id = %(doc_id)s and content_hash = %(content_hash)s
+        returning id
+        """,
+        {
+            "doc_id": document.doc_id,
+            "content_hash": document.content_hash,
+            "chunk_signature": document.chunk_signature,
+            "embed_signature": document.embed_signature,
+            "chunk_count": document.chunk_count,
+            "chunker_config": document.chunker_config,
+            "embedder_config": document.embedder_config,
+        },
+    ).fetchone()
+    return row[0] if row is not None else None
+
+
+def record_configs(
+    conn: Connection, doc_id: str, embed_signature: str, chunker_config: str, embedder_config: str
+) -> bool:
+    """Store the configs of a document indexed before they were recorded. Only while its
+    embed signature is still `embed_signature`: that equality is what proves the stored
+    chunks were made with these configs. False if no row matched."""
+    cursor = conn.execute(
+        "update documents set chunker_config = %s, embedder_config = %s"
+        " where doc_id = %s and embed_signature = %s",
+        (chunker_config, embedder_config, doc_id, embed_signature),
+    )
+    return cursor.rowcount == 1
+
+
 def get_embed_signature(conn: Connection, doc_id: str) -> str | None:
     """The stored embed signature of the document, or None if it doesn't exist yet."""
     row = conn.execute(

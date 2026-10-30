@@ -27,7 +27,12 @@ from ayo_copilot.documents import (
 )
 from ayo_copilot.errors import ApiError
 from ayo_copilot.ingestion.embedding import Embedder, EmbeddingError
-from ayo_copilot.ingestion.service import ingest_document
+from ayo_copilot.ingestion.service import (
+    DocumentChangedError,
+    DocumentNotFoundError,
+    ingest_document,
+    reprocess_document,
+)
 from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
 from ayo_copilot.ingestion.storage import TENANT_PATTERN, InvalidInputError
 from ayo_copilot.schemas import (
@@ -141,6 +146,18 @@ INDEXED = {
     "embed_signature": EMBED_SIGNATURE_EXAMPLE,
 }
 
+EMBEDDING_FAILED_RESPONSE: dict[str, object] = {
+    "model": ErrorResponse,
+    "description": "The embedding provider failed after retries. Nothing was stored;"
+    " retrying later is safe.",
+    "content": _examples(
+        embedding_failed=(
+            "Provider failure",
+            _error("embedding_failed", [], "embedding provider failed"),
+        )
+    ),
+}
+
 UPLOAD_DESCRIPTION = """Index one Markdown file for a tenant, so the copilot can retrieve it.
 
 The file is split into chunks along its headings (each chunk keeps its heading path),
@@ -233,17 +250,7 @@ Errors use the API's error format (see the API description) and are told apart b
                 ),
             ),
         },
-        502: {
-            "model": ErrorResponse,
-            "description": "The embedding provider failed after retries. Nothing was stored;"
-            " retrying later is safe.",
-            "content": _examples(
-                embedding_failed=(
-                    "Provider failure",
-                    _error("embedding_failed", [], "embedding provider failed"),
-                )
-            ),
-        },
+        502: EMBEDDING_FAILED_RESPONSE,
     },
 )
 def upload_document(
@@ -343,6 +350,9 @@ DOC_ID_422_RESPONSE: dict[str, object] = {
         )
     ),
 }
+
+
+DOCUMENT_CHANGED_MSG = "document was replaced by a newer upload while being reprocessed"
 
 
 def _not_found() -> ApiError:
@@ -706,3 +716,108 @@ def update_document(
     # No title in the log: it is customer data.
     logger.info("document renamed doc_id=%s tenant=%s", doc_id, row.tenant)
     return Document.from_row(row, settings)
+
+
+REPROCESS_DESCRIPTION = """Re-chunk and re-embed a document from its stored Markdown, with the
+current chunking and embedding settings: the way to bring an `outdated` document back to
+`indexed` without uploading it again. The title, the Markdown and `updated_at` are kept;
+`chunked_at` and `embedded_at` record the reprocess.
+
+A document that is already up to date is not reprocessed (`up_to_date`, no call to the
+embedding provider) unless `force=true`. One indexed before its settings were recorded
+(`outdated_reason: unknown`) but processed exactly as the current settings would, gets
+them recorded and becomes `indexed`, also without a provider call.
+
+The provider is called before anything is written. If a newer upload replaces the
+document meanwhile, the reprocess writes nothing and answers `409`; if the document is
+deleted meanwhile, `404`.
+
+| Status | Meaning |
+|---|---|
+| `200` | Reprocessed (`indexed`) or nothing to do (`up_to_date`). |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No document has this `doc_id`. |
+| `409` | A newer upload replaced the document meanwhile; nothing was written. |
+| `422` | `doc_id` is malformed or `force` is not a boolean (FastAPI validation). |
+| `502` | The embedding provider failed; nothing was written. |
+"""
+
+
+@router.post(
+    "/documents/{doc_id}/reprocess",
+    operation_id="reprocess_document",
+    summary="Reprocess a document",
+    description=REPROCESS_DESCRIPTION,
+    # Same shape as the upload: the optional fields are left out when `up_to_date`.
+    response_model_exclude_none=True,
+    responses={
+        200: {
+            "description": "Reprocessed, or already up to date.",
+            "content": _examples(
+                indexed=("Reprocessed", INDEXED),
+                up_to_date=(
+                    "Already up to date",
+                    {"doc_id": "upload-1890b5dc5335", "status": "up_to_date"},
+                ),
+            ),
+        },
+        404: NOT_FOUND_RESPONSE,
+        409: {
+            "model": ErrorResponse,
+            "description": "A newer upload replaced the document while it was being"
+            " reprocessed. Nothing was written; the newer version stays.",
+            "content": _examples(
+                document_changed=(
+                    "Replaced meanwhile",
+                    _error("document_changed", [], DOCUMENT_CHANGED_MSG),
+                )
+            ),
+        },
+        422: {
+            "model": ErrorResponse,
+            "description": "`doc_id` is not a document id (`string_pattern_mismatch`) or"
+            " `force` is not a boolean (`bool_parsing`); FastAPI validation.",
+            "content": _examples(
+                string_pattern_mismatch=(
+                    "Malformed id",
+                    _error(
+                        "string_pattern_mismatch",
+                        ["path", "doc_id"],
+                        f"String should match pattern '{DOC_ID_PATTERN}'",
+                        input="pro-014.md",
+                        ctx={"pattern": DOC_ID_PATTERN},
+                    ),
+                ),
+            ),
+        },
+        502: EMBEDDING_FAILED_RESPONSE,
+    },
+)
+def reprocess(
+    doc_id: Annotated[
+        str,
+        PathParam(
+            pattern=DOC_ID_PATTERN, description=DOC_ID_PARAM, examples=["upload-1890b5dc5335"]
+        ),
+    ],
+    settings: Annotated[Settings, Depends(get_settings)],
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+    force: Annotated[
+        bool,
+        Query(description="Reprocess even when the document is up to date.", examples=[False]),
+    ] = False,
+) -> IngestResponse:
+    try:
+        result = reprocess_document(
+            settings=settings, pool=pool, embedder=embedder, doc_id=doc_id, force=force
+        )
+    except DocumentNotFoundError:
+        raise _not_found() from None
+    except DocumentChangedError:
+        raise ApiError(409, "document_changed", DOCUMENT_CHANGED_MSG) from None
+    except EmbeddingError as exc:
+        # The cause stays in the log; provider messages carry no document content.
+        logger.warning("embedding failed doc_id=%s: %s", doc_id, exc)
+        raise ApiError(502, "embedding_failed", "embedding provider failed") from None
+    return IngestResponse.from_result(result)

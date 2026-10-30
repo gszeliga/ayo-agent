@@ -32,7 +32,8 @@ EMBED_SIGNATURE_EXAMPLE = "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6
 
 
 class IngestResponse(BaseModel):
-    """The outcome of an upload. Sent without the optional fields when `up_to_date`."""
+    """The outcome of an upload or a reprocess. Sent without the optional fields when
+    `up_to_date`."""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -53,8 +54,9 @@ class IngestResponse(BaseModel):
         examples=["upload-1890b5dc5335"],
     )
     status: Literal["indexed", "up_to_date"] = Field(
-        description="`indexed`: chunked, embedded and stored (HTTP 201). `up_to_date`: the"
-        " stored version has the same content and settings, nothing was done (HTTP 200).",
+        description="`indexed`: chunked, embedded and stored (HTTP 201 on upload, 200 on"
+        " reprocess). `up_to_date`: the stored version has the same content and settings,"
+        " nothing was done (HTTP 200).",
         examples=["indexed"],
     )
     chunk_count: int | None = Field(

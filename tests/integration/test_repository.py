@@ -8,9 +8,12 @@ from ayo_copilot.db.repository import (
     ChunkRecord,
     DocumentRecord,
     get_chunk_count,
+    get_document,
     list_chunks,
+    record_configs,
     replace_chunks,
     similar_chunks,
+    update_indexed_document,
     upsert_document,
 )
 from ayo_copilot.ingestion.embedding import FakeEmbedder
@@ -282,3 +285,61 @@ def test_get_chunk_count_gives_the_row_id_and_the_stored_count(db_pool: Connecti
     with db_pool.connection() as conn:
         assert get_chunk_count(conn, document.doc_id) == (document_id, 2)
         assert get_chunk_count(conn, "upload-000000000000") is None
+
+
+def test_update_indexed_document_writes_only_processing_columns(db_pool: ConnectionPool) -> None:
+    document = make_document()
+    document_id = store(db_pool, document, make_chunks("a"))
+    reprocessed = make_document(
+        title="Otro título",
+        markdown="# Otro contenido\n",
+        chunk_signature="chunk-2",
+        embed_signature="embed-2",
+        chunk_count=3,
+        chunker_config="chunker-2",
+        embedder_config="embedder-2",
+    )
+    with db_pool.connection() as conn:
+        before = get_document(conn, document.doc_id)
+
+    with db_pool.connection() as conn:
+        assert update_indexed_document(conn, reprocessed) == document_id
+        after = get_document(conn, document.doc_id)
+        markdown = conn.execute("select markdown from documents").fetchone()[0]
+
+    assert (after.chunk_signature, after.embed_signature, after.chunk_count) == (
+        "chunk-2",
+        "embed-2",
+        3,
+    )
+    assert (after.chunker_config, after.embedder_config) == ("chunker-2", "embedder-2")
+    assert (after.title, after.updated_at, after.size_bytes) == (
+        before.title,
+        before.updated_at,
+        before.size_bytes,
+    )
+    assert markdown == document.markdown
+
+
+def test_update_indexed_document_needs_the_same_content(db_pool: ConnectionPool) -> None:
+    store(db_pool, make_document(), make_chunks("a"))
+
+    with db_pool.connection() as conn:
+        changed = update_indexed_document(conn, make_document(content_hash="content-2"))
+        unknown = update_indexed_document(conn, make_document(source_key="otro.md"))
+
+    assert changed is None and unknown is None
+    assert document_row(db_pool)[3] == "embed-1"
+
+
+def test_record_configs_needs_the_same_embed_signature(db_pool: ConnectionPool) -> None:
+    document = make_document(chunker_config=None, embedder_config=None)
+    store(db_pool, document, make_chunks("a"))
+
+    with db_pool.connection() as conn:
+        stale = record_configs(conn, document.doc_id, "embed-0", "chunker-9", "embedder-9")
+        current = record_configs(conn, document.doc_id, "embed-1", "chunker-9", "embedder-9")
+        row = get_document(conn, document.doc_id)
+
+    assert (stale, current) == (False, True)
+    assert (row.chunker_config, row.embedder_config) == ("chunker-9", "embedder-9")
