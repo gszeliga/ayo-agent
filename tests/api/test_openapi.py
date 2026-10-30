@@ -3,12 +3,14 @@
 No database: the lifespan is not started (no `with TestClient`).
 """
 
+import copy
 from collections.abc import Iterator
 from importlib.metadata import version
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from openapi_schema_validator import OAS31Validator
 from openapi_spec_validator import validate
 
 from ayo_copilot.app import create_app
@@ -45,6 +47,44 @@ def resolve(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     for part in ref.removeprefix("#/").split("/"):
         node = node[part]
     return node
+
+
+def exemplified(spec: dict[str, Any], schema: dict[str, Any]) -> bool:
+    """Whether Swagger can build a full sample: the schema has examples, or it is an object
+    or array whose parts all have them."""
+    if schema.get("examples"):
+        return True
+    schema = resolve(spec, schema)
+    if schema.get("examples"):
+        return True
+    if "properties" in schema:
+        return all(exemplified(spec, prop) for prop in schema["properties"].values())
+    if "items" in schema:
+        return exemplified(spec, schema["items"])
+    return False
+
+
+def documented_examples(spec: dict[str, Any]) -> Iterator[tuple[str, Any, dict[str, Any]]]:
+    """Every example in the document: (where, value, schema it must match)."""
+    for name, schema in spec["components"]["schemas"].items():
+        for value in schema.get("examples", []):
+            yield f"components.schemas.{name}", value, schema
+        for prop, definition in schema.get("properties", {}).items():
+            for value in definition.get("examples", []):
+                yield f"components.schemas.{name}.{prop}", value, definition
+    for path, method, operation in operations(spec):
+        where = f"{method.upper()} {path}"
+        for parameter in operation.get("parameters", []):
+            for value in parameter["schema"].get("examples", []):
+                yield f"{where} parameter {parameter['name']}", value, parameter["schema"]
+        for status, response in operation["responses"].items():
+            for media_type, content in response.get("content", {}).items():
+                for name, example in content.get("examples", {}).items():
+                    yield (
+                        f"{where} {status} {media_type} {name}",
+                        example["value"],
+                        content["schema"],
+                    )
 
 
 def test_spec_is_valid_openapi(spec: dict[str, Any]) -> None:
@@ -158,7 +198,7 @@ def test_read_operations_document_exactly_their_status_codes(
     assert set(operation["responses"]) == statuses
     for status, response in operation["responses"].items():
         content = response["content"]["application/json"]
-        assert content["examples"], f"no example for {status}"
+        assert content.get("examples") or exemplified(spec, content["schema"]), status
         name = model if status == "200" else "ErrorResponse"
         assert content["schema"] == {"$ref": f"#/components/schemas/{name}"}, status
 
@@ -248,3 +288,43 @@ def test_chunk_embedding_is_declared_nullable(spec: dict[str, Any]) -> None:
 
     assert {"type": "null"} in properties["embedding"]["anyOf"]
     assert {"type": "null"} in properties["heading"]["anyOf"]
+
+
+def test_every_response_has_an_example(spec: dict[str, Any]) -> None:
+    # Named examples, or field examples from which Swagger builds the sample. Models with
+    # nullable fields must use the latter: FastAPI drops nulls from object examples.
+    for path, method, operation in operations(spec):
+        for status, response in operation["responses"].items():
+            for media_type, content in response["content"].items():
+                where = f"{method.upper()} {path} {status} {media_type}"
+                assert content.get("examples") or exemplified(spec, content["schema"]), where
+
+
+def test_every_example_matches_its_schema(spec: dict[str, Any]) -> None:
+    # Strict, as in the contract test: an example with an unknown field fails too. A null
+    # dropped from a required field fails here as a missing property.
+    strict = copy.deepcopy(spec)
+    for schema in strict["components"]["schemas"].values():
+        if "properties" in schema:
+            schema.setdefault("additionalProperties", False)
+
+    examples = list(documented_examples(strict))
+    failures = [
+        f"{where}: {error.message}"
+        for where, value, schema in examples
+        for error in OAS31Validator({**schema, "components": strict["components"]}).iter_errors(
+            value
+        )
+    ]
+
+    assert len(examples) > 50  # guards the collection itself
+    assert not failures, "\n".join(failures)
+
+
+def test_examples_of_nullable_fields_keep_their_nulls(spec: dict[str, Any]) -> None:
+    schemas = spec["components"]["schemas"]
+
+    assert schemas["Document"]["properties"]["outdated_reason"]["examples"] == [None]
+    assert schemas["Chunk"]["properties"]["embedding"]["examples"] == [None]
+    for name in ("Document", "Chunk", "DocumentPage", "ChunkPage"):
+        assert "examples" not in schemas[name], f"{name} must rely on field examples"

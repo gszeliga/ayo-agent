@@ -23,7 +23,9 @@ DocumentSort = Literal[
 
 
 class HealthResponse(BaseModel):
-    status: Literal["ok"] = Field(description="Always `ok` when the process is serving.")
+    status: Literal["ok"] = Field(
+        description="Always `ok` when the process is serving.", examples=["ok"]
+    )
 
 
 class IngestResponse(BaseModel):
@@ -128,34 +130,14 @@ def _utc(value: datetime | None) -> datetime | None:
     return value.astimezone(UTC) if value is not None else None
 
 
-DOCUMENT_EXAMPLE: dict[str, Any] = {
-    "doc_id": "upload-1890b5dc5335",
-    "tenant": "acme",
-    "title": "PRO-014 Control de sellado",
-    "source_key": "pro-014-control-sellado.md",
-    "status": "indexed",
-    "outdated_reason": None,
-    "chunk_count": 12,
-    "size_bytes": 8421,
-    "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
-    "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
-    "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
-    "chunker_config": (
-        "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
-    ),
-    "embedder_config": "voyage-4/document/1024",
-    "created_at": "2026-10-15T09:30:00Z",
-    "updated_at": "2026-10-15T09:30:00Z",
-    "chunked_at": "2026-10-15T09:30:01Z",
-    "embedded_at": "2026-10-15T09:30:04Z",
-}
+# Models with nullable fields carry examples per field only: FastAPI drops null values
+# from object-level examples (`exclude_none` in `get_openapi`), so a whole-object example
+# would lose them. Swagger builds the sample from the field examples, nulls included.
 
 
 class Document(BaseModel):
     """A stored document, the same in the listing and on its own. `status` compares it with
     the current settings."""
-
-    model_config = ConfigDict(json_schema_extra={"examples": [DOCUMENT_EXAMPLE]})
 
     doc_id: str = Field(
         description="Stable id of the document, derived from the tenant and the source key.",
@@ -191,26 +173,28 @@ class Document(BaseModel):
     )
     content_hash: str = Field(
         description="SHA-256 (hex) of the stored Markdown; equal hashes mean equal content.",
-        examples=[DOCUMENT_EXAMPLE["content_hash"]],
+        examples=["9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a"],
     )
     chunk_signature: str = Field(
         description="Hash of the content and `chunker_config`.",
-        examples=[DOCUMENT_EXAMPLE["chunk_signature"]],
+        examples=["4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b"],
     )
     embed_signature: str = Field(
         description="Hash of `chunk_signature` and `embedder_config`. An upload whose signature"
         " equals it is `up_to_date`.",
-        examples=[DOCUMENT_EXAMPLE["embed_signature"]],
+        examples=["17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c"],
     )
     chunker_config: str | None = Field(
         description="Chunking settings the document was processed with (null if indexed"
         " before they were recorded).",
-        examples=[DOCUMENT_EXAMPLE["chunker_config"]],
+        examples=[
+            "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
+        ],
     )
     embedder_config: str | None = Field(
         description="Embedding model and dimensions the document was processed with (null if"
         " indexed before they were recorded).",
-        examples=[DOCUMENT_EXAMPLE["embedder_config"]],
+        examples=["voyage-4/document/1024"],
     )
     created_at: datetime = Field(
         description="First upload (UTC).", examples=["2026-10-15T09:30:00Z"]
@@ -265,27 +249,9 @@ class Page[T](BaseModel):
 class DocumentPage(Page[Document]):
     """A page of documents."""
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [{"items": [DOCUMENT_EXAMPLE], "total": 1, "limit": 25, "offset": 0}]
-        }
-    )
-
-
-CHUNK_EXAMPLE: dict[str, Any] = {
-    "chunk_index": 2,
-    "heading": "PRO-014 Control de sellado > 3. Pasos",
-    "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el"
-    " registro.",
-    "char_count": 86,
-    "embedding": None,
-}
-
 
 class Chunk(BaseModel):
     """One stored chunk of a document."""
-
-    model_config = ConfigDict(json_schema_extra={"examples": [CHUNK_EXAMPLE]})
 
     chunk_index: int = Field(
         description="Position of the chunk in the document, from 0.", examples=[2]
@@ -293,12 +259,14 @@ class Chunk(BaseModel):
     heading: str | None = Field(
         description="Path of the Markdown headings the chunk sits under, joined with ` > `;"
         " null before the first heading.",
-        examples=[CHUNK_EXAMPLE["heading"]],
+        examples=["PRO-014 Control de sellado > 3. Pasos"],
     )
     chunk_text: str = Field(
         description="The chunk's text. The text that was embedded is `heading`, a blank line"
         " and this text (only this text when `heading` is null).",
-        examples=[CHUNK_EXAMPLE["chunk_text"]],
+        examples=[
+            "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro."
+        ],
     )
     char_count: int = Field(
         description="Length of `chunk_text` in characters (not bytes).", examples=[86]
@@ -323,8 +291,5 @@ class Chunk(BaseModel):
 class ChunkPage(Page[Chunk]):
     """A page of a document's chunks."""
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [{"items": [CHUNK_EXAMPLE], "total": 12, "limit": 50, "offset": 0}]
-        }
-    )
+    # Redeclared only for the example: the chunks' default page size is 50.
+    limit: int = Field(description="Page size requested.", examples=[50])

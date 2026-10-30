@@ -61,6 +61,15 @@ is `plans/progress.md`.
    other. Now both endpoints return the same object with the full hash, signatures and
    configs (about 350 more bytes per listed item). The UI shortens hashes for display.
 
+10. **Field-level examples for models with nullable fields** (agreed 2026-10-30). FastAPI
+   renders OpenAPI with `exclude_none=True`, which drops null values from object-level
+   examples (list items survive, so a field's `examples=[None]` is kept). Rather than
+   code that restores them, `Document`, `Chunk` and their pages have no object examples
+   and the three read 200s no named examples; Swagger UI 5 builds their samples from the
+   field examples, nulls included (checked headless on 5.34.0; `/redoc` not checked).
+   Rule: every response has named examples or a fully exemplified schema; every example
+   validates strictly against its schema.
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
@@ -192,6 +201,14 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   embedder's for heading + text, 404, 422s), OpenAPI parameters, contract cases.
   README gained "Reading documents" (list, detail, content, chunks), catching up on C4
   and C5a; keeping it current is now a rule in `CLAUDE.md`.
+- [x] C5c. Nulls in OpenAPI examples (2026-10-30, Decision 10). `DOCUMENT_EXAMPLE`,
+  `CHUNK_EXAMPLE` and the object examples of `Document`, `Chunk`, `DocumentPage`,
+  `ChunkPage` removed, as are the 200 named examples of list/get/chunks (lost: "No
+  match", "With vectors"). `ChunkPage` redeclares `limit` (example 50); `HealthResponse.status`
+  got `examples=["ok"]` so the rule holds for every response. Tests:
+  `test_every_response_has_an_example`, `test_every_example_matches_its_schema` (77
+  examples, strict; on the C5b spec it reports exactly the 7 broken ones),
+  `test_examples_of_nullable_fields_keep_their_nulls`.
 - [ ] C6. PATCH rename.
 - [ ] C7. Reprocess.
 - [ ] C8. Delete.
@@ -205,10 +222,5 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
 - POST re-upload resets a PATCH rename unless the client sends `title`; the UI must know.
 - A POST still in flight while a DELETE commits re-creates the document. Acceptable
   (same as "upload after delete"); document it.
-- **Null values vanish from OpenAPI examples** (found in C5b). FastAPI renders the
-  document with `exclude_none=True`, so `"outdated_reason": null` (Document) and
-  `"embedding": null` (Chunk) are missing from the examples, which then fail their own
-  schemas (required fields). Fix in its own step, with a test that every example validates
-  against its schema.
 - Carried over from `progress.md`: the settings-env isolation fixture (proposed), the
   iterative HNSW scan before any search endpoint, Neon password rotation unconfirmed.

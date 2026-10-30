@@ -64,14 +64,6 @@
       },
       "Chunk": {
         "description": "One stored chunk of a document.",
-        "examples": [
-          {
-            "char_count": 86,
-            "chunk_index": 2,
-            "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
-            "heading": "PRO-014 Control de sellado > 3. Pasos"
-          }
-        ],
         "properties": {
           "char_count": {
             "description": "Length of `chunk_text` in characters (not bytes).",
@@ -143,21 +135,6 @@
       },
       "ChunkPage": {
         "description": "A page of a document's chunks.",
-        "examples": [
-          {
-            "items": [
-              {
-                "char_count": 86,
-                "chunk_index": 2,
-                "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
-                "heading": "PRO-014 Control de sellado > 3. Pasos"
-              }
-            ],
-            "limit": 50,
-            "offset": 0,
-            "total": 12
-          }
-        ],
         "properties": {
           "items": {
             "description": "The items of this page, possibly empty.",
@@ -170,7 +147,7 @@
           "limit": {
             "description": "Page size requested.",
             "examples": [
-              25
+              50
             ],
             "title": "Limit",
             "type": "integer"
@@ -203,26 +180,6 @@
       },
       "Document": {
         "description": "A stored document, the same in the listing and on its own. `status` compares it with\nthe current settings.",
-        "examples": [
-          {
-            "chunk_count": 12,
-            "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
-            "chunked_at": "2026-10-15T09:30:01Z",
-            "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
-            "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
-            "created_at": "2026-10-15T09:30:00Z",
-            "doc_id": "upload-1890b5dc5335",
-            "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
-            "embedded_at": "2026-10-15T09:30:04Z",
-            "embedder_config": "voyage-4/document/1024",
-            "size_bytes": 8421,
-            "source_key": "pro-014-control-sellado.md",
-            "status": "indexed",
-            "tenant": "acme",
-            "title": "PRO-014 Control de sellado",
-            "updated_at": "2026-10-15T09:30:00Z"
-          }
-        ],
         "properties": {
           "chunk_count": {
             "description": "Number of stored chunks.",
@@ -447,33 +404,6 @@
       },
       "DocumentPage": {
         "description": "A page of documents.",
-        "examples": [
-          {
-            "items": [
-              {
-                "chunk_count": 12,
-                "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
-                "chunked_at": "2026-10-15T09:30:01Z",
-                "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
-                "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
-                "created_at": "2026-10-15T09:30:00Z",
-                "doc_id": "upload-1890b5dc5335",
-                "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
-                "embedded_at": "2026-10-15T09:30:04Z",
-                "embedder_config": "voyage-4/document/1024",
-                "size_bytes": 8421,
-                "source_key": "pro-014-control-sellado.md",
-                "status": "indexed",
-                "tenant": "acme",
-                "title": "PRO-014 Control de sellado",
-                "updated_at": "2026-10-15T09:30:00Z"
-              }
-            ],
-            "limit": 25,
-            "offset": 0,
-            "total": 1
-          }
-        ],
         "properties": {
           "items": {
             "description": "The items of this page, possibly empty.",
@@ -620,6 +550,9 @@
           "status": {
             "const": "ok",
             "description": "Always `ok` when the process is serving.",
+            "examples": [
+              "ok"
+            ],
             "title": "Status",
             "type": "string"
           }
@@ -845,45 +778,6 @@
           "200": {
             "content": {
               "application/json": {
-                "examples": {
-                  "empty": {
-                    "summary": "No match",
-                    "value": {
-                      "items": [],
-                      "limit": 25,
-                      "offset": 0,
-                      "total": 0
-                    }
-                  },
-                  "page": {
-                    "summary": "One page",
-                    "value": {
-                      "items": [
-                        {
-                          "chunk_count": 12,
-                          "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
-                          "chunked_at": "2026-10-15T09:30:01Z",
-                          "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
-                          "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
-                          "created_at": "2026-10-15T09:30:00Z",
-                          "doc_id": "upload-1890b5dc5335",
-                          "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
-                          "embedded_at": "2026-10-15T09:30:04Z",
-                          "embedder_config": "voyage-4/document/1024",
-                          "size_bytes": 8421,
-                          "source_key": "pro-014-control-sellado.md",
-                          "status": "indexed",
-                          "tenant": "acme",
-                          "title": "PRO-014 Control de sellado",
-                          "updated_at": "2026-10-15T09:30:00Z"
-                        }
-                      ],
-                      "limit": 25,
-                      "offset": 0,
-                      "total": 1
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/DocumentPage"
                 }
@@ -1240,29 +1134,6 @@
           "200": {
             "content": {
               "application/json": {
-                "examples": {
-                  "document": {
-                    "summary": "A document",
-                    "value": {
-                      "chunk_count": 12,
-                      "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
-                      "chunked_at": "2026-10-15T09:30:01Z",
-                      "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
-                      "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
-                      "created_at": "2026-10-15T09:30:00Z",
-                      "doc_id": "upload-1890b5dc5335",
-                      "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
-                      "embedded_at": "2026-10-15T09:30:04Z",
-                      "embedder_config": "voyage-4/document/1024",
-                      "size_bytes": 8421,
-                      "source_key": "pro-014-control-sellado.md",
-                      "status": "indexed",
-                      "tenant": "acme",
-                      "title": "PRO-014 Control de sellado",
-                      "updated_at": "2026-10-15T09:30:00Z"
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/Document"
                 }
@@ -1440,45 +1311,6 @@
           "200": {
             "content": {
               "application/json": {
-                "examples": {
-                  "page": {
-                    "summary": "One page",
-                    "value": {
-                      "items": [
-                        {
-                          "char_count": 86,
-                          "chunk_index": 2,
-                          "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
-                          "heading": "PRO-014 Control de sellado > 3. Pasos"
-                        }
-                      ],
-                      "limit": 50,
-                      "offset": 0,
-                      "total": 12
-                    }
-                  },
-                  "with_embedding": {
-                    "summary": "With vectors (shortened here to 3 values)",
-                    "value": {
-                      "items": [
-                        {
-                          "char_count": 86,
-                          "chunk_index": 2,
-                          "chunk_text": "Comprobar la presión de la junta antes de cada turno y anotar el valor en el registro.",
-                          "embedding": [
-                            0.0213,
-                            -0.0472,
-                            0.0108
-                          ],
-                          "heading": "PRO-014 Control de sellado > 3. Pasos"
-                        }
-                      ],
-                      "limit": 1,
-                      "offset": 2,
-                      "total": 12
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ChunkPage"
                 }

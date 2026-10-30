@@ -111,7 +111,10 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
   string detail. Service validation raises `InvalidInputError(msg, field=..., code=...)`.
 - OpenAPI is part of the product: every endpoint has summary, description, tags,
   `operation_id` and every status in `responses` with examples; every schema field has a
-  description (`tests/api/test_openapi.py` enforces it). After any API change, re-export
+  description (`tests/api/test_openapi.py` enforces it). **Never put `null` in an
+  object-level example** (FastAPI drops it: `exclude_none` in `get_openapi`): a model with
+  nullable fields gets examples per field only, and Swagger builds the sample from them.
+  Every example must validate against its schema (tested, strictly). After any API change, re-export
   `docs/openapi.json` and commit it in the same commit (a snapshot test fails otherwise);
   every documented status must be triggered for real in `tests/api/test_contract.py`. Tests build the app with
   `create_app(docs_enabled=True)` so they never read `.env`.

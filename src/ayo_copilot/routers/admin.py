@@ -30,8 +30,6 @@ from ayo_copilot.ingestion.service import ingest_document
 from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
 from ayo_copilot.ingestion.storage import TENANT_PATTERN, InvalidInputError
 from ayo_copilot.schemas import (
-    CHUNK_EXAMPLE,
-    DOCUMENT_EXAMPLE,
     Chunk,
     ChunkPage,
     Document,
@@ -371,16 +369,8 @@ the chunking or embedding settings changed since the document was indexed.
     summary="List documents",
     description=LIST_DESCRIPTION,
     responses={
-        200: {
-            "description": "A page of documents.",
-            "content": _examples(
-                page=(
-                    "One page",
-                    {"items": [DOCUMENT_EXAMPLE], "total": 1, "limit": 25, "offset": 0},
-                ),
-                empty=("No match", {"items": [], "total": 0, "limit": 25, "offset": 0}),
-            ),
-        },
+        # The 200 sample comes from the field examples (see `schemas.Document`).
+        200: {"description": "A page of documents."},
         422: {
             "model": ErrorResponse,
             "description": "A query parameter is not acceptable. `type` is a FastAPI validation"
@@ -478,10 +468,7 @@ GET_DESCRIPTION = """One document, with the same fields as an item of the listin
     summary="Get a document",
     description=GET_DESCRIPTION,
     responses={
-        200: {
-            "description": "The document.",
-            "content": _examples(document=("A document", DOCUMENT_EXAMPLE)),
-        },
+        200: {"description": "The document."},
         404: NOT_FOUND_RESPONSE,
         422: DOC_ID_422_RESPONSE,
     },
@@ -580,24 +567,7 @@ so a full page with vectors is several megabytes of JSON.
     summary="List a document's chunks",
     description=CHUNKS_DESCRIPTION,
     responses={
-        200: {
-            "description": "A page of chunks.",
-            "content": _examples(
-                page=(
-                    "One page",
-                    {"items": [CHUNK_EXAMPLE], "total": 12, "limit": 50, "offset": 0},
-                ),
-                with_embedding=(
-                    "With vectors (shortened here to 3 values)",
-                    {
-                        "items": [{**CHUNK_EXAMPLE, "embedding": [0.0213, -0.0472, 0.0108]}],
-                        "total": 12,
-                        "limit": 1,
-                        "offset": 2,
-                    },
-                ),
-            ),
-        },
+        200: {"description": "A page of chunks."},
         404: NOT_FOUND_RESPONSE,
         422: {
             "model": ErrorResponse,
