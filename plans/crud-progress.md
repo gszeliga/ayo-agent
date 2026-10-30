@@ -55,6 +55,12 @@ is `plans/progress.md`.
    `HTTPValidationError` schema that could never happen. Applies to every `{doc_id}`
    route (C5-C8).
 
+9. **One `Document` schema for the list and the detail** (agreed 2026-10-30). The spec's
+   summary/detail split existed mostly for on-disk fields that Decision 1 dropped; what
+   was left gave two shapes, and `content_hash` meant 8 characters in one and 64 in the
+   other. Now both endpoints return the same object with the full hash, signatures and
+   configs (about 350 more bytes per listed item). The UI shortens hashes for display.
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
@@ -73,8 +79,8 @@ is `plans/progress.md`.
   limit/offset, total), `get_document`. Pure helpers `parse_sort`, `escape_like`;
   `service.current_configs` and `document_status` (Decision 7). `list_chunks` moved to
   C5 and `tenant_summaries` to C9, each with its endpoint.
-- **C4** `GET /admin/documents` and `GET /admin/documents/{doc_id}`: `DocumentSummary`
-  (8-character hash), `DocumentDetail`, generic `Page[T]` with clean OpenAPI names
+- **C4** `GET /admin/documents` and `GET /admin/documents/{doc_id}`: one `Document`
+  schema for both (Decision 9; was `DocumentSummary`/`DocumentDetail`), generic `Page[T]` with clean OpenAPI names
   (`DocumentPage`); query bounds validated by FastAPI (422); unknown `sort` -> 422;
   `status`/`outdated_reason` from `document_status`; page + count in one
   repeatable-read transaction. **Parametrized 401 test
@@ -160,6 +166,9 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   Contract tests now keyed by operation, plus a check that every `/admin` operation has
   cases. Manual curl on the local dev DB: list, detail, 404, 422, 401 as expected;
   the two pre-0002 documents show `outdated`/`unknown`.
+- [x] C4a. One `Document` schema for list and detail (2026-10-30, Decision 9).
+  `DocumentSummary`/`DocumentDetail` and `SHORT_HASH_LENGTH` gone; `docs/openapi.json`
+  re-exported. The read API test now asserts the detail equals the listed item.
 - [ ] C5. Content and chunks endpoints.
 - [ ] C6. PATCH rename.
 - [ ] C7. Reprocess.

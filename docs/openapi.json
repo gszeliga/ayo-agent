@@ -62,8 +62,8 @@
         "title": "Body_upload_document",
         "type": "object"
       },
-      "DocumentDetail": {
-        "description": "A stored document with everything that decides whether it must be reprocessed.",
+      "Document": {
+        "description": "A stored document, the same in the listing and on its own. `status` compares it with\nthe current settings.",
         "examples": [
           {
             "chunk_count": 12,
@@ -133,7 +133,7 @@
             "title": "Chunker Config"
           },
           "content_hash": {
-            "description": "SHA-256 (hex) of the stored Markdown.",
+            "description": "SHA-256 (hex) of the stored Markdown; equal hashes mean equal content.",
             "examples": [
               "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a"
             ],
@@ -294,16 +294,16 @@
           "chunk_count",
           "size_bytes",
           "content_hash",
-          "created_at",
-          "updated_at",
-          "chunked_at",
-          "embedded_at",
           "chunk_signature",
           "embed_signature",
           "chunker_config",
-          "embedder_config"
+          "embedder_config",
+          "created_at",
+          "updated_at",
+          "chunked_at",
+          "embedded_at"
         ],
-        "title": "DocumentDetail",
+        "title": "Document",
         "type": "object"
       },
       "DocumentPage": {
@@ -313,11 +313,15 @@
             "items": [
               {
                 "chunk_count": 12,
+                "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
                 "chunked_at": "2026-10-15T09:30:01Z",
-                "content_hash": "9f2c1a7e",
+                "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
+                "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
                 "created_at": "2026-10-15T09:30:00Z",
                 "doc_id": "upload-1890b5dc5335",
+                "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
                 "embedded_at": "2026-10-15T09:30:04Z",
+                "embedder_config": "voyage-4/document/1024",
                 "size_bytes": 8421,
                 "source_key": "pro-014-control-sellado.md",
                 "status": "indexed",
@@ -335,7 +339,7 @@
           "items": {
             "description": "The items of this page, possibly empty.",
             "items": {
-              "$ref": "#/components/schemas/DocumentSummary"
+              "$ref": "#/components/schemas/Document"
             },
             "title": "Items",
             "type": "array"
@@ -372,196 +376,6 @@
           "offset"
         ],
         "title": "DocumentPage",
-        "type": "object"
-      },
-      "DocumentSummary": {
-        "description": "A stored document, as listed. `status` compares it with the current settings.",
-        "examples": [
-          {
-            "chunk_count": 12,
-            "chunked_at": "2026-10-15T09:30:01Z",
-            "content_hash": "9f2c1a7e",
-            "created_at": "2026-10-15T09:30:00Z",
-            "doc_id": "upload-1890b5dc5335",
-            "embedded_at": "2026-10-15T09:30:04Z",
-            "size_bytes": 8421,
-            "source_key": "pro-014-control-sellado.md",
-            "status": "indexed",
-            "tenant": "acme",
-            "title": "PRO-014 Control de sellado",
-            "updated_at": "2026-10-15T09:30:00Z"
-          }
-        ],
-        "properties": {
-          "chunk_count": {
-            "description": "Number of stored chunks.",
-            "examples": [
-              12
-            ],
-            "title": "Chunk Count",
-            "type": "integer"
-          },
-          "chunked_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "When the current chunks were made (UTC).",
-            "examples": [
-              "2026-10-15T09:30:01Z"
-            ],
-            "title": "Chunked At"
-          },
-          "content_hash": {
-            "description": "First 8 hex characters of the SHA-256 of the stored Markdown; equal hashes mean equal content.",
-            "examples": [
-              "9f2c1a7e"
-            ],
-            "title": "Content Hash",
-            "type": "string"
-          },
-          "created_at": {
-            "description": "First upload (UTC).",
-            "examples": [
-              "2026-10-15T09:30:00Z"
-            ],
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "doc_id": {
-            "description": "Stable id of the document, derived from the tenant and the source key.",
-            "examples": [
-              "upload-1890b5dc5335"
-            ],
-            "title": "Doc Id",
-            "type": "string"
-          },
-          "embedded_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "When the current chunks were embedded (UTC).",
-            "examples": [
-              "2026-10-15T09:30:04Z"
-            ],
-            "title": "Embedded At"
-          },
-          "outdated_reason": {
-            "anyOf": [
-              {
-                "enum": [
-                  "chunker_changed",
-                  "embedder_changed",
-                  "unknown"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Why it is `outdated` (null when `indexed`): the chunking settings changed, the embedding model changed, or `unknown` (indexed before the settings were recorded). The chunker wins when both changed.",
-            "examples": [
-              null
-            ],
-            "title": "Outdated Reason"
-          },
-          "size_bytes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Size of the stored Markdown in bytes (UTF-8, after normalization).",
-            "examples": [
-              8421
-            ],
-            "title": "Size Bytes"
-          },
-          "source_key": {
-            "description": "Name that identifies the document within the tenant. Uploading with the same `tenant` and `source_key` replaces it.",
-            "examples": [
-              "pro-014-control-sellado.md"
-            ],
-            "title": "Source Key",
-            "type": "string"
-          },
-          "status": {
-            "description": "`indexed`: processed with the current chunking and embedding settings. `outdated`: the current settings would index it differently; reprocess or upload it again.",
-            "enum": [
-              "indexed",
-              "outdated"
-            ],
-            "examples": [
-              "indexed"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "tenant": {
-            "description": "Tenant the document belongs to.",
-            "examples": [
-              "acme"
-            ],
-            "title": "Tenant",
-            "type": "string"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Display title: given at upload, else the first `# ` heading, else the file name.",
-            "examples": [
-              "PRO-014 Control de sellado"
-            ],
-            "title": "Title"
-          },
-          "updated_at": {
-            "description": "Last change: upload or rename (UTC).",
-            "examples": [
-              "2026-10-15T09:30:00Z"
-            ],
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "doc_id",
-          "tenant",
-          "title",
-          "source_key",
-          "status",
-          "outdated_reason",
-          "chunk_count",
-          "size_bytes",
-          "content_hash",
-          "created_at",
-          "updated_at",
-          "chunked_at",
-          "embedded_at"
-        ],
-        "title": "DocumentSummary",
         "type": "object"
       },
       "ErrorItem": {
@@ -908,11 +722,15 @@
                       "items": [
                         {
                           "chunk_count": 12,
+                          "chunk_signature": "4e1b9c0d7a2f5e8b3c6d9a0f1e4b7c2d5a8f3e6b9c0d1a4f7e2b5c8d3a6f9e0b",
                           "chunked_at": "2026-10-15T09:30:01Z",
-                          "content_hash": "9f2c1a7e",
+                          "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
+                          "content_hash": "9f2c1a7e5b0d4c3a8e6f1b2d7c9a0e4f3b5d8c1a2e7f6b9d0c4a3e8f5b1d2c7a",
                           "created_at": "2026-10-15T09:30:00Z",
                           "doc_id": "upload-1890b5dc5335",
+                          "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
                           "embedded_at": "2026-10-15T09:30:04Z",
+                          "embedder_config": "voyage-4/document/1024",
                           "size_bytes": 8421,
                           "source_key": "pro-014-control-sellado.md",
                           "status": "indexed",
@@ -1260,7 +1078,7 @@
     },
     "/admin/documents/{doc_id}": {
       "get": {
-        "description": "One document: everything in the listing, plus the full content hash,\nthe signatures and the chunking and embedding settings it was processed with.\n\n| Status | Meaning |\n|---|---|\n| `200` | The document. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `422` | `doc_id` is malformed (FastAPI validation). |",
+        "description": "One document, with the same fields as an item of the listing.\n\n| Status | Meaning |\n|---|---|\n| `200` | The document. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `422` | `doc_id` is malformed (FastAPI validation). |",
         "operationId": "get_document",
         "parameters": [
           {
@@ -1307,7 +1125,7 @@
                   }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentDetail"
+                  "$ref": "#/components/schemas/Document"
                 }
               }
             },

@@ -138,7 +138,7 @@ def test_every_schema_property_is_described(spec: dict[str, Any]) -> None:
             "/admin/documents/{doc_id}",
             "get_document",
             {"200", "401", "404", "422"},
-            "DocumentDetail",
+            "Document",
         ),
     ],
 )
@@ -183,12 +183,13 @@ def test_doc_id_path_parameter_has_the_id_pattern(spec: dict[str, Any]) -> None:
 def test_page_schemas_have_clean_names(spec: dict[str, Any]) -> None:
     names = set(spec["components"]["schemas"])
 
-    assert {"DocumentPage", "DocumentSummary", "DocumentDetail"} <= names
+    assert {"DocumentPage", "Document"} <= names
+    assert not names & {"DocumentSummary", "DocumentDetail"}
     assert not [name for name in names if "[" in name or name.startswith("Page")]
 
 
 def test_nullable_document_fields_are_declared_nullable(spec: dict[str, Any]) -> None:
-    properties = spec["components"]["schemas"]["DocumentDetail"]["properties"]
+    properties = spec["components"]["schemas"]["Document"]["properties"]
     nullable = {
         name for name, schema in properties.items() if {"type": "null"} in schema.get("anyOf", [])
     }

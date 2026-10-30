@@ -22,7 +22,7 @@ pytestmark = pytest.mark.integration
 
 API_KEY = "test-admin-key"
 HEADERS = {"X-API-Key": API_KEY}
-SUMMARY_FIELDS = {
+DOCUMENT_FIELDS = {
     "doc_id",
     "tenant",
     "title",
@@ -32,16 +32,14 @@ SUMMARY_FIELDS = {
     "chunk_count",
     "size_bytes",
     "content_hash",
-    "created_at",
-    "updated_at",
-    "chunked_at",
-    "embedded_at",
-}
-DETAIL_FIELDS = SUMMARY_FIELDS | {
     "chunk_signature",
     "embed_signature",
     "chunker_config",
     "embedder_config",
+    "created_at",
+    "updated_at",
+    "chunked_at",
+    "embedded_at",
 }
 
 
@@ -96,13 +94,13 @@ def test_empty_database_gives_an_empty_page(client: TestClient) -> None:
     assert listing(client) == {"items": [], "total": 0, "limit": 25, "offset": 0}
 
 
-def test_summary_shows_what_the_upload_stored(client: TestClient) -> None:
+def test_item_shows_what_the_upload_stored(client: TestClient) -> None:
     text = doc("Válvula de purga")
     doc_id = upload(client, "valvula.md", text)
 
     (item,) = listing(client)["items"]
 
-    assert set(item) == SUMMARY_FIELDS
+    assert set(item) == DOCUMENT_FIELDS
     assert item["doc_id"] == doc_id == make_doc_id("acme", "valvula.md")
     assert (item["tenant"], item["title"], item["source_key"]) == (
         "acme",
@@ -112,7 +110,10 @@ def test_summary_shows_what_the_upload_stored(client: TestClient) -> None:
     assert (item["status"], item["outdated_reason"]) == ("indexed", None)
     assert item["chunk_count"] == 1
     assert item["size_bytes"] == len(text.encode()) > len(text)
-    assert len(item["content_hash"]) == 8
+    settings = make_settings("postgresql://unused")
+    assert (item["chunker_config"], item["embedder_config"]) == current_configs(settings)
+    assert len(item["content_hash"]) == len(item["chunk_signature"]) == 64
+    assert len(item["embed_signature"]) == 64
 
 
 def test_timestamps_are_utc(client: TestClient) -> None:
@@ -125,21 +126,14 @@ def test_timestamps_are_utc(client: TestClient) -> None:
         assert datetime.fromisoformat(item[field]).tzinfo == UTC
 
 
-def test_detail_adds_full_hash_signatures_and_configs(client: TestClient) -> None:
+def test_detail_equals_the_listed_item(client: TestClient) -> None:
     doc_id = upload(client, "a.md", doc("A"))
-    (summary,) = listing(client)["items"]
+    (item,) = listing(client)["items"]
 
     response = client.get(f"/admin/documents/{doc_id}")
 
     assert response.status_code == 200
-    detail = response.json()
-    assert set(detail) == DETAIL_FIELDS
-    assert len(detail["content_hash"]) == 64
-    assert detail["content_hash"].startswith(summary["content_hash"])
-    assert all(detail[k] == v for k, v in summary.items() if k != "content_hash")
-    settings = make_settings("postgresql://unused")
-    assert (detail["chunker_config"], detail["embedder_config"]) == current_configs(settings)
-    assert len(detail["chunk_signature"]) == len(detail["embed_signature"]) == 64
+    assert response.json() == item
 
 
 def test_changed_settings_make_documents_outdated(

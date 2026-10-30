@@ -25,12 +25,10 @@ from ayo_copilot.ingestion.service import ingest_document
 from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
 from ayo_copilot.ingestion.storage import TENANT_PATTERN, InvalidInputError
 from ayo_copilot.schemas import (
-    DETAIL_EXAMPLE,
-    SUMMARY_EXAMPLE,
-    DocumentDetail,
+    DOCUMENT_EXAMPLE,
+    Document,
     DocumentPage,
     DocumentSort,
-    DocumentSummary,
     ErrorResponse,
     IngestResponse,
 )
@@ -370,7 +368,7 @@ the chunking or embedding settings changed since the document was indexed.
             "content": _examples(
                 page=(
                     "One page",
-                    {"items": [SUMMARY_EXAMPLE], "total": 1, "limit": 25, "offset": 0},
+                    {"items": [DOCUMENT_EXAMPLE], "total": 1, "limit": 25, "offset": 0},
                 ),
                 empty=("No match", {"items": [], "total": 0, "limit": 25, "offset": 0}),
             ),
@@ -448,15 +446,14 @@ def list_documents(
         pool, tenant=tenant, q=q or None, sort=sort, limit=limit, offset=offset
     )
     return DocumentPage(
-        items=[DocumentSummary.from_row(row, settings) for row in rows],
+        items=[Document.from_row(row, settings) for row in rows],
         total=total,
         limit=limit,
         offset=offset,
     )
 
 
-GET_DESCRIPTION = """One document: everything in the listing, plus the full content hash,
-the signatures and the chunking and embedding settings it was processed with.
+GET_DESCRIPTION = """One document, with the same fields as an item of the listing.
 
 | Status | Meaning |
 |---|---|
@@ -475,7 +472,7 @@ the signatures and the chunking and embedding settings it was processed with.
     responses={
         200: {
             "description": "The document.",
-            "content": _examples(document=("A document", DETAIL_EXAMPLE)),
+            "content": _examples(document=("A document", DOCUMENT_EXAMPLE)),
         },
         404: NOT_FOUND_RESPONSE,
         422: DOC_ID_422_RESPONSE,
@@ -490,8 +487,8 @@ def get_document(
     ],
     settings: Annotated[Settings, Depends(get_settings)],
     pool: Annotated[ConnectionPool, Depends(get_pool)],
-) -> DocumentDetail:
+) -> Document:
     row = read_document(pool, doc_id)
     if row is None:
         raise _not_found()
-    return DocumentDetail.from_row(row, settings)
+    return Document.from_row(row, settings)

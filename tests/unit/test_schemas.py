@@ -1,11 +1,11 @@
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import DocumentRow
 from ayo_copilot.ingestion.service import current_configs
-from ayo_copilot.schemas import DocumentDetail, DocumentSummary
+from ayo_copilot.schemas import Document
 
 SETTINGS = Settings(_env_file=None, admin_api_key="k", embedding_provider="fake")
 CHUNKER, EMBEDDER = current_configs(SETTINGS)
@@ -33,28 +33,36 @@ ROW = DocumentRow(
 )
 
 
-def test_summary_timestamps_are_serialized_in_utc() -> None:
-    body = DocumentSummary.from_row(ROW, SETTINGS).model_dump(mode="json")
+def test_timestamps_are_serialized_in_utc() -> None:
+    body = Document.from_row(ROW, SETTINGS).model_dump(mode="json")
 
-    assert body["created_at"] == body["updated_at"] == "2026-10-15T09:30:00Z"
+    assert body["created_at"] == body["updated_at"] == body["chunked_at"]
+    assert body["created_at"] == "2026-10-15T09:30:00Z"
     assert body["embedded_at"] is None
 
 
-def test_summary_shortens_the_hash_and_the_detail_does_not() -> None:
-    assert DocumentSummary.from_row(ROW, SETTINGS).content_hash == "9f2c1a7e"
-    assert DocumentDetail.from_row(ROW, SETTINGS).content_hash == ROW.content_hash
+def test_hashes_and_configs_are_copied_whole() -> None:
+    document = Document.from_row(ROW, SETTINGS)
+
+    assert (
+        document.content_hash,
+        document.chunk_signature,
+        document.embed_signature,
+        document.chunker_config,
+        document.embedder_config,
+    ) == (
+        ROW.content_hash,
+        ROW.chunk_signature,
+        ROW.embed_signature,
+        ROW.chunker_config,
+        ROW.embedder_config,
+    )
 
 
 def test_status_comes_from_the_stored_configs() -> None:
     stale = replace(ROW, embedder_config="voyage-3/document/1024")
 
-    summary = DocumentSummary.from_row(stale, SETTINGS)
+    document = Document.from_row(stale, SETTINGS)
 
-    assert (summary.status, summary.outdated_reason) == ("outdated", "embedder_changed")
-    assert DocumentSummary.from_row(ROW, SETTINGS).status == "indexed"
-
-
-def test_detail_converts_timestamps_too() -> None:
-    assert DocumentDetail.from_row(ROW, SETTINGS).chunked_at == datetime(
-        2026, 10, 15, 9, 30, tzinfo=UTC
-    )
+    assert (document.status, document.outdated_reason) == ("outdated", "embedder_changed")
+    assert Document.from_row(ROW, SETTINGS).status == "indexed"

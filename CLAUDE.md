@@ -71,7 +71,7 @@ src/ayo_copilot/
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
-  schemas.py           IngestResponse, DocumentSummary/Detail, Page[T] -> DocumentPage, errors
+  schemas.py           IngestResponse, Document, Page[T] -> DocumentPage, errors
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
   routers/admin.py     /admin: upload, list, get (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
