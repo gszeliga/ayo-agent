@@ -31,3 +31,8 @@ def read_document_page(
 def read_document(pool: ConnectionPool, doc_id: str) -> DocumentRow | None:
     with pool.connection() as conn:
         return repository.get_document(conn, doc_id)
+
+
+def read_markdown(pool: ConnectionPool, doc_id: str) -> str | None:
+    with pool.connection() as conn:
+        return repository.get_markdown(conn, doc_id)

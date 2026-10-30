@@ -241,6 +241,12 @@ def get_document(conn: Connection, doc_id: str) -> DocumentRow | None:
         ).fetchone()
 
 
+def get_markdown(conn: Connection, doc_id: str) -> str | None:
+    """The stored Markdown; the only read of that column, as `DocumentRow` leaves it out."""
+    row = conn.execute("select markdown from documents where doc_id = %s", (doc_id,)).fetchone()
+    return row[0] if row is not None else None
+
+
 def similar_chunks(
     conn: Connection, *, tenant: str, embedding: Sequence[float], limit: int = 5
 ) -> list[SimilarChunk]:

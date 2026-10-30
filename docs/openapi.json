@@ -1228,6 +1228,141 @@
         ]
       }
     },
+    "/admin/documents/{doc_id}/content": {
+      "get": {
+        "description": "The stored Markdown, as `text/markdown; charset=utf-8`.\n\nIt is the uploaded file after normalization (no byte order mark, LF line endings), so its\nSHA-256 is the document's `content_hash`. Errors are JSON, like everywhere else.\n\n| Status | Meaning |\n|---|---|\n| `200` | The Markdown. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `422` | `doc_id` is malformed (FastAPI validation). |",
+        "operationId": "get_document_content",
+        "parameters": [
+          {
+            "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+              "examples": [
+                "upload-1890b5dc5335"
+              ],
+              "pattern": "^[a-z]+-[0-9a-f]{12}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/markdown; charset=utf-8": {
+                "examples": {
+                  "markdown": {
+                    "summary": "A procedure",
+                    "value": "# PRO-014 Control de sellado\n\n## Paso 1\n\nComprobar la presión de la junta antes de cada turno y anotar el valor en el registro.\n"
+                  }
+                },
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The stored Markdown."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document_not_found": {
+                    "summary": "Unknown document",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "document not found",
+                          "type": "document_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No document has this `doc_id`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "string_pattern_mismatch": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z]+-[0-9a-f]{12}$"
+                          },
+                          "input": "pro-014.md",
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "String should match pattern '^[a-z]+-[0-9a-f]{12}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`doc_id` is not a document id (FastAPI validation): it never matches a document."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Get a document's Markdown",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "description": "Answers as soon as the process serves requests. It does not check the database or the embedding provider.",

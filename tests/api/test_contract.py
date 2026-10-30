@@ -60,14 +60,18 @@ def strict_spec() -> dict[str, Any]:
 UPLOAD = ("post", "/admin/documents")
 LIST = ("get", "/admin/documents")
 GET = ("get", "/admin/documents/{doc_id}")
+CONTENT = ("get", "/admin/documents/{doc_id}/content")
 
 
 def documented_schema(
-    spec: dict[str, Any], status: int, operation: tuple[str, str] = UPLOAD
+    spec: dict[str, Any],
+    status: int,
+    operation: tuple[str, str] = UPLOAD,
+    media_type: str = "application/json",
 ) -> dict[str, Any]:
     method, path = operation
     response = spec["paths"][path][method]["responses"][str(status)]
-    schema = response["content"]["application/json"]["schema"]
+    schema = response["content"][media_type]["schema"]
     # Root-relative `$ref`s resolve against the components carried along.
     return {**schema, "components": spec["components"]}
 
@@ -92,9 +96,9 @@ def get(client: TestClient, url: str, headers: dict[str, str] | None = None, **p
     )
 
 
-def get_uploaded(client: TestClient):
+def get_uploaded(client: TestClient, suffix: str = ""):
     doc_id = post(client, SMALL_DOC).json()["doc_id"]
-    return get(client, f"/admin/documents/{doc_id}")
+    return get(client, f"/admin/documents/{doc_id}{suffix}")
 
 
 # name -> (operation, expected status, how to trigger it)
@@ -128,6 +132,18 @@ CASES = {
     ),
     "get 404": (GET, 404, lambda c: get(c, "/admin/documents/upload-000000000000")),
     "get 422 malformed id": (GET, 422, lambda c: get(c, "/admin/documents/pro-014.md")),
+    "content 200": (CONTENT, 200, lambda c: get_uploaded(c, "/content")),
+    "content 401 no key": (
+        CONTENT,
+        401,
+        lambda c: get(c, "/admin/documents/upload-000000000000/content", headers={}),
+    ),
+    "content 404": (CONTENT, 404, lambda c: get(c, "/admin/documents/upload-000000000000/content")),
+    "content 422 malformed id": (
+        CONTENT,
+        422,
+        lambda c: get(c, "/admin/documents/pro-014.md/content"),
+    ),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}}
@@ -142,7 +158,11 @@ def test_response_matches_its_documented_schema(
     response = trigger(client)
 
     assert response.status_code == status, response.text
-    OAS31Validator(documented_schema(strict_spec, status, operation)).validate(response.json())
+    # The body must come in a media type documented for this status.
+    media_type = response.headers["content-type"]
+    body = response.json() if media_type == "application/json" else response.text
+    schema = documented_schema(strict_spec, status, operation, media_type)
+    OAS31Validator(schema).validate(body)
 
 
 def test_provider_failure_matches_its_documented_schema(
@@ -156,7 +176,7 @@ def test_provider_failure_matches_its_documented_schema(
     OAS31Validator(documented_schema(strict_spec, 502)).validate(response.json())
 
 
-@pytest.mark.parametrize("operation", [UPLOAD, LIST, GET], ids=lambda op: " ".join(op))
+@pytest.mark.parametrize("operation", [UPLOAD, LIST, GET, CONTENT], ids=lambda op: " ".join(op))
 def test_every_documented_status_is_triggered(
     strict_spec: dict[str, Any], operation: tuple[str, str]
 ) -> None:
@@ -175,7 +195,7 @@ def test_every_admin_operation_has_contract_cases(strict_spec: dict[str, Any]) -
         for method in item
     }
 
-    assert documented == {UPLOAD, LIST, GET}
+    assert documented == {UPLOAD, LIST, GET, CONTENT}
 
 
 def test_strict_schemas_reject_undocumented_fields(strict_spec: dict[str, Any]) -> None:

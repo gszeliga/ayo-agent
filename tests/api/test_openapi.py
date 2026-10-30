@@ -157,6 +157,25 @@ def test_read_operations_document_exactly_their_status_codes(
         assert content["schema"] == {"$ref": f"#/components/schemas/{name}"}, status
 
 
+def test_content_operation_documents_markdown_and_json_errors(spec: dict[str, Any]) -> None:
+    operation = spec["paths"]["/admin/documents/{doc_id}/content"]["get"]
+
+    assert operation["operationId"] == "get_document_content"
+    assert operation["security"] == [{"AdminApiKey": []}]
+    assert set(operation["responses"]) == {"200", "401", "404", "422"}
+    responses = operation["responses"]
+    (media_type,) = responses["200"]["content"]
+    assert media_type == "text/markdown; charset=utf-8"
+    markdown = responses["200"]["content"][media_type]
+    assert markdown["schema"] == {"type": "string"}
+    assert markdown["examples"]
+    for status in ("401", "404", "422"):
+        (content,) = responses[status]["content"].values()
+        assert set(responses[status]["content"]) == {"application/json"}, status
+        assert content["examples"], f"no example for {status}"
+        assert content["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}, status
+
+
 def test_list_parameters_are_described_with_their_bounds(spec: dict[str, Any]) -> None:
     parameters = {p["name"]: p for p in spec["paths"]["/admin/documents"]["get"]["parameters"]}
 

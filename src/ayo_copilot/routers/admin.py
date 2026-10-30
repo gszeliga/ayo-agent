@@ -18,7 +18,7 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import DEFAULT_SORT
 from ayo_copilot.dependencies import get_embedder, get_pool, get_settings
-from ayo_copilot.documents import read_document, read_document_page
+from ayo_copilot.documents import read_document, read_document_page, read_markdown
 from ayo_copilot.errors import ApiError
 from ayo_copilot.ingestion.embedding import Embedder, EmbeddingError
 from ayo_copilot.ingestion.service import ingest_document
@@ -492,3 +492,59 @@ def get_document(
     if row is None:
         raise _not_found()
     return Document.from_row(row, settings)
+
+
+CONTENT_DESCRIPTION = """The stored Markdown, as `text/markdown; charset=utf-8`.
+
+It is the uploaded file after normalization (no byte order mark, LF line endings), so its
+SHA-256 is the document's `content_hash`. Errors are JSON, like everywhere else.
+
+| Status | Meaning |
+|---|---|
+| `200` | The Markdown. |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No document has this `doc_id`. |
+| `422` | `doc_id` is malformed (FastAPI validation). |
+"""
+
+MARKDOWN_MEDIA_TYPE = "text/markdown; charset=utf-8"
+MARKDOWN_EXAMPLE = (
+    "# PRO-014 Control de sellado\n\n## Paso 1\n\nComprobar la presión de la junta antes"
+    " de cada turno y anotar el valor en el registro.\n"
+)
+
+
+@router.get(
+    "/documents/{doc_id}/content",
+    operation_id="get_document_content",
+    summary="Get a document's Markdown",
+    description=CONTENT_DESCRIPTION,
+    # Plain `Response`: no JSON 200 is documented, and the errors stay `application/json`.
+    response_class=Response,
+    responses={
+        200: {
+            "description": "The stored Markdown.",
+            "content": {
+                MARKDOWN_MEDIA_TYPE: {
+                    "schema": {"type": "string"},
+                    "examples": {"markdown": {"summary": "A procedure", "value": MARKDOWN_EXAMPLE}},
+                }
+            },
+        },
+        404: NOT_FOUND_RESPONSE,
+        422: DOC_ID_422_RESPONSE,
+    },
+)
+def get_document_content(
+    doc_id: Annotated[
+        str,
+        PathParam(
+            pattern=DOC_ID_PATTERN, description=DOC_ID_PARAM, examples=["upload-1890b5dc5335"]
+        ),
+    ],
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+) -> Response:
+    markdown = read_markdown(pool, doc_id)
+    if markdown is None:
+        raise _not_found()
+    return Response(markdown, media_type=MARKDOWN_MEDIA_TYPE)

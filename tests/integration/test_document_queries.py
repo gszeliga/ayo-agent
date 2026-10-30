@@ -8,6 +8,7 @@ from ayo_copilot.db.repository import (
     DocumentRecord,
     DocumentRow,
     get_document,
+    get_markdown,
     list_documents,
     upsert_document,
 )
@@ -171,3 +172,12 @@ def test_get_document_returns_every_column_but_the_markdown(db_pool: ConnectionP
 def test_get_document_returns_none_for_an_unknown_doc_id(db_pool: ConnectionPool) -> None:
     with db_pool.connection() as conn:
         assert get_document(conn, "upload-000000000000") is None
+
+
+def test_get_markdown_returns_the_stored_text(db_pool: ConnectionPool) -> None:
+    doc_id = add_document(db_pool, "pro-014.md")
+    add_document(db_pool, "otro.md")
+
+    with db_pool.connection() as conn:
+        assert get_markdown(conn, doc_id) == "# pro-014.md\n\nTexto del procedimiento.\n"
+        assert get_markdown(conn, "upload-000000000000") is None

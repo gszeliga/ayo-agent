@@ -169,7 +169,17 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
 - [x] C4a. One `Document` schema for list and detail (2026-10-30, Decision 9).
   `DocumentSummary`/`DocumentDetail` and `SHORT_HASH_LENGTH` gone; `docs/openapi.json`
   re-exported. The read API test now asserts the detail equals the listed item.
-- [ ] C5. Content and chunks endpoints.
+- [x] C5a. `GET .../{doc_id}/content` (2026-10-30). C5 split in two commits (content,
+  chunks). `repository.get_markdown` (the only read of `markdown`), `documents.read_markdown`.
+  Route uses `response_class=Response` with an explicit `text/markdown; charset=utf-8`
+  200, so no JSON 200 is documented and errors stay `application/json`. No
+  `Content-Disposition`, no `ETag` (could be `content_hash` later). The contract test now
+  takes the documented media type from the response's `Content-Type`, so a body in an
+  undocumented media type fails. Tests: exact text and header, BOM/CRLF/CR come back
+  normalized and hash to `content_hash`, JSON 404, 422; repository `get_markdown`.
+- [ ] C5b. Chunks endpoint (`ChunkPage`; `embedding` always present, null unless
+  `include_embedding`; `total` = `documents.chunk_count` read in the same repeatable-read
+  transaction, which also gives the 404).
 - [ ] C6. PATCH rename.
 - [ ] C7. Reprocess.
 - [ ] C8. Delete.

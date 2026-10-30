@@ -1,9 +1,11 @@
-"""GET /admin/documents and GET /admin/documents/{doc_id}, through HTTP on a real database.
+"""GET /admin/documents, GET /admin/documents/{doc_id} and its /content, through HTTP on a
+real database.
 
 Documents are created with the upload endpoint, so these tests also check that what the
 upload stores is what the listing shows.
 """
 
+import hashlib
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
@@ -216,3 +218,41 @@ def test_invalid_query_parameters_are_a_422(
     assert response.status_code == 422
     (item,) = response.json()["detail"]
     assert (item["type"], item["loc"]) == (type, loc)
+
+
+def test_content_is_the_stored_markdown(client: TestClient) -> None:
+    text = doc("Válvula de purga")
+    doc_id = upload(client, "valvula.md", text)
+
+    response = client.get(f"/admin/documents/{doc_id}/content")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert response.text == text
+
+
+def test_content_comes_back_normalized(client: TestClient) -> None:
+    raw = "\ufeff# Purga\r\n\r\nAbrir la válvula.\rCerrar la válvula.\r\n"
+    doc_id = upload(client, "purga.md", raw)
+
+    content = client.get(f"/admin/documents/{doc_id}/content").text
+    detail = client.get(f"/admin/documents/{doc_id}").json()
+
+    assert content == "# Purga\n\nAbrir la válvula.\nCerrar la válvula.\n"
+    assert hashlib.sha256(content.encode()).hexdigest() == detail["content_hash"]
+
+
+def test_content_of_an_unknown_document_is_a_json_404(client: TestClient) -> None:
+    response = client.get("/admin/documents/upload-000000000000/content")
+
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["detail"][0]["type"] == "document_not_found"
+
+
+def test_content_with_a_malformed_doc_id_is_a_422(client: TestClient) -> None:
+    response = client.get("/admin/documents/pro-014.md/content")
+
+    assert response.status_code == 422
+    (item,) = response.json()["detail"]
+    assert (item["type"], item["loc"]) == ("string_pattern_mismatch", ["path", "doc_id"])
