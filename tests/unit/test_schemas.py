@@ -2,10 +2,13 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+import pytest
+from pydantic import ValidationError
+
 from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import DocumentRow
 from ayo_copilot.ingestion.service import current_configs
-from ayo_copilot.schemas import Document
+from ayo_copilot.schemas import Document, DocumentUpdate
 
 SETTINGS = Settings(_env_file=None, admin_api_key="k", embedding_provider="fake")
 CHUNKER, EMBEDDER = current_configs(SETTINGS)
@@ -66,3 +69,38 @@ def test_status_comes_from_the_stored_configs() -> None:
 
     assert (document.status, document.outdated_reason) == ("outdated", "embedder_changed")
     assert Document.from_row(ROW, SETTINGS).status == "indexed"
+
+
+@pytest.mark.parametrize(
+    ("given", "stored"),
+    [
+        ("  Válvula ñ \n", "Válvula ñ"),
+        ("x", "x"),
+        ("a" * 200, "a" * 200),
+        ("  " + "a" * 200 + "  ", "a" * 200),
+    ],
+)
+def test_update_title_is_trimmed_and_kept(given: str, stored: str) -> None:
+    assert DocumentUpdate.model_validate({"title": given}).title == stored
+
+
+@pytest.mark.parametrize(
+    ("body", "error_type", "loc"),
+    [
+        ({"title": ""}, "string_too_short", ("title",)),
+        ({"title": " \t\n "}, "string_too_short", ("title",)),
+        ({"title": "a" * 201}, "string_too_long", ("title",)),
+        ({"title": None}, "string_type", ("title",)),
+        ({"title": 14}, "string_type", ("title",)),
+        ({}, "missing", ("title",)),
+        ({"title": "Nuevo", "tenant": "beta"}, "extra_forbidden", ("tenant",)),
+    ],
+)
+def test_update_rejects_invalid_bodies(
+    body: dict[str, object], error_type: str, loc: tuple[str, ...]
+) -> None:
+    with pytest.raises(ValidationError) as caught:
+        DocumentUpdate.model_validate(body)
+
+    (error,) = caught.value.errors()
+    assert (error["type"], error["loc"]) == (error_type, loc)

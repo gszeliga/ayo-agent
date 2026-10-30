@@ -70,6 +70,12 @@ is `plans/progress.md`.
    Rule: every response has named examples or a fully exemplified schema; every example
    validates strictly against its schema.
 
+11. **A rename to the current title is a no-op** (agreed 2026-10-30). `updated_at` moves
+   only when the title changes (`title is distinct from ...`), like an `up_to_date`
+   upload, so the PATCH is idempotent and a no-op doesn't jump to the top of the default
+   sort. The spec says PATCH "updates `title` and `updated_at`". `title` is required and
+   not nullable; the body is JSON with `extra="forbid"`.
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
@@ -209,7 +215,16 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   `test_every_response_has_an_example`, `test_every_example_matches_its_schema` (77
   examples, strict; on the C5b spec it reports exactly the 7 broken ones),
   `test_examples_of_nullable_fields_keep_their_nulls`.
-- [ ] C6. PATCH rename.
+- [x] C6. `PATCH /admin/documents/{doc_id}` (2026-10-30, Decision 11). `DocumentUpdate`
+  (`StringConstraints(strip_whitespace, 1..200)`, `extra="forbid"`);
+  `repository.rename_document` is one `update ... returning` (no row -> 404, no second
+  read); `documents.rename_document` owns the transaction; the route doesn't depend on
+  the embedder; one log line without the title. Tests: unit (trim, bounds, null, number,
+  missing, extra), repository (whole row equal except title/updated_at, Markdown
+  unchanged, same title leaves `updated_at`, unknown -> None), API in the new
+  `tests/api/test_documents_write.py` (body equals a later GET, chunks and vectors
+  unchanged and no embedder call, first in the default sort, no-op, 404, 422s incl.
+  `json_invalid`), OpenAPI, contract (`OPERATIONS` list). README "Renaming a document".
 - [ ] C7. Reprocess.
 - [ ] C8. Delete.
 - [ ] C9. Tenants.

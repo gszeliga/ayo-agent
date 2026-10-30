@@ -97,6 +97,22 @@ curl -H "$H" "$API/upload-1890b5dc5335/chunks?limit=50&offset=0"             # i
 
 An unknown `doc_id` gives `404` (`document_not_found`); a malformed one gives `422`.
 
+## Renaming a document
+
+```sh
+curl -X PATCH -H "$H" -H "Content-Type: application/json" \
+  -d '{"title": "PRO-014 Control de sellado (rev. 3)"}' \
+  "$API/upload-1890b5dc5335"
+```
+
+Returns the renamed document. Only `title` (trimmed, 1 to 200 characters) and
+`updated_at` change; nothing is re-chunked or re-embedded, and renaming to the current
+title changes nothing. Any other field in the body is a `422`.
+
+To replace a document's content, upload the new file with the same `tenant` and
+`source_key`. That upload sets the title again (the `title` field, else the first `# `
+heading, else the file name), so send `-F title=...` with it to keep a rename.
+
 ## Tests
 
 ```sh

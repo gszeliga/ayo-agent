@@ -447,6 +447,27 @@
         "title": "DocumentPage",
         "type": "object"
       },
+      "DocumentUpdate": {
+        "additionalProperties": false,
+        "description": "Changes to a document that need no reprocessing. Only the title, for now.",
+        "properties": {
+          "title": {
+            "description": "New display title. Surrounding whitespace is removed; 1 to 200 characters remain.",
+            "examples": [
+              "PRO-014 Control de sellado (rev. 3)"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "DocumentUpdate",
+        "type": "object"
+      },
       "ErrorItem": {
         "description": "One error. The items of FastAPI's `HTTPValidationError` have this shape too.",
         "properties": {
@@ -1233,6 +1254,159 @@
           }
         ],
         "summary": "Get a document",
+        "tags": [
+          "documents"
+        ]
+      },
+      "patch": {
+        "description": "Rename a document. Only `title` and `updated_at` change: the content,\nchunks, signatures and embeddings stay as they are, and the embedding provider is not\ncalled. Renaming to the current title changes nothing, not even `updated_at`.\n\nA later upload of the same `tenant` and `source_key` sets the title again (the `title`\nfield, else the first `# ` heading, else the file name), so send `title` with it to keep a\nrename.\n\n| Status | Meaning |\n|---|---|\n| `200` | The document, renamed. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `422` | `doc_id` is malformed, or the body is not a valid update (FastAPI validation). |",
+        "operationId": "update_document",
+        "parameters": [
+          {
+            "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+              "examples": [
+                "upload-1890b5dc5335"
+              ],
+              "pattern": "^[a-z]+-[0-9a-f]{12}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "The document, renamed."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document_not_found": {
+                    "summary": "Unknown document",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "document not found",
+                          "type": "document_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No document has this `doc_id`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "extra_forbidden": {
+                    "summary": "Field that can't be changed",
+                    "value": {
+                      "detail": [
+                        {
+                          "input": "beta",
+                          "loc": [
+                            "body",
+                            "tenant"
+                          ],
+                          "msg": "Extra inputs are not permitted",
+                          "type": "extra_forbidden"
+                        }
+                      ]
+                    }
+                  },
+                  "string_too_short": {
+                    "summary": "Empty title",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "min_length": 1
+                          },
+                          "input": "   ",
+                          "loc": [
+                            "body",
+                            "title"
+                          ],
+                          "msg": "String should have at least 1 character",
+                          "type": "string_too_short"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`doc_id` is not a document id, or the body is not acceptable. `type` is a FastAPI validation code such as `string_too_short` or `string_too_long` (`title`), `missing`, `extra_forbidden` (a field other than `title`), `json_invalid` or `string_pattern_mismatch` (`doc_id`)."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Rename a document",
         "tags": [
           "documents"
         ]

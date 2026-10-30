@@ -23,6 +23,7 @@ from ayo_copilot.documents import (
     read_document,
     read_document_page,
     read_markdown,
+    rename_document,
 )
 from ayo_copilot.errors import ApiError
 from ayo_copilot.ingestion.embedding import Embedder, EmbeddingError
@@ -35,6 +36,7 @@ from ayo_copilot.schemas import (
     Document,
     DocumentPage,
     DocumentSort,
+    DocumentUpdate,
     ErrorResponse,
     IngestResponse,
 )
@@ -629,3 +631,77 @@ def list_document_chunks(
     return ChunkPage(
         items=[Chunk.from_row(chunk) for chunk in chunks], total=total, limit=limit, offset=offset
     )
+
+
+UPDATE_DESCRIPTION = """Rename a document. Only `title` and `updated_at` change: the content,
+chunks, signatures and embeddings stay as they are, and the embedding provider is not
+called. Renaming to the current title changes nothing, not even `updated_at`.
+
+A later upload of the same `tenant` and `source_key` sets the title again (the `title`
+field, else the first `# ` heading, else the file name), so send `title` with it to keep a
+rename.
+
+| Status | Meaning |
+|---|---|
+| `200` | The document, renamed. |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No document has this `doc_id`. |
+| `422` | `doc_id` is malformed, or the body is not a valid update (FastAPI validation). |
+"""
+
+
+@router.patch(
+    "/documents/{doc_id}",
+    operation_id="update_document",
+    summary="Rename a document",
+    description=UPDATE_DESCRIPTION,
+    responses={
+        200: {"description": "The document, renamed."},
+        404: NOT_FOUND_RESPONSE,
+        422: {
+            "model": ErrorResponse,
+            "description": "`doc_id` is not a document id, or the body is not acceptable."
+            " `type` is a FastAPI validation code such as `string_too_short` or"
+            " `string_too_long` (`title`), `missing`, `extra_forbidden` (a field other than"
+            " `title`), `json_invalid` or `string_pattern_mismatch` (`doc_id`).",
+            "content": _examples(
+                string_too_short=(
+                    "Empty title",
+                    _error(
+                        "string_too_short",
+                        ["body", "title"],
+                        "String should have at least 1 character",
+                        input="   ",
+                        ctx={"min_length": 1},
+                    ),
+                ),
+                extra_forbidden=(
+                    "Field that can't be changed",
+                    _error(
+                        "extra_forbidden",
+                        ["body", "tenant"],
+                        "Extra inputs are not permitted",
+                        input="beta",
+                    ),
+                ),
+            ),
+        },
+    },
+)
+def update_document(
+    doc_id: Annotated[
+        str,
+        PathParam(
+            pattern=DOC_ID_PATTERN, description=DOC_ID_PARAM, examples=["upload-1890b5dc5335"]
+        ),
+    ],
+    update: DocumentUpdate,
+    settings: Annotated[Settings, Depends(get_settings)],
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+) -> Document:
+    row = rename_document(pool, doc_id, update.title)
+    if row is None:
+        raise _not_found()
+    # No title in the log: it is customer data.
+    logger.info("document renamed doc_id=%s tenant=%s", doc_id, row.tenant)
+    return Document.from_row(row, settings)

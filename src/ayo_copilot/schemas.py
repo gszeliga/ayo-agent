@@ -1,9 +1,9 @@
 """Request and response bodies of the API. Every field is described for the OpenAPI docs."""
 
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import ChunkRow, DocumentRow
@@ -293,3 +293,17 @@ class ChunkPage(Page[Chunk]):
 
     # Redeclared only for the example: the chunks' default page size is 50.
     limit: int = Field(description="Page size requested.", examples=[50])
+
+
+class DocumentUpdate(BaseModel):
+    """Changes to a document that need no reprocessing. Only the title, for now."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+    ] = Field(
+        description="New display title. Surrounding whitespace is removed; 1 to 200"
+        " characters remain.",
+        examples=["PRO-014 Control de sellado (rev. 3)"],
+    )

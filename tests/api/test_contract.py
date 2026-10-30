@@ -62,6 +62,8 @@ LIST = ("get", "/admin/documents")
 GET = ("get", "/admin/documents/{doc_id}")
 CONTENT = ("get", "/admin/documents/{doc_id}/content")
 CHUNKS = ("get", "/admin/documents/{doc_id}/chunks")
+UPDATE = ("patch", "/admin/documents/{doc_id}")
+OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE]
 
 
 def documented_schema(
@@ -101,6 +103,19 @@ def get_uploaded(client: TestClient, suffix: str = ""):
     doc_id = post(client, SMALL_DOC).json()["doc_id"]
     return get(client, f"/admin/documents/{doc_id}{suffix}")
 
+
+def patch(client: TestClient, url: str, body: Any, headers: dict[str, str] | None = None):
+    return client.patch(
+        url, json=body, headers={"X-API-Key": API_KEY} if headers is None else headers
+    )
+
+
+def rename_uploaded(client: TestClient):
+    doc_id = post(client, SMALL_DOC).json()["doc_id"]
+    return patch(client, f"/admin/documents/{doc_id}", {"title": "Sellado (rev. 2)"})
+
+
+UNKNOWN = "/admin/documents/upload-000000000000"
 
 # name -> (operation, expected status, how to trigger it)
 CASES = {
@@ -162,6 +177,20 @@ CASES = {
         422,
         lambda c: get(c, "/admin/documents/upload-000000000000/chunks", limit=201),
     ),
+    "update 200": (UPDATE, 200, rename_uploaded),
+    "update 401 no key": (UPDATE, 401, lambda c: patch(c, UNKNOWN, {"title": "x"}, headers={})),
+    "update 404": (UPDATE, 404, lambda c: patch(c, UNKNOWN, {"title": "x"})),
+    "update 422 empty title": (UPDATE, 422, lambda c: patch(c, UNKNOWN, {"title": " "})),
+    "update 422 extra field": (
+        UPDATE,
+        422,
+        lambda c: patch(c, UNKNOWN, {"title": "x", "tenant": "beta"}),
+    ),
+    "update 422 malformed id": (
+        UPDATE,
+        422,
+        lambda c: patch(c, "/admin/documents/pro-014.md", {"title": "x"}),
+    ),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}}
@@ -194,9 +223,7 @@ def test_provider_failure_matches_its_documented_schema(
     OAS31Validator(documented_schema(strict_spec, 502)).validate(response.json())
 
 
-@pytest.mark.parametrize(
-    "operation", [UPLOAD, LIST, GET, CONTENT, CHUNKS], ids=lambda op: " ".join(op)
-)
+@pytest.mark.parametrize("operation", OPERATIONS, ids=lambda op: " ".join(op))
 def test_every_documented_status_is_triggered(
     strict_spec: dict[str, Any], operation: tuple[str, str]
 ) -> None:
@@ -215,7 +242,7 @@ def test_every_admin_operation_has_contract_cases(strict_spec: dict[str, Any]) -
         for method in item
     }
 
-    assert documented == {UPLOAD, LIST, GET, CONTENT, CHUNKS}
+    assert documented == set(OPERATIONS)
 
 
 def test_strict_schemas_reject_undocumented_fields(strict_spec: dict[str, Any]) -> None:

@@ -328,3 +328,24 @@ def test_examples_of_nullable_fields_keep_their_nulls(spec: dict[str, Any]) -> N
     assert schemas["Chunk"]["properties"]["embedding"]["examples"] == [None]
     for name in ("Document", "Chunk", "DocumentPage", "ChunkPage"):
         assert "examples" not in schemas[name], f"{name} must rely on field examples"
+
+
+def test_update_operation_takes_a_json_title(spec: dict[str, Any]) -> None:
+    operation = spec["paths"]["/admin/documents/{doc_id}"]["patch"]
+
+    assert operation["operationId"] == "update_document"
+    assert operation["security"] == [{"AdminApiKey": []}]
+    assert set(operation["responses"]) == {"200", "401", "404", "422"}
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/Document"
+    }
+    body = operation["requestBody"]
+    assert body["required"] is True
+    assert body["content"] == {
+        "application/json": {"schema": {"$ref": "#/components/schemas/DocumentUpdate"}}
+    }
+    schema = spec["components"]["schemas"]["DocumentUpdate"]
+    assert schema["required"] == ["title"]
+    assert schema["additionalProperties"] is False
+    title = schema["properties"]["title"]
+    assert (title["minLength"], title["maxLength"]) == (1, 200)

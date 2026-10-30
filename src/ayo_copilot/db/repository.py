@@ -252,6 +252,21 @@ def get_document(conn: Connection, doc_id: str) -> DocumentRow | None:
         ).fetchone()
 
 
+def rename_document(conn: Connection, doc_id: str, title: str) -> DocumentRow | None:
+    """Set the title; `updated_at` moves only if the title changes, so renaming to the same
+    title is a no-op. Nothing else is touched. None if there is no such document."""
+    with conn.cursor(row_factory=class_row(DocumentRow)) as cur:
+        return cur.execute(
+            sql.SQL(
+                "update documents set title = %(title)s,"
+                " updated_at = case when title is distinct from %(title)s then now()"
+                " else updated_at end"
+                " where doc_id = %(doc_id)s returning {}"
+            ).format(_DOCUMENT_COLUMNS),
+            {"title": title, "doc_id": doc_id},
+        ).fetchone()
+
+
 def get_chunk_count(conn: Connection, doc_id: str) -> tuple[UUID, int] | None:
     """The document's row id and `chunk_count`; None if there is no such document."""
     return conn.execute(

@@ -56,3 +56,8 @@ def read_chunk_page(
 def read_markdown(pool: ConnectionPool, doc_id: str) -> str | None:
     with pool.connection() as conn:
         return repository.get_markdown(conn, doc_id)
+
+
+def rename_document(pool: ConnectionPool, doc_id: str, title: str) -> DocumentRow | None:
+    with pool.connection() as conn, conn.transaction():
+        return repository.rename_document(conn, doc_id, title)

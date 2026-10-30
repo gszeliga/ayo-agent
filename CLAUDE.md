@@ -73,9 +73,9 @@ src/ayo_copilot/
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
-  schemas.py           IngestResponse, Document, Chunk, Page[T] -> DocumentPage/ChunkPage, errors
+  schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, errors
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
-  routers/admin.py     /admin: upload, list, get, content, chunks (provisional X-API-Key auth, size limits)
+  routers/admin.py     /admin: upload, list, get, content, chunks, rename (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), DocsSettings (app build) < Settings

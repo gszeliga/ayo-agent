@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -10,6 +11,7 @@ from ayo_copilot.db.repository import (
     get_document,
     get_markdown,
     list_documents,
+    rename_document,
     upsert_document,
 )
 from ayo_copilot.ingestion.signatures import make_doc_id
@@ -181,3 +183,40 @@ def test_get_markdown_returns_the_stored_text(db_pool: ConnectionPool) -> None:
     with db_pool.connection() as conn:
         assert get_markdown(conn, doc_id) == "# pro-014.md\n\nTexto del procedimiento.\n"
         assert get_markdown(conn, "upload-000000000000") is None
+
+
+def test_rename_changes_only_the_title_and_updated_at(db_pool: ConnectionPool) -> None:
+    doc_id = add_document(db_pool, "pro-014.md", title="Control de sellado", chunk_count=7)
+    with db_pool.connection() as conn:
+        before = get_document(conn, doc_id)
+        markdown_before = get_markdown(conn, doc_id)
+
+    with db_pool.connection() as conn:
+        renamed = rename_document(conn, doc_id, "Control de sellado (rev. 3)")
+        stored = get_document(conn, doc_id)
+        markdown_after = get_markdown(conn, doc_id)
+
+    assert renamed == stored
+    assert renamed.title == "Control de sellado (rev. 3)"
+    assert renamed.updated_at > BASE_TIME
+    assert replace(renamed, title=before.title, updated_at=before.updated_at) == before
+    assert markdown_after == markdown_before
+
+
+def test_rename_to_the_same_title_changes_nothing(db_pool: ConnectionPool) -> None:
+    doc_id = add_document(db_pool, "pro-014.md", title="Control de sellado")
+    with db_pool.connection() as conn:
+        before = get_document(conn, doc_id)
+
+    with db_pool.connection() as conn:
+        renamed = rename_document(conn, doc_id, "Control de sellado")
+
+    assert renamed == before
+    assert renamed.updated_at == BASE_TIME
+
+
+def test_rename_returns_none_for_an_unknown_doc_id(db_pool: ConnectionPool) -> None:
+    add_document(db_pool, "pro-014.md")
+
+    with db_pool.connection() as conn:
+        assert rename_document(conn, "upload-000000000000", "Nuevo") is None
