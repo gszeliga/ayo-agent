@@ -76,6 +76,21 @@ is `plans/progress.md`.
    sort. The spec says PATCH "updates `title` and `updated_at`". `title` is required and
    not nullable; the body is JSON with `extra="forbid"`.
 
+12. **The upload returns the full `embed_signature`** (agreed 2026-10-30). It was a
+   12-character prefix while `Document.embed_signature` is the full 64: one name, two
+   values (as `content_hash` before Decision 9). Now the same value everywhere. Deviates
+   from the spec's "don't change `POST /admin/documents`"; breaking for a client relying
+   on 12 characters (none yet).
+
+13. **Reprocess details** (agreed 2026-10-30, for C7b). Response is `IngestResponse`
+   (always 200, `indexed` or `up_to_date`). `?force=true` reprocesses an up-to-date
+   document, as upload's `force`. When the signatures match but a stored config is null
+   (indexed before 0002), only the two config strings are written, no provider call,
+   `up_to_date`. `updated_at` is not bumped (`chunked_at`/`embedded_at` record it). The
+   conditional write matching no row -> 404 `document_not_found` if the document is gone,
+   409 `document_changed` if its content changed. A stored document that yields no
+   chunks is a 500 (logged), not a documented status.
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **C0** This file; `CLAUDE.md` and `progress.md` point at it.
 - **C1** Migration `0002`: `documents` gets `chunk_count int not null default 0`,
@@ -112,8 +127,8 @@ is `plans/progress.md`.
   `store_reprocessed_document(pool, document, chunks, vectors) -> bool`, which runs
   `repository.update_indexed_document` (`UPDATE ... WHERE doc_id=%s AND content_hash=%s`,
   never inserts; writes only chunk/embedding columns, not `title` or `markdown`). No row
-  -> nothing written, 409 `document_changed` (404 vs 409 for a delete in the meantime:
-  decide in C7). 200/404/409/502; a provider failure leaves the DB as it was.
+  -> nothing written, 404 or 409 (Decision 13). 200/404/409/422/502; a provider failure
+  leaves the DB as it was. Split: C7a (Decision 12), C7b (the endpoint, Decision 13).
 - **C8** `DELETE /admin/documents/{doc_id}` (204/404), one statement (`delete ...
   returning tenant, chunk_count`), one log line (Decision 5). Tests: cascade, 404,
   re-upload afterwards creates a new row.
@@ -225,7 +240,11 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   `tests/api/test_documents_write.py` (body equals a later GET, chunks and vectors
   unchanged and no embedder call, first in the default sort, no-op, 404, 422s incl.
   `json_invalid`), OpenAPI, contract (`OPERATIONS` list). README "Renaming a document".
-- [ ] C7. Reprocess.
+- [x] C7a. Full `embed_signature` in `IngestResponse` (2026-10-30, Decision 12).
+  `SHORT_SIGNATURE_LENGTH` removed; examples share `schemas.EMBED_SIGNATURE_EXAMPLE`
+  with `Document`'s field example. Tests: the upload's signature equals the detail's and
+  the stored one. README sample updated.
+- [ ] C7b. Reprocess endpoint (Decision 13).
 - [ ] C8. Delete.
 - [ ] C9. Tenants.
 - [ ] C10. CORS.

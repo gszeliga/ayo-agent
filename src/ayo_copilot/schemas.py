@@ -28,6 +28,9 @@ class HealthResponse(BaseModel):
     )
 
 
+EMBED_SIGNATURE_EXAMPLE = "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c"
+
+
 class IngestResponse(BaseModel):
     """The outcome of an upload. Sent without the optional fields when `up_to_date`."""
 
@@ -39,7 +42,7 @@ class IngestResponse(BaseModel):
                     "status": "indexed",
                     "chunk_count": 12,
                     "embedding_model": "voyage-4",
-                    "embed_signature": "17047d562b7e",
+                    "embed_signature": EMBED_SIGNATURE_EXAMPLE,
                 }
             ]
         }
@@ -67,9 +70,9 @@ class IngestResponse(BaseModel):
     )
     embed_signature: str | None = Field(
         default=None,
-        description="First 12 hex characters of the signature that decides whether a later"
-        " upload is `up_to_date`. Only when `indexed`.",
-        examples=["17047d562b7e"],
+        description="Signature that decides whether a later upload is `up_to_date`: the"
+        " document's `embed_signature`. Only when `indexed`.",
+        examples=[EMBED_SIGNATURE_EXAMPLE],
     )
 
     @classmethod
@@ -182,7 +185,7 @@ class Document(BaseModel):
     embed_signature: str = Field(
         description="Hash of `chunk_signature` and `embedder_config`. An upload whose signature"
         " equals it is `up_to_date`.",
-        examples=["17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c"],
+        examples=[EMBED_SIGNATURE_EXAMPLE],
     )
     chunker_config: str | None = Field(
         description="Chunking settings the document was processed with (null if indexed"

@@ -31,6 +31,7 @@ from ayo_copilot.ingestion.service import ingest_document
 from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
 from ayo_copilot.ingestion.storage import TENANT_PATTERN, InvalidInputError
 from ayo_copilot.schemas import (
+    EMBED_SIGNATURE_EXAMPLE,
     Chunk,
     ChunkPage,
     Document,
@@ -137,7 +138,7 @@ INDEXED = {
     "status": "indexed",
     "chunk_count": 12,
     "embedding_model": "voyage-4",
-    "embed_signature": "17047d562b7e",
+    "embed_signature": EMBED_SIGNATURE_EXAMPLE,
 }
 
 UPLOAD_DESCRIPTION = """Index one Markdown file for a tenant, so the copilot can retrieve it.

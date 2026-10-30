@@ -32,9 +32,6 @@ from ayo_copilot.ingestion.storage import (
 
 logger = logging.getLogger(__name__)
 
-# Length of the embed signature prefix shown in responses.
-SHORT_SIGNATURE_LENGTH = 12
-
 _H1 = re.compile(r"#[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*")
 _FENCE = re.compile(r"(`{3,}|~{3,})")
 
@@ -267,7 +264,7 @@ def ingest_document(
         status="indexed",
         chunk_count=len(chunks),
         embedding_model=settings.embedding_model,
-        embed_signature=sigs.embed_signature[:SHORT_SIGNATURE_LENGTH],
+        embed_signature=sigs.embed_signature,
     )
 
 

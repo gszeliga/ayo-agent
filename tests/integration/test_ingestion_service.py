@@ -102,7 +102,10 @@ def test_first_upload_indexes_the_document(db_pool: ConnectionPool, embedder) ->
     assert result.status == "indexed"
     assert result.chunk_count == len(expected_chunks) > 1
     assert result.embedding_model == "voyage-4"
-    assert len(result.embed_signature) == 12
+    with db_pool.connection() as conn:
+        (stored_signature,) = conn.execute("select embed_signature from documents").fetchone()
+    assert result.embed_signature == stored_signature
+    assert len(stored_signature) == 64
     assert embedder.calls == [[embedding_text(chunk) for chunk in expected_chunks]]
 
     rows = stored_chunks(db_pool)

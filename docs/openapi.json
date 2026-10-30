@@ -590,7 +590,7 @@
           {
             "chunk_count": 12,
             "doc_id": "upload-1890b5dc5335",
-            "embed_signature": "17047d562b7e",
+            "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
             "embedding_model": "voyage-4",
             "status": "indexed"
           }
@@ -629,9 +629,9 @@
                 "type": "null"
               }
             ],
-            "description": "First 12 hex characters of the signature that decides whether a later upload is `up_to_date`. Only when `indexed`.",
+            "description": "Signature that decides whether a later upload is `up_to_date`: the document's `embed_signature`. Only when `indexed`.",
             "examples": [
-              "17047d562b7e"
+              "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c"
             ],
             "title": "Embed Signature"
           },
@@ -936,7 +936,7 @@
                     "value": {
                       "chunk_count": 12,
                       "doc_id": "upload-1890b5dc5335",
-                      "embed_signature": "17047d562b7e",
+                      "embed_signature": "17047d562b7e9a3c0f5d8b1e4a7c2f6d9b0e3a8c5f1d4b7e2a9c6f0d3b8e5a1c",
                       "embedding_model": "voyage-4",
                       "status": "indexed"
                     }

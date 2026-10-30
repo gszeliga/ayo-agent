@@ -108,7 +108,9 @@ def test_first_upload_is_indexed(client: TestClient, db_pool: ConnectionPool) ->
     assert body["status"] == "indexed"
     assert body["chunk_count"] > 0
     assert body["embedding_model"] == "voyage-4"
-    assert len(body["embed_signature"]) == 12
+    detail = client.get(f"/admin/documents/{body['doc_id']}", headers=HEADERS).json()
+    assert body["embed_signature"] == detail["embed_signature"]
+    assert len(body["embed_signature"]) == 64
     assert document_count(db_pool) == 1
 
 
