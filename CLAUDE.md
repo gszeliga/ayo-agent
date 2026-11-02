@@ -9,7 +9,9 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **No active milestone.** Ask the user what comes next.
+- **Active milestone: admin UI** (React + Vite + TS in `ui/`, prototype first). Plan,
+  decisions and progress log in `plans/ui-progress.md`. **Read it first**; resume from
+  the first unchecked item.
 - Done (2026-11-02): documents CRUD. Spec `plans/claude-code-prompt-documents-crud.md`;
   plan, agreed deviations, progress log, final report and "Open items" in
   `plans/crud-progress.md` (the reference for its decisions).
