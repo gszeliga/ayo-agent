@@ -7,6 +7,7 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.db.repository import (
     ChunkRecord,
     DocumentRecord,
+    TenantRow,
     delete_document,
     get_chunk_count,
     get_document,
@@ -14,6 +15,7 @@ from ayo_copilot.db.repository import (
     record_configs,
     replace_chunks,
     similar_chunks,
+    tenant_summaries,
     update_indexed_document,
     upsert_document,
 )
@@ -368,3 +370,32 @@ def test_delete_document_returns_none_for_an_unknown_doc_id(db_pool: ConnectionP
         assert delete_document(conn, "upload-000000000000") is None
 
     assert chunk_texts(db_pool) == ["a"]
+
+
+def tenants(pool: ConnectionPool) -> list[TenantRow]:
+    with pool.connection() as conn:
+        return tenant_summaries(conn)
+
+
+def test_tenant_summaries_count_documents_and_chunks_per_tenant(db_pool: ConnectionPool) -> None:
+    store(db_pool, make_document("zeta", "a.md", chunk_count=3), make_chunks("1", "2", "3"))
+    store(db_pool, make_document("acme", "a.md", chunk_count=2), make_chunks("1", "2"))
+    store(db_pool, make_document("acme", "b.md", chunk_count=1), make_chunks("1"))
+
+    assert tenants(db_pool) == [TenantRow("acme", 2, 3), TenantRow("zeta", 1, 3)]
+
+
+def test_tenant_summaries_of_an_empty_table_is_empty(db_pool: ConnectionPool) -> None:
+    assert tenants(db_pool) == []
+
+
+def test_tenant_summaries_leave_out_deleted_documents(db_pool: ConnectionPool) -> None:
+    store(db_pool, make_document("acme", "a.md", chunk_count=2), make_chunks("1", "2"))
+    store(db_pool, make_document("acme", "b.md", chunk_count=1), make_chunks("1"))
+    store(db_pool, make_document("zeta", "a.md", chunk_count=1), make_chunks("1"))
+
+    with db_pool.connection() as conn:
+        delete_document(conn, make_doc_id("acme", "a.md"))
+        delete_document(conn, make_doc_id("zeta", "a.md"))
+
+    assert tenants(db_pool) == [TenantRow("acme", 1, 1)]

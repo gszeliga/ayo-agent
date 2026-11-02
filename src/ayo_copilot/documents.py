@@ -4,7 +4,7 @@ lives in `db/repository.py`."""
 from psycopg_pool import ConnectionPool
 
 from ayo_copilot.db import repository
-from ayo_copilot.db.repository import ChunkRow, DocumentRow
+from ayo_copilot.db.repository import ChunkRow, DocumentRow, TenantRow
 
 
 def read_document_page(
@@ -67,3 +67,8 @@ def delete_document(pool: ConnectionPool, doc_id: str) -> tuple[str, int] | None
     """The deleted document's tenant and chunk count; None if there was no such document."""
     with pool.connection() as conn, conn.transaction():
         return repository.delete_document(conn, doc_id)
+
+
+def read_tenants(pool: ConnectionPool) -> list[TenantRow]:
+    with pool.connection() as conn:
+        return repository.tenant_summaries(conn)

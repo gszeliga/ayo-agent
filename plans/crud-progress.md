@@ -272,7 +272,14 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   None), API (GET/content/chunks 404 afterwards, listing total, no embedder call, second
   delete 404, re-upload gives same `doc_id` and a newer `created_at`, exact log line
   without content, 422), OpenAPI, contract. README "Deleting a document".
-- [ ] C9. Tenants.
+- [x] C9. `GET /admin/tenants` (2026-11-02). Repository `TenantRow` and
+  `tenant_summaries` (`group by tenant`, `sum(chunk_count)` of the stored counts, ordered
+  by tenant), `documents.read_tenants`, schema `TenantSummary`. Plain array as in the
+  spec, not paginated; keeps the router's `documents` tag; no parameters, so no 422 is
+  documented (FastAPI added none). Named 200 examples (two tenants, none). Tests:
+  repository (counts per tenant in order, empty, deleted documents and a tenant's last
+  document left out), API (empty, counts equal the listing's sums, deletes), OpenAPI,
+  contract. README "Tenants".
 - [ ] C10. CORS.
 - [ ] C11. README, manual run, final report.
 

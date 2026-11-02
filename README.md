@@ -141,6 +141,16 @@ is a log line with `doc_id`, tenant and chunk count). A second delete answers `4
 Uploading the same file name for the same tenant afterwards creates a new document with
 the same `doc_id`.
 
+## Tenants
+
+```sh
+curl -H "$H" "http://127.0.0.1:8000/admin/tenants"
+# [{"tenant": "acme", "document_count": 4, "chunk_count": 57}]
+```
+
+Every tenant with stored documents, ordered by tenant, with its document and chunk counts
+(for a tenant filter). Not paginated; a tenant whose last document is deleted disappears.
+
 ## Tests
 
 ```sh

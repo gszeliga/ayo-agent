@@ -669,6 +669,42 @@
         ],
         "title": "IngestResponse",
         "type": "object"
+      },
+      "TenantSummary": {
+        "description": "A tenant with stored documents.",
+        "properties": {
+          "chunk_count": {
+            "description": "Total chunks of those documents (the sum of their `chunk_count`).",
+            "examples": [
+              57
+            ],
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "document_count": {
+            "description": "Number of the tenant's stored documents, whatever their status.",
+            "examples": [
+              4
+            ],
+            "title": "Document Count",
+            "type": "integer"
+          },
+          "tenant": {
+            "description": "Tenant id, as given on upload.",
+            "examples": [
+              "acme"
+            ],
+            "title": "Tenant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant",
+          "document_count",
+          "chunk_count"
+        ],
+        "title": "TenantSummary",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -2069,6 +2105,85 @@
           }
         ],
         "summary": "Reprocess a document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/admin/tenants": {
+      "get": {
+        "description": "Every tenant that has stored documents, in alphabetical order, with\nhow many documents and chunks it has: the values for a tenant filter. A tenant whose last\ndocument is deleted is no longer listed. Not paginated.\n\n| Status | Meaning |\n|---|---|\n| `200` | The tenants, possibly none. |\n| `401` | `X-API-Key` missing or wrong. |",
+        "operationId": "list_tenants",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "none": {
+                    "summary": "No documents yet",
+                    "value": []
+                  },
+                  "tenants": {
+                    "summary": "Two tenants",
+                    "value": [
+                      {
+                        "chunk_count": 57,
+                        "document_count": 4,
+                        "tenant": "acme"
+                      },
+                      {
+                        "chunk_count": 9,
+                        "document_count": 1,
+                        "tenant": "beta"
+                      }
+                    ]
+                  }
+                },
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TenantSummary"
+                  },
+                  "title": "Response List Tenants",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The tenants, ordered by tenant."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "List tenants",
         "tags": [
           "documents"
         ]

@@ -337,3 +337,44 @@ def test_invalid_chunk_requests_are_a_422(
     assert response.status_code == 422
     (item,) = response.json()["detail"]
     assert (item["type"], item["loc"]) == (type, loc)
+
+
+def tenants(client: TestClient) -> list[dict[str, Any]]:
+    response = client.get("/admin/tenants")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_no_documents_means_no_tenants(client: TestClient) -> None:
+    assert tenants(client) == []
+
+
+def test_tenants_add_up_their_documents(client: TestClient) -> None:
+    upload(client, "pro-014.md", FIXTURE.read_text(), tenant="zeta")
+    upload(client, "a.md", doc("A"))
+    upload(client, "b.md", doc("B"))
+
+    expected = []
+    for tenant in ("acme", "zeta"):
+        items = listing(client, tenant=tenant)["items"]
+        expected.append(
+            {
+                "tenant": tenant,
+                "document_count": len(items),
+                "chunk_count": sum(item["chunk_count"] for item in items),
+            }
+        )
+    assert tenants(client) == expected
+    assert expected[0]["document_count"] == 2
+
+
+def test_tenants_drop_deleted_documents(client: TestClient) -> None:
+    a = upload(client, "a.md", doc("A"))
+    upload(client, "b.md", doc("B"))
+    only = upload(client, "c.md", doc("C"), tenant="zeta")
+
+    client.delete(f"/admin/documents/{a}")
+    client.delete(f"/admin/documents/{only}")
+
+    remaining = listing(client)["items"][0]["chunk_count"]
+    assert tenants(client) == [{"tenant": "acme", "document_count": 1, "chunk_count": remaining}]

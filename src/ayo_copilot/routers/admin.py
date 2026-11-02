@@ -24,6 +24,7 @@ from ayo_copilot.documents import (
     read_document,
     read_document_page,
     read_markdown,
+    read_tenants,
     rename_document,
 )
 from ayo_copilot.errors import ApiError
@@ -46,6 +47,7 @@ from ayo_copilot.schemas import (
     DocumentUpdate,
     ErrorResponse,
     IngestResponse,
+    TenantSummary,
 )
 
 logger = logging.getLogger(__name__)
@@ -869,3 +871,43 @@ def delete(
     # The only trace of the deletion (no audit table yet); no title or content.
     logger.info("document deleted doc_id=%s tenant=%s chunks=%d", doc_id, tenant, chunk_count)
     return Response(status_code=204)
+
+
+TENANTS_DESCRIPTION = """Every tenant that has stored documents, in alphabetical order, with
+how many documents and chunks it has: the values for a tenant filter. A tenant whose last
+document is deleted is no longer listed. Not paginated.
+
+| Status | Meaning |
+|---|---|
+| `200` | The tenants, possibly none. |
+| `401` | `X-API-Key` missing or wrong. |
+"""
+
+
+@router.get(
+    "/tenants",
+    operation_id="list_tenants",
+    summary="List tenants",
+    description=TENANTS_DESCRIPTION,
+    responses={
+        200: {
+            "description": "The tenants, ordered by tenant.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "tenants": {
+                            "summary": "Two tenants",
+                            "value": [
+                                {"tenant": "acme", "document_count": 4, "chunk_count": 57},
+                                {"tenant": "beta", "document_count": 1, "chunk_count": 9},
+                            ],
+                        },
+                        "none": {"summary": "No documents yet", "value": []},
+                    }
+                }
+            },
+        },
+    },
+)
+def list_tenants(pool: Annotated[ConnectionPool, Depends(get_pool)]) -> list[TenantSummary]:
+    return [TenantSummary.from_row(row) for row in read_tenants(pool)]

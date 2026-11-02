@@ -391,3 +391,16 @@ def test_delete_operation_has_no_body_on_success(spec: dict[str, Any]) -> None:
     assert set(operation["responses"]) == {"204", "401", "404", "422"}
     assert "content" not in operation["responses"]["204"]
     assert [p["name"] for p in operation["parameters"]] == ["doc_id"]
+
+
+def test_tenants_operation_returns_a_plain_array(spec: dict[str, Any]) -> None:
+    operation = spec["paths"]["/admin/tenants"]["get"]
+
+    assert operation["operationId"] == "list_tenants"
+    assert operation["security"] == [{"AdminApiKey": []}]
+    assert "parameters" not in operation
+    assert set(operation["responses"]) == {"200", "401"}
+    content = operation["responses"]["200"]["content"]["application/json"]
+    assert content["schema"]["type"] == "array"
+    assert content["schema"]["items"] == {"$ref": "#/components/schemas/TenantSummary"}
+    assert set(content["examples"]) == {"tenants", "none"}

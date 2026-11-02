@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from ayo_copilot.config import Settings
-from ayo_copilot.db.repository import ChunkRow, DocumentRow
+from ayo_copilot.db.repository import ChunkRow, DocumentRow, TenantRow
 from ayo_copilot.ingestion.service import IngestResult, document_status
 
 # The sort keys of `db.repository.SORT_KEYS`, each also with `-` for descending.
@@ -312,3 +312,23 @@ class DocumentUpdate(BaseModel):
         " characters remain.",
         examples=["PRO-014 Control de sellado (rev. 3)"],
     )
+
+
+class TenantSummary(BaseModel):
+    """A tenant with stored documents."""
+
+    tenant: str = Field(description="Tenant id, as given on upload.", examples=["acme"])
+    document_count: int = Field(
+        description="Number of the tenant's stored documents, whatever their status.",
+        examples=[4],
+    )
+    chunk_count: int = Field(
+        description="Total chunks of those documents (the sum of their `chunk_count`).",
+        examples=[57],
+    )
+
+    @classmethod
+    def from_row(cls, row: TenantRow) -> "TenantSummary":
+        return cls(
+            tenant=row.tenant, document_count=row.document_count, chunk_count=row.chunk_count
+        )

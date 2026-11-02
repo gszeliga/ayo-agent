@@ -85,6 +85,15 @@ class ChunkRow:
 
 
 @dataclass(frozen=True)
+class TenantRow:
+    """A tenant with stored documents, and how many documents and chunks it has."""
+
+    tenant: str
+    document_count: int
+    chunk_count: int
+
+
+@dataclass(frozen=True)
 class SimilarChunk:
     doc_id: str
     chunk_index: int
@@ -357,6 +366,17 @@ def get_markdown(conn: Connection, doc_id: str) -> str | None:
     """The stored Markdown; the only read of that column, as `DocumentRow` leaves it out."""
     row = conn.execute("select markdown from documents where doc_id = %s", (doc_id,)).fetchone()
     return row[0] if row is not None else None
+
+
+def tenant_summaries(conn: Connection) -> list[TenantRow]:
+    """Every tenant with at least one document, ordered by tenant. Chunks are the sum of the
+    stored `chunk_count`, the number each document reports."""
+    with conn.cursor(row_factory=class_row(TenantRow)) as cur:
+        return cur.execute(
+            "select tenant, count(*) as document_count,"
+            " coalesce(sum(chunk_count), 0)::int as chunk_count"
+            " from documents group by tenant order by tenant"
+        ).fetchall()
 
 
 def similar_chunks(
