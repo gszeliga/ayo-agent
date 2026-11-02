@@ -9,9 +9,10 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active milestone: documents CRUD.** Spec `plans/claude-code-prompt-documents-crud.md`;
-  plan, agreed deviations and progress log in `plans/crud-progress.md`. **Read it first**;
-  resume from the first unchecked item, and check "Open items".
+- **No active milestone.** Ask the user what comes next.
+- Done (2026-11-02): documents CRUD. Spec `plans/claude-code-prompt-documents-crud.md`;
+  plan, agreed deviations, progress log, final report and "Open items" in
+  `plans/crud-progress.md` (the reference for its decisions).
 - Done: the ingestion slice. Spec `plans/claude-code-prompt-markdown-ingestion.md`; its
   decisions and log in `plans/progress.md` (still the reference for earlier decisions).
 - Both spec files are intentionally **untracked**; never commit them.

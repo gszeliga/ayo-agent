@@ -7,6 +7,9 @@ Upload a Markdown document and the API splits it into chunks along its headings,
 each chunk with [Voyage AI](https://www.voyageai.com/), and stores the document and its
 vectors in Postgres with pgvector, ready for similarity search.
 
+The `/admin` API manages those documents for an admin UI: list and inspect them (Markdown,
+chunks), rename, replace, reprocess after a settings change, and delete them.
+
 ## Quick start (local)
 
 Needs [uv](https://docs.astral.sh/uv/) and Docker.
@@ -39,6 +42,24 @@ The app uses the pooled endpoint; migrations need the direct one (without `-pool
 because the pooled one runs PgBouncer. Environment variables win over `.env`, so one
 command can still use the local database:
 `DATABASE_URL=postgresql://ayo:ayo@localhost:5433/ayo ALLOW_REMOTE_DATABASE=false uv run ...`
+
+## Endpoints
+
+All under `/admin` need the `X-API-Key` header. `/docs` has every status, error `type`
+and example.
+
+| Method and path | Purpose |
+|---|---|
+| `POST /admin/documents` | Upload a Markdown file; the same `tenant` + `source_key` replaces it |
+| `GET /admin/documents` | List documents (filter, sort, paginate) |
+| `GET /admin/documents/{doc_id}` | One document, with its `status` |
+| `GET /admin/documents/{doc_id}/content` | Its stored Markdown |
+| `GET /admin/documents/{doc_id}/chunks` | Its chunks, optionally with vectors |
+| `PATCH /admin/documents/{doc_id}` | Rename it |
+| `POST /admin/documents/{doc_id}/reprocess` | Re-chunk and re-embed it with the current settings |
+| `DELETE /admin/documents/{doc_id}` | Delete it and its chunks |
+| `GET /admin/tenants` | Tenants with document and chunk counts |
+| `GET /health` | Liveness, no key |
 
 ## Uploading a document
 
@@ -109,9 +130,20 @@ Returns the renamed document. Only `title` (trimmed, 1 to 200 characters) and
 `updated_at` change; nothing is re-chunked or re-embedded, and renaming to the current
 title changes nothing. Any other field in the body is a `422`.
 
-To replace a document's content, upload the new file with the same `tenant` and
-`source_key`. That upload sets the title again (the `title` field, else the first `# `
-heading, else the file name), so send `-F title=...` with it to keep a rename.
+## Replacing a document
+
+Upload the new file with the document's `tenant` and `source_key` (both are in every
+listed item); the `doc_id` stays the same:
+
+```sh
+curl -H "$H" -F file=@pro-014-v2.md -F tenant=acme \
+  -F source_key=pro-014-control-sellado.md -F "title=PRO-014 Control de sellado (rev. 3)" \
+  "$API"
+```
+
+Changed content answers `201` with `indexed`; identical content `200` with `up_to_date`.
+The upload sets the title again (the `title` field, else the first `# ` heading, else the
+file name), so send `title` to keep a rename.
 
 ## Reprocessing a document
 

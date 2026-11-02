@@ -294,7 +294,55 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   `PUT` preflight 400, header on answers and on errors, disallowed origin gets none, off
   by default, `docs_enabled` alone ignores the environment, `create_app()` reads it).
   README "Browser clients (CORS)" and the configuration table, `.env.example`.
-- [ ] C11. README, manual run, final report.
+- [x] C11. README, manual run, final report (2026-11-02). README: intro line, "Endpoints"
+  table, "Replacing a document" section; no `X-Actor` (Decision 5). Manual run on the
+  local dev DB (fake embedder, throwaway key, tenant `manual-c11`, the two existing
+  documents only read): upload 201; list/detail/content (`text/markdown`)/chunks (1024
+  dims with vectors); rename; same file 200 `up_to_date` with the rename kept; changed
+  content 201 `indexed` (6 chunks) with `title` sent; tenants; CORS preflight 200 for the
+  listed origin, 400 without `Access-Control-Allow-Origin` for another; 401 without key;
+  restart with `CHUNK_SIZE=600` -> `outdated`/`chunker_changed`; reprocess 200 `indexed`,
+  again `up_to_date`; `/docs` 200, nine `/admin` operations; delete 204 with empty body,
+  then chunks 404, second delete 404, tenant gone, no rows left. Log lines carry only
+  `doc_id`, tenant, counts and ms. Swagger "Try it out" not clicked through.
+
+## Final report (2026-11-02)
+
+**Done.** Every endpoint of the spec except the ones dropped by agreement: list, detail,
+content, chunks, rename, reprocess, delete, tenants, plus migration `0002` and CORS. The
+reprocess shares the upload's stages (`compute_signatures`, `index_markdown`); no
+pipeline code is duplicated. 560 tests (unit, API, integration on a real pgvector),
+ruff clean, `docs/openapi.json` up to date with a snapshot test, every documented status
+triggered for real by the contract test, 401 enforced over every `/admin` route.
+
+**Deviations from the spec** (all agreed, see Decisions): no disk parts, so no
+`content_available`, `deleting` status or retry-delete (1); no PUT, replacing is POST with
+the same `tenant` + `source_key` (2); no deletion audit table, `GET /admin/deletions`,
+`reason` or `X-Actor` (5); reprocess skips up-to-date documents unless `force`, guarded
+on `content_hash` (6, 13); no `status` filter on the list, status computed in Python
+(7); one `Document` schema for list and detail (9); field-level OpenAPI examples (10);
+idempotent rename (11); full `embed_signature` from the upload (12). Not agreed
+beforehand but announced in the C10 brief: `*` is refused in `CORS_ALLOWED_ORIGINS`.
+
+**Not tested.** Swagger "Try it out" clicked per endpoint (spec rendering checked
+headless in C5c; `/redoc` never); a real browser against CORS (checked with curl and
+`TestClient`); the Neon dev branch (never touched in this milestone); real Voyage
+embeddings beyond the one `live` test.
+
+**For the admin UI.**
+- Replacing content is a POST that answers `201` (`indexed`) for an existing document too;
+  `200` only for `up_to_date`. Send `title` with it, or a rename is lost.
+- `status`/`outdated_reason` are computed per request against the server's settings; a
+  settings change turns many documents `outdated` at once. There is no filter for it yet,
+  and no bulk reprocess.
+- Delete is permanent and leaves only a log line; ask for confirmation in the UI.
+- `content_hash`/`embed_signature` are 64 hex characters; shorten them for display.
+- `include_embedding=true` on chunks is several MB per page; only for a debug view.
+- The upload response's `embedding_model` is the configured setting, also with the fake
+  embedder.
+- A preflight from an unlisted origin is `400`; the browser reports it as a CORS error.
+- The API key typed into a browser UI is visible to its users: internal or development
+  use only; real authentication must come before the UI is exposed to others.
 
 ## Open items
 - No deletion audit trail (Decision 5). Revisit with real authentication; deletions made
