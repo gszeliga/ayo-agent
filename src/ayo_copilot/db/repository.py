@@ -314,6 +314,14 @@ def rename_document(conn: Connection, doc_id: str, title: str) -> DocumentRow | 
         ).fetchone()
 
 
+def delete_document(conn: Connection, doc_id: str) -> tuple[str, int] | None:
+    """Delete the document; its chunks go by cascade. Its tenant and `chunk_count`, or None
+    if there is no such document."""
+    return conn.execute(
+        "delete from documents where doc_id = %s returning tenant, chunk_count", (doc_id,)
+    ).fetchone()
+
+
 def get_chunk_count(conn: Connection, doc_id: str) -> tuple[UUID, int] | None:
     """The document's row id and `chunk_count`; None if there is no such document."""
     return conn.execute(

@@ -130,6 +130,17 @@ settings were recorded (`outdated_reason: unknown`) but still matching them just
 them recorded. `409 document_changed` means a newer upload replaced the document
 meanwhile (nothing was written); `502` means Voyage failed (nothing was written either).
 
+## Deleting a document
+
+```sh
+curl -X DELETE -H "$H" "$API/upload-1890b5dc5335"   # 204, no body
+```
+
+Removes the document and its chunks for good (no undo, no audit table yet: the only trace
+is a log line with `doc_id`, tenant and chunk count). A second delete answers `404`.
+Uploading the same file name for the same tenant afterwards creates a new document with
+the same `doc_id`.
+
 ## Tests
 
 ```sh

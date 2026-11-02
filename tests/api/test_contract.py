@@ -64,7 +64,8 @@ CONTENT = ("get", "/admin/documents/{doc_id}/content")
 CHUNKS = ("get", "/admin/documents/{doc_id}/chunks")
 UPDATE = ("patch", "/admin/documents/{doc_id}")
 REPROCESS = ("post", "/admin/documents/{doc_id}/reprocess")
-OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE, REPROCESS]
+DELETE = ("delete", "/admin/documents/{doc_id}")
+OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE, REPROCESS, DELETE]
 
 
 def documented_schema(
@@ -125,6 +126,15 @@ def reprocess_uploaded(client: TestClient, query: str = ""):
 
 def reprocess(client: TestClient, url: str, headers: dict[str, str] | None = None):
     return client.post(url, headers={"X-API-Key": API_KEY} if headers is None else headers)
+
+
+def delete(client: TestClient, url: str, headers: dict[str, str] | None = None):
+    return client.delete(url, headers={"X-API-Key": API_KEY} if headers is None else headers)
+
+
+def delete_uploaded(client: TestClient):
+    doc_id = post(client, SMALL_DOC).json()["doc_id"]
+    return delete(client, f"/admin/documents/{doc_id}")
 
 
 UNKNOWN = "/admin/documents/upload-000000000000"
@@ -216,6 +226,10 @@ CASES = {
         422,
         lambda c: reprocess(c, f"{UNKNOWN}/reprocess?force=maybe"),
     ),
+    "delete 204": (DELETE, 204, delete_uploaded),
+    "delete 401 no key": (DELETE, 401, lambda c: delete(c, UNKNOWN, headers={})),
+    "delete 404": (DELETE, 404, lambda c: delete(c, UNKNOWN)),
+    "delete 422 malformed id": (DELETE, 422, lambda c: delete(c, "/admin/documents/pro-014.md")),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}}
@@ -230,6 +244,12 @@ def test_response_matches_its_documented_schema(
     response = trigger(client)
 
     assert response.status_code == status, response.text
+    method, path = operation
+    if "content" not in strict_spec["paths"][path][method]["responses"][str(status)]:
+        # Documented without a body: there must be none.
+        assert response.content == b""
+        assert "content-type" not in response.headers
+        return
     # The body must come in a media type documented for this status.
     media_type = response.headers["content-type"]
     body = response.json() if media_type == "application/json" else response.text

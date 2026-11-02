@@ -295,6 +295,10 @@ def test_every_response_has_an_example(spec: dict[str, Any]) -> None:
     # nullable fields must use the latter: FastAPI drops nulls from object examples.
     for path, method, operation in operations(spec):
         for status, response in operation["responses"].items():
+            if "content" not in response:
+                # Only a 204 may have no body, and then there is nothing to exemplify.
+                assert status == "204", f"{method.upper()} {path} {status} has no content"
+                continue
             for media_type, content in response["content"].items():
                 where = f"{method.upper()} {path} {status} {media_type}"
                 assert content.get("examples") or exemplified(spec, content["schema"]), where
@@ -376,3 +380,14 @@ def test_reprocess_operation_documents_its_outcomes(spec: dict[str, Any]) -> Non
         "boolean",
         False,
     )
+
+
+def test_delete_operation_has_no_body_on_success(spec: dict[str, Any]) -> None:
+    operation = spec["paths"]["/admin/documents/{doc_id}"]["delete"]
+
+    assert operation["operationId"] == "delete_document"
+    assert operation["security"] == [{"AdminApiKey": []}]
+    assert "requestBody" not in operation
+    assert set(operation["responses"]) == {"204", "401", "404", "422"}
+    assert "content" not in operation["responses"]["204"]
+    assert [p["name"] for p in operation["parameters"]] == ["doc_id"]

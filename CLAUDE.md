@@ -75,7 +75,7 @@ src/ayo_copilot/
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, errors
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
-  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess (provisional X-API-Key auth, size limits)
+  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), DocsSettings (app build) < Settings

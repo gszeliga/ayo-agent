@@ -261,7 +261,17 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   repository guards, API, OpenAPI, contract (409 and 502 in dedicated tests). Checked
   read-only on the local dev DB: both pre-0002 documents have null configs and matching
   signatures, so reprocess would only record their configs. README "Reprocessing".
-- [ ] C8. Delete.
+- [x] C8. `DELETE /admin/documents/{doc_id}` (2026-11-02, Decisions 1 and 5). Repository
+  `delete_document` (`delete ... returning tenant, chunk_count`), `documents.delete_document`
+  owns the transaction; 204 with no body (`response_class=Response`), 404 for an unknown
+  or already deleted document (not an idempotent 204, so the UI learns it was gone), 422
+  malformed id; one log line `doc_id`/tenant/chunks. The description documents the
+  in-flight upload race (open item closed). The example rule now lets a 204 have no
+  `content` (only a 204); the contract test checks such a response has no body and no
+  `Content-Type`. Tests: repository (cascade, other documents untouched, unknown ->
+  None), API (GET/content/chunks 404 afterwards, listing total, no embedder call, second
+  delete 404, re-upload gives same `doc_id` and a newer `created_at`, exact log line
+  without content, 422), OpenAPI, contract. README "Deleting a document".
 - [ ] C9. Tenants.
 - [ ] C10. CORS.
 - [ ] C11. README, manual run, final report.
@@ -271,6 +281,6 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   before then leave only log lines.
 - POST re-upload resets a PATCH rename unless the client sends `title`; the UI must know.
 - A POST still in flight while a DELETE commits re-creates the document. Acceptable
-  (same as "upload after delete"); document it.
+  (same as "upload after delete"); documented in the DELETE description (C8).
 - Carried over from `progress.md`: the settings-env isolation fixture (proposed), the
   iterative HNSW scan before any search endpoint, Neon password rotation unconfirmed.

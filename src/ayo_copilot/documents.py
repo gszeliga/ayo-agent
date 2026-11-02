@@ -61,3 +61,9 @@ def read_markdown(pool: ConnectionPool, doc_id: str) -> str | None:
 def rename_document(pool: ConnectionPool, doc_id: str, title: str) -> DocumentRow | None:
     with pool.connection() as conn, conn.transaction():
         return repository.rename_document(conn, doc_id, title)
+
+
+def delete_document(pool: ConnectionPool, doc_id: str) -> tuple[str, int] | None:
+    """The deleted document's tenant and chunk count; None if there was no such document."""
+    with pool.connection() as conn, conn.transaction():
+        return repository.delete_document(conn, doc_id)

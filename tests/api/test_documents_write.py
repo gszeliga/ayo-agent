@@ -1,5 +1,7 @@
-"""PATCH /admin/documents/{doc_id} and POST .../reprocess, through HTTP on a real database."""
+"""PATCH and DELETE /admin/documents/{doc_id} and POST .../reprocess, through HTTP on a real
+database."""
 
+import logging
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -222,3 +224,79 @@ def test_invalid_reprocess_requests_are_a_422(
     assert response.status_code == 422
     (item,) = response.json()["detail"]
     assert (item["type"], item["loc"]) == (type, loc)
+
+
+def test_delete_removes_the_document_and_its_chunks(client: TestClient) -> None:
+    kept = upload(client, "a.md", doc("A"))
+    doc_id = upload(client, "pro-014.md", FIXTURE.read_text())
+
+    response = client.delete(f"/admin/documents/{doc_id}")
+
+    assert response.status_code == 204
+    assert response.content == b""
+    for suffix in ("", "/content", "/chunks"):
+        gone = client.get(f"/admin/documents/{doc_id}{suffix}")
+        assert gone.status_code == 404, suffix
+        assert gone.json()["detail"][0]["type"] == "document_not_found"
+    page = listing(client)
+    assert (page["total"], [item["doc_id"] for item in page["items"]]) == (1, [kept])
+
+
+def test_delete_never_calls_the_embedder(client: TestClient) -> None:
+    embedder = FakeEmbedder(dimensions=1024)
+    client.app.dependency_overrides[get_embedder] = lambda: embedder
+    doc_id = upload(client, "a.md", doc("A"))
+    calls_after_upload = len(embedder.calls)
+
+    assert client.delete(f"/admin/documents/{doc_id}").status_code == 204
+
+    assert len(embedder.calls) == calls_after_upload
+
+
+def test_a_second_delete_is_a_404(client: TestClient) -> None:
+    doc_id = upload(client, "a.md", doc("A"))
+    client.delete(f"/admin/documents/{doc_id}")
+
+    response = client.delete(f"/admin/documents/{doc_id}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"][0]["type"] == "document_not_found"
+
+
+def test_uploading_again_after_a_delete_creates_a_new_document(client: TestClient) -> None:
+    doc_id = upload(client, "a.md", doc("A"))
+    before = client.get(f"/admin/documents/{doc_id}").json()
+    client.delete(f"/admin/documents/{doc_id}")
+
+    assert upload(client, "a.md", doc("A")) == doc_id
+
+    after = client.get(f"/admin/documents/{doc_id}").json()
+    assert datetime.fromisoformat(after["created_at"]) > datetime.fromisoformat(
+        before["created_at"]
+    )
+    assert (after["content_hash"], after["chunk_count"]) == (
+        before["content_hash"],
+        before["chunk_count"],
+    )
+
+
+def test_delete_logs_counts_but_no_content(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    doc_id = upload(client, "pro-014.md", FIXTURE.read_text())
+    chunk_count = client.get(f"/admin/documents/{doc_id}").json()["chunk_count"]
+    caplog.set_level(logging.INFO, logger="ayo_copilot")
+
+    client.delete(f"/admin/documents/{doc_id}")
+
+    (line,) = [r.getMessage() for r in caplog.records if "deleted" in r.getMessage()]
+    assert line == f"document deleted doc_id={doc_id} tenant=acme chunks={chunk_count}"
+    assert "sellado" not in caplog.text.lower()
+
+
+def test_delete_with_a_malformed_doc_id_is_a_422(client: TestClient) -> None:
+    response = client.delete("/admin/documents/pro-014.md")
+
+    assert response.status_code == 422
+    (item,) = response.json()["detail"]
+    assert (item["type"], item["loc"]) == ("string_pattern_mismatch", ["path", "doc_id"])

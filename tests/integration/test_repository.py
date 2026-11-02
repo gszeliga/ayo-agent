@@ -7,6 +7,7 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.db.repository import (
     ChunkRecord,
     DocumentRecord,
+    delete_document,
     get_chunk_count,
     get_document,
     list_chunks,
@@ -343,3 +344,27 @@ def test_record_configs_needs_the_same_embed_signature(db_pool: ConnectionPool) 
 
     assert (stale, current) == (False, True)
     assert (row.chunker_config, row.embedder_config) == ("chunker-9", "embedder-9")
+
+
+def test_delete_document_takes_its_chunks_and_nothing_else(db_pool: ConnectionPool) -> None:
+    document = make_document(chunk_count=2)
+    store(db_pool, document, make_chunks("Paso uno.", "Paso dos."))
+    other = make_document(source_key="otro.md", chunk_count=1)
+    store(db_pool, other, make_chunks("Ajeno."))
+
+    with db_pool.connection() as conn:
+        deleted = delete_document(conn, document.doc_id)
+        remaining = conn.execute("select doc_id from documents").fetchall()
+
+    assert deleted == ("acme", 2)
+    assert remaining == [(other.doc_id,)]
+    assert chunk_texts(db_pool) == ["Ajeno."]
+
+
+def test_delete_document_returns_none_for_an_unknown_doc_id(db_pool: ConnectionPool) -> None:
+    store(db_pool, make_document(), make_chunks("a"))
+
+    with db_pool.connection() as conn:
+        assert delete_document(conn, "upload-000000000000") is None
+
+    assert chunk_texts(db_pool) == ["a"]

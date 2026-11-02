@@ -19,6 +19,7 @@ from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import DEFAULT_SORT
 from ayo_copilot.dependencies import get_embedder, get_pool, get_settings
 from ayo_copilot.documents import (
+    delete_document,
     read_chunk_page,
     read_document,
     read_document_page,
@@ -821,3 +822,50 @@ def reprocess(
         logger.warning("embedding failed doc_id=%s: %s", doc_id, exc)
         raise ApiError(502, "embedding_failed", "embedding provider failed") from None
     return IngestResponse.from_result(result)
+
+
+DELETE_DESCRIPTION = """Delete a document and its chunks, permanently: there is no undo and
+no trash. The answer has no body.
+
+Uploading a file with the same `tenant` and file name afterwards creates a new document,
+with the same `doc_id` but new timestamps. An upload of it still in progress when the delete
+commits creates it again; a reprocess in progress answers `404`.
+
+| Status | Meaning |
+|---|---|
+| `204` | Deleted. |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No document has this `doc_id` (or it was already deleted). |
+| `422` | `doc_id` is malformed (FastAPI validation). |
+"""
+
+
+@router.delete(
+    "/documents/{doc_id}",
+    operation_id="delete_document",
+    summary="Delete a document",
+    description=DELETE_DESCRIPTION,
+    status_code=204,
+    response_class=Response,
+    responses={
+        204: {"description": "Deleted, with its chunks."},
+        404: NOT_FOUND_RESPONSE,
+        422: DOC_ID_422_RESPONSE,
+    },
+)
+def delete(
+    doc_id: Annotated[
+        str,
+        PathParam(
+            pattern=DOC_ID_PATTERN, description=DOC_ID_PARAM, examples=["upload-1890b5dc5335"]
+        ),
+    ],
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+) -> Response:
+    deleted = delete_document(pool, doc_id)
+    if deleted is None:
+        raise _not_found()
+    tenant, chunk_count = deleted
+    # The only trace of the deletion (no audit table yet); no title or content.
+    logger.info("document deleted doc_id=%s tenant=%s chunks=%d", doc_id, tenant, chunk_count)
+    return Response(status_code=204)

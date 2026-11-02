@@ -1131,6 +1131,126 @@
       }
     },
     "/admin/documents/{doc_id}": {
+      "delete": {
+        "description": "Delete a document and its chunks, permanently: there is no undo and\nno trash. The answer has no body.\n\nUploading a file with the same `tenant` and file name afterwards creates a new document,\nwith the same `doc_id` but new timestamps. An upload of it still in progress when the delete\ncommits creates it again; a reprocess in progress answers `404`.\n\n| Status | Meaning |\n|---|---|\n| `204` | Deleted. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id` (or it was already deleted). |\n| `422` | `doc_id` is malformed (FastAPI validation). |",
+        "operationId": "delete_document",
+        "parameters": [
+          {
+            "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "description": "Id of the document, as returned by the upload and the listing: `<source type>-<12 hex>`.",
+              "examples": [
+                "upload-1890b5dc5335"
+              ],
+              "pattern": "^[a-z]+-[0-9a-f]{12}$",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted, with its chunks."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "document_not_found": {
+                    "summary": "Unknown document",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "document not found",
+                          "type": "document_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No document has this `doc_id`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "string_pattern_mismatch": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z]+-[0-9a-f]{12}$"
+                          },
+                          "input": "pro-014.md",
+                          "loc": [
+                            "path",
+                            "doc_id"
+                          ],
+                          "msg": "String should match pattern '^[a-z]+-[0-9a-f]{12}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`doc_id` is not a document id (FastAPI validation): it never matches a document."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Delete a document",
+        "tags": [
+          "documents"
+        ]
+      },
       "get": {
         "description": "One document, with the same fields as an item of the listing.\n\n| Status | Meaning |\n|---|---|\n| `200` | The document. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No document has this `doc_id`. |\n| `422` | `doc_id` is malformed (FastAPI validation). |",
         "operationId": "get_document",
