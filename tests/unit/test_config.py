@@ -32,6 +32,7 @@ def test_defaults() -> None:
     assert settings.embedding_dimensions == 1024
     assert settings.embedding_provider == "voyage"
     assert settings.docs_enabled is True
+    assert settings.cors_allowed_origins == []
     assert "localhost:5433" in settings.database_url.get_secret_value()
 
 
@@ -251,3 +252,41 @@ def test_empty_database_url_falls_back_to_the_local_default(
     settings = make_settings()
 
     assert "localhost:5433" in settings.database_url.get_secret_value()
+
+
+def test_cors_origins_are_comma_separated_trimmed_and_lowercased(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", " http://localhost:5173 ,HTTPS://Admin.Example.com,")
+
+    settings = make_settings()
+
+    assert settings.cors_allowed_origins == [
+        "http://localhost:5173",
+        "https://admin.example.com",
+    ]
+
+
+def test_empty_cors_origins_mean_cors_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "")
+
+    assert make_settings().cors_allowed_origins == []
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "*",
+        "http://localhost:5173/",
+        "https://admin.example.com/ui",
+        "ftp://admin.example.com",
+        "admin.example.com",
+        "http://",
+        "http://user@admin.example.com",
+        "http://admin.example.com?x=1",
+        "http://admin.example.com:port",
+    ],
+)
+def test_malformed_cors_origins_are_refused(origin: str) -> None:
+    with pytest.raises(ValidationError, match="CORS_ALLOWED_ORIGINS"):
+        make_settings(cors_allowed_origins=f"http://localhost:5173,{origin}")

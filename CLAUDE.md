@@ -71,14 +71,14 @@ Migrations on Neon must use the direct endpoint (host without `-pooler`).
 src/ayo_copilot/
   __init__.py          main(): logging.basicConfig + uvicorn (factory=True)
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
-                       lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
+                       CORS middleware, lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, errors
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
   routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, tenants (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   openapi.py           render_openapi() for the committed contract docs/openapi.json
-  config.py            DatabaseSettings (Alembic), DocsSettings (app build) < Settings
+  config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS) < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, similar_chunks, ...
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
@@ -117,7 +117,7 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
   Every example must validate against its schema (tested, strictly). After any API change, re-export
   `docs/openapi.json` and commit it in the same commit (a snapshot test fails otherwise);
   every documented status must be triggered for real in `tests/api/test_contract.py`. Tests build the app with
-  `create_app(docs_enabled=True)` so they never read `.env`.
+  `create_app(docs_enabled=True)` so they never read `.env` (CORS is then off).
 - `{doc_id}` path parameters use `DOC_ID_PATTERN` (malformed -> 422, unknown -> 404
   `document_not_found`). Every `/admin` route needs the key: `tests/api/test_admin_auth.py`
   enumerates them from the OpenAPI document, so never hide an `/admin` route from it.

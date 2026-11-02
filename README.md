@@ -151,6 +151,17 @@ curl -H "$H" "http://127.0.0.1:8000/admin/tenants"
 Every tenant with stored documents, ordered by tenant, with its document and chunk counts
 (for a tenant filter). Not paginated; a tenant whose last document is deleted disappears.
 
+## Browser clients (CORS)
+
+A UI served from another origin needs `CORS_ALLOWED_ORIGINS`, for example
+`CORS_ALLOWED_ORIGINS=http://localhost:5173`. Listed origins may use `GET`, `POST`,
+`PATCH` and `DELETE` with the `X-API-Key` and `Content-Type` headers; no cookies or other
+credentials. Any other origin gets no CORS headers, so the browser keeps the answers from
+it. The setting is read when the app is built, so changing it needs a restart.
+
+The API key is sent by the browser, so anyone using the UI can see it: fine for internal
+or development use, not for a public UI (real authentication will replace the key).
+
 ## Tests
 
 ```sh
@@ -193,6 +204,7 @@ Never commit `.env`.
 | `ADMIN_API_KEY` | *(required)* | Provisional admin key, sent as the `X-API-Key` header. |
 | `MAX_UPLOAD_BYTES` | `5242880` (5 MiB) | Larger uploads are rejected with `413`. |
 | `DOCS_ENABLED` | `true` | Serve `/docs`, `/redoc` and `/openapi.json`. They are public when on: restrict access in front of the app (proxy or private network) if needed. |
+| `CORS_ALLOWED_ORIGINS` | *(empty: CORS off)* | Comma-separated browser origins allowed to call the API, such as `http://localhost:5173,https://admin.example.com`. Each is `http(s)://host[:port]`, without path or trailing slash; `*` is refused. See "Browser clients (CORS)". |
 | `CHUNK_SIZE` | `800` | Target chunk size, **in characters**. |
 | `CHUNK_OVERLAP` | `80` | Characters shared by consecutive chunks of a long section. Must be smaller than `CHUNK_SIZE`. |
 | `MIN_CHUNK_SIZE` | `100` | Chunks shorter than this (in characters) are merged with a neighbour of the same section. This is a starting value to tune, not a validated number. See "Chunking" below. |

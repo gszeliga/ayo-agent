@@ -4,9 +4,10 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from importlib.metadata import version
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from psycopg_pool import ConnectionPool, PoolTimeout
 
-from ayo_copilot.config import DocsSettings, Settings, database_host, default_env_file
+from ayo_copilot.config import BuildSettings, Settings, database_host, default_env_file
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
 from ayo_copilot.errors import install_error_handlers
@@ -158,11 +159,16 @@ def _check_embedding_dimensions(pool: ConnectionPool, expected: int) -> None:
 def create_app(settings: Settings | None = None, *, docs_enabled: bool | None = None) -> FastAPI:
     """Build the app. Settings are read from the environment at startup unless given.
 
-    Only `DOCS_ENABLED` is read now, because FastAPI needs the docs URLs up front; pass
-    `docs_enabled` to skip even that (tests, the OpenAPI export).
+    Only `BuildSettings` (docs, CORS) are read now, because FastAPI needs them up front.
+    Passing `docs_enabled` without `settings` skips even that and leaves CORS off (tests,
+    the OpenAPI export).
     """
+    build: BuildSettings | None = settings
+    if build is None and docs_enabled is None:
+        build = BuildSettings()
     if docs_enabled is None:
-        docs_enabled = (settings or DocsSettings()).docs_enabled
+        docs_enabled = build.docs_enabled
+    cors_origins = build.cors_allowed_origins if build is not None else []
     app = FastAPI(
         title="AYO Plant Copilot API",
         version=version("ayo-copilot"),
@@ -173,6 +179,17 @@ def create_app(settings: Settings | None = None, *, docs_enabled: bool | None = 
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
     )
+    if cors_origins:
+        # Answers preflights before routing, so they need no API key; errors get the
+        # headers too, so the UI can read them.
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_methods=["GET", "POST", "PATCH", "DELETE"],
+            allow_headers=["X-API-Key", "Content-Type"],
+            allow_credentials=False,
+        )
+        logger.info("CORS allowed origins: %s", ", ".join(cors_origins))
     install_error_handlers(app)
     app.include_router(admin.router)
 

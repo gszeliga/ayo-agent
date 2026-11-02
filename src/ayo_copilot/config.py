@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # pgvector cannot build an HNSW index on a `vector` column wider than this.
 HNSW_MAX_DIMENSIONS = 2000
@@ -46,14 +46,55 @@ SETTINGS_CONFIG = SettingsConfigDict(
 )
 
 
-class DocsSettings(BaseSettings):
-    """Read when the app is built, before the rest: FastAPI needs the docs URLs up front."""
+def normalize_origin(origin: str) -> str:
+    """`scheme://host[:port]` with scheme and host lowercased, as browsers send `Origin`.
+    Raises ValueError for anything else, `*` included."""
+    try:
+        parts = urlsplit(origin)
+        parts.port  # noqa: B018 - raises ValueError for a malformed port
+    except ValueError:
+        parts = None
+    if (
+        parts is None
+        or parts.scheme.lower() not in ("http", "https")
+        or not parts.hostname
+        or parts.username is not None
+        or parts.path
+        or parts.query
+        or parts.fragment
+        or origin.endswith(("?", "#"))
+    ):
+        raise ValueError(
+            f"CORS_ALLOWED_ORIGINS: {origin!r} is not an origin like https://host[:port]"
+            " (no path, no trailing slash, no *)"
+        )
+    return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
+
+
+class BuildSettings(BaseSettings):
+    """Read when the app is built, before the rest: FastAPI needs the docs URLs and the
+    middleware up front."""
 
     model_config = SETTINGS_CONFIG
 
     # Serve /docs, /redoc and /openapi.json. They are public when on: restricting who can
     # reach them is left to the infrastructure (proxy or private network).
     docs_enabled: bool = True
+    # Browser origins allowed to call the API (comma-separated in the environment). Empty
+    # means CORS is off: browsers on other origins can't read the answers.
+    cors_allowed_origins: Annotated[list[str], NoDecode] = []
+
+    @field_validator("cors_allowed_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @field_validator("cors_allowed_origins")
+    @classmethod
+    def _check_origins(cls, origins: list[str]) -> list[str]:
+        return [normalize_origin(origin) for origin in origins]
 
 
 class DatabaseSettings(BaseSettings):
@@ -92,7 +133,7 @@ class DatabaseSettings(BaseSettings):
         return url.get_secret_value()
 
 
-class Settings(DatabaseSettings, DocsSettings):
+class Settings(DatabaseSettings, BuildSettings):
     """Application settings, read from environment variables (and `.env`)."""
 
     # Provisional admin authentication (see routers/admin.py).

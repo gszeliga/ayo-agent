@@ -280,7 +280,20 @@ strings; `routers/admin.py` `_error`, `_examples`, `require_admin_key`; `errors.
   repository (counts per tenant in order, empty, deleted documents and a tenant's last
   document left out), API (empty, counts equal the listing's sums, deletes), OpenAPI,
   contract. README "Tenants".
-- [ ] C10. CORS.
+- [x] C10. CORS (2026-11-02). `CORS_ALLOWED_ORIGINS` lives in `BuildSettings` (renamed
+  from `DocsSettings`: middleware must be added when the app is built, before the
+  lifespan reads `Settings`). `NoDecode` + a validator split it on commas; each origin is
+  checked by `config.normalize_origin` (`http(s)://host[:port]`, no path, query, user
+  info or trailing slash; `*` refused, a deviation from the spec) and lowercased. Empty =
+  no middleware. `create_app`: `settings` given -> its origins; neither `settings` nor
+  `docs_enabled` -> `BuildSettings()` from the environment; `docs_enabled` alone -> no
+  environment read, CORS off. Methods `GET, POST, PATCH, DELETE`, headers `X-API-Key`,
+  `Content-Type`, no credentials (no `PUT`/`X-Actor`, Decisions 2 and 5); one INFO line
+  with the origins. OpenAPI unchanged. Tests: unit (split/trim/lowercase, empty, nine
+  malformed origins), `tests/api/test_cors.py` without a database (preflight per method,
+  `PUT` preflight 400, header on answers and on errors, disallowed origin gets none, off
+  by default, `docs_enabled` alone ignores the environment, `create_app()` reads it).
+  README "Browser clients (CORS)" and the configuration table, `.env.example`.
 - [ ] C11. README, manual run, final report.
 
 ## Open items
