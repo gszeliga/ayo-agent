@@ -129,7 +129,9 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
   `docs/openapi.json` and commit it in the same commit (a snapshot test fails otherwise);
   every documented status must be triggered for real in `tests/api/test_contract.py`.
   Then run `pnpm gen:api` in `ui/` and commit `ui/src/api/schema.d.ts` too
-  (`pnpm gen:api:check` fails otherwise). Tests build the app with
+  (`pnpm gen:api:check` fails otherwise). The UI's routes share the origin with these paths
+  in production, so a new top-level API path must not clash with a UI route
+  (`ui/src/paths.test.ts`). Tests build the app with
   `create_app(docs_enabled=True)` so they never read `.env` (CORS is then off).
 - `{doc_id}` path parameters use `DOC_ID_PATTERN` (malformed -> 422, unknown -> 404
   `document_not_found`). Every `/admin` route needs the key: `tests/api/test_admin_auth.py`
@@ -137,7 +139,9 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
 - UI (`ui/`): TypeScript strict, ESLint type-aware + Prettier (width 100, no semicolons,
   single quotes); `pnpm check` must pass. TypeScript stays on 5.x until typescript-eslint
   and openapi-typescript support 7. Theme colours only through the tokens in
-  `src/index.css`. Tests use MSW; unhandled requests fail. English UI copy.
+  `src/index.css`. Tests use MSW; unhandled requests fail. English UI copy. API calls go
+  through `useApiClient()` + `unwrap()`, errors are `ApiError`. UI routes never start with
+  an API path (`/admin`, `/health`, `/docs`, `/redoc`, `/openapi.json`).
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)
   use the `db_pool` fixture (tables truncated before each test) or `scratch_database_url`
   (a throwaway database) for migration-level tests.

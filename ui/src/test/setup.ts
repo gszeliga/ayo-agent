@@ -15,3 +15,9 @@ afterEach(() => {
 afterAll(() => {
   server.close()
 })
+
+// Each test starts disconnected and with the banner showing.
+beforeEach(() => {
+  window.sessionStorage.clear()
+  window.localStorage.clear()
+})

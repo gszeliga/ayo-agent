@@ -21,6 +21,11 @@ export default tseslint.config(
     },
   },
   {
+    // Test helpers, and shadcn/ui files that export variants next to components.
+    files: ['src/test/**', '**/*.test.{ts,tsx}', 'src/components/ui/**'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
     files: ['**/*.{js,mjs}'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },

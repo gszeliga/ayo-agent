@@ -19,6 +19,34 @@ pnpm dev            # http://localhost:5173 (fixed port: the API's CORS allows t
 ```
 
 The API must allow the origin: start it with `CORS_ALLOWED_ORIGINS=http://localhost:5173`.
+For example, with the local database and the fake embedder, from the repo root:
+
+```sh
+EMBEDDING_PROVIDER=fake CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+  DATABASE_URL=postgresql://ayo:ayo@localhost:5433/ayo ALLOW_REMOTE_DATABASE=false \
+  uv run ayo-copilot
+```
+
+## Connecting
+
+The UI opens on a connect screen: the API address and the admin key, checked with
+`GET /admin/tenants` before they are kept. They live in `sessionStorage`, so only in this
+tab and only until it closes. Any `401` later (a changed key) returns to the connect screen
+with a notice; Disconnect forgets them.
+
+The address defaults to `VITE_API_BASE_URL` when it is set at build time, else to the
+page's own origin, which is right when a proxy serves the UI and the API together
+(production, see `../plans/ui-progress.md` decision 5). `.env.development` sets it to
+`http://127.0.0.1:8000` for `pnpm dev`. For a build against an API on another host:
+`VITE_API_BASE_URL=https://api.example.com pnpm build`.
+
+## Routes
+
+`/connect`, `/documents`, `/documents/:docId`, `/settings`; everything but `/connect` needs
+a connection. They are listed in `src/paths.ts`. **No UI route may start with an API path**
+(`/admin`, `/health`, `/docs`, `/redoc`, `/openapi.json`): on a shared origin the proxy
+sends those to the API. `src/paths.test.ts` reads the API's paths from `docs/openapi.json`
+and fails on a clash. A server serving `dist/` must answer unknown paths with `index.html`.
 
 ## Commands
 
@@ -39,7 +67,13 @@ API's committed contract, `../docs/openapi.json`, and committed. Never edit it. 
 API change: `uv run python scripts/export_openapi.py` at the repo root, then `pnpm gen:api`
 here, and commit both with the change. `pnpm gen:api:check` (part of `pnpm check`) fails
 when the file is stale. Requests use [openapi-fetch](https://openapi-ts.dev/openapi-fetch/)
-with these types.
+with these types: `useApiClient()` gives the client of the current connection (it sends
+`X-API-Key`), and `unwrap(client.GET(...))` returns the data or throws `ApiError`.
+
+`ApiError` (`src/api/errors.ts`) is the one error type: `status` (null when the API could
+not be reached, which includes a CORS refusal), `items` (the API's `{"detail": [...]}`),
+`type` (the first item's code) and `fieldErrors()` (messages by field, for forms). A body
+that is not the API's error format (a proxy's HTML page) becomes one generic item.
 
 ## Styling
 
@@ -50,8 +84,9 @@ background), plus `success`, `warning`, `danger-muted` and `link`. Light and dar
 self-hosted (Inter, JetBrains Mono for ids, hashes and configs) via Fontsource.
 
 shadcn/ui components are added as needed with `pnpm dlx shadcn@latest add <component>`
-(config in `components.json`); they are copied into `src/components/ui/` and are ours to
-edit. shadcn/ui is MIT-licensed (<https://github.com/shadcn-ui/ui>, copyright shadcn);
+(config in `components.json`; it resolves `@/` through the root `tsconfig.json`, and wrote
+into a literal `@/` folder before that was set); they are copied into `src/components/ui/`
+and are ours to edit. If one imports `cn` from the `cn` package, point it at `@/lib/utils`. shadcn/ui is MIT-licensed (<https://github.com/shadcn-ui/ui>, copyright shadcn);
 the copied files keep that licence.
 
 ## Tests
@@ -69,9 +104,16 @@ eslint.config.js      flat config; .prettierrc.json; components.json (shadcn/ui)
 scripts/gen-api.mjs   schema.d.ts generation and its --check
 src/
   main.tsx            fonts, CSS, React root
-  App.tsx             the app (a placeholder for now)
+  App.tsx             router + connection provider
+  routes.tsx          the route tree; paths.ts lists the paths (and paths.test.ts guards them)
   index.css           Tailwind, theme tokens (light and dark)
-  api/schema.d.ts     generated API types; schema.test.ts checks them at compile time
+  api/                schema.d.ts (generated; schema.test.ts checks it at compile time),
+                      client.ts (createApiClient, unwrap), errors.ts (ApiError)
+  connection/         storage, base URL rules, provider + useConnection/useApiClient, guard
+  layout/AppShell.tsx header, nav, Disconnect, internal-use banner
+  pages/              ConnectPage, NotFoundPage, Placeholder (until U4+)
+  components/ui/      shadcn/ui components (button, input, label, card, alert)
   lib/utils.ts        cn() for class names
-  test/               setup.ts (jest-dom, MSW), server.ts, handlers.ts
+  test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
+                      render.tsx (renderApp(path, {connected}))
 ```

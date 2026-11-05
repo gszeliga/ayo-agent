@@ -99,8 +99,13 @@ the first unchecked item under "Progress log".
 - **U4** Documents list (TanStack Query, filters in the URL).
 - **U5** Detail: facts, content, chunks.
 - **U6** Upload/replace dialog.
-- **U7** Rename, reprocess, delete.
-- **U8** Polish (themes, empty/error states); manual end-to-end run against the local API
+- **U7** Rename, reprocess, delete, and the list's multi-select bulk delete (B2).
+  (Bulk delete assigned here on 2026-11-05: no step owned it.)
+- **U8** Indexing settings page (B1: counts by reason, Chunking, Embeddings, Uploads cards,
+  per-document "now differs" notes) and service status (B3: header dots with a popover,
+  "Services" card with "Check now"). Added 2026-11-05: the review asked for them, but no
+  step owned them.
+- **U9** Polish (themes, empty/error states); manual end-to-end run against the local API
   with the fake embedder and `CORS_ALLOWED_ORIGINS=http://localhost:5173`.
 - **D1** Deployment, phase 1 (decision 5): a `Caddyfile` (routing, SPA fallback, caching
   headers), a systemd unit for the API (one worker, proxy headers; `main()` made
@@ -116,7 +121,7 @@ the first unchecked item under "Progress log".
   https://claude.ai/artifact/We1nZk6KWUYCXvHJvGwoZt. Its source is the artboard file
   `project/Main.dc.html` in that Artifact (a new session reads it with the Artifact tool's
   `read` action and that `path`; the session scratchpad copy is gone). It is a reference
-  for U2-U8, not code to port: mock data, a "Prototype" menu that simulates errors and
+  for U2-U9, not code to port: mock data, a "Prototype" menu that simulates errors and
   outages, and click handlers instead of forms (the Artifact sandbox blocks form
   submission; the real UI uses normal forms).
   What the design settles:
@@ -178,21 +183,41 @@ the first unchecked item under "Progress log".
   needed, none yet; `components.json`, `cn()`), fonts self-hosted via Fontsource. Prototype
   tokens copied into `src/index.css` under shadcn's names (+ `success`, `warning`,
   `danger-muted`, `link`); `dark` class set from the system preference in `index.html`
-  (toggle in U8). `openapi-typescript` -> committed `src/api/schema.d.ts`,
+  (toggle in U9). `openapi-typescript` -> committed `src/api/schema.d.ts`,
   `pnpm gen:api:check` in `pnpm check`; `openapi-fetch` installed for U3. Agreed: `ui/`
   has its own README (root README points to it). No routing or data fetching yet (U3/U4).
-- [ ] U3. API client and connection.
+- [x] U3. API client and connection (2026-11-05). React Router 8, plain component setup
+  (`<Routes>`, no data loaders); paths in `src/paths.ts` (`/connect`, `/documents`,
+  `/documents/:docId`, `/settings`), guarded by `RequireConnection` (redirects to
+  `/connect?next=`; `safeNext` accepts in-app paths only). Connection `{baseUrl, apiKey}`
+  in `sessionStorage` (try/catch, memory if blocked) behind `ConnectionProvider` /
+  `useConnection` / `useApiClient`. Base URL default: `VITE_API_BASE_URL`, else the page
+  origin; `.env.development` points `pnpm dev` at `http://127.0.0.1:8000`; validated as
+  `http(s)://host[:port]`. `createApiClient` (openapi-fetch + middleware: `X-API-Key`,
+  `onUnauthorized` on 401 -> disconnect with a notice), `unwrap`, `ApiError` (status null
+  = unreachable; generic item for non-API bodies; `fieldErrors()`). Connect screen checks
+  with `GET /admin/tenants`: 401 under the key field, unreachable names the URL and
+  `CORS_ALLOWED_ORIGINS`. Shell: header (mark, host, nav, Disconnect) and a dismissible
+  banner (`localStorage`). shadcn/ui: button, input, label, card, alert (+ `radix-ui`,
+  `lucide-react`). Route-clash test reads the API's paths from `docs/openapi.json`. Plan
+  fix agreed: bulk delete -> U7, settings page + service status -> new U8, polish -> U9.
+  Found on the way: `shadcn add` needs the `@/` alias in the root `tsconfig.json` (it
+  wrote into a literal `@/` folder and pulled in the `cn` package otherwise; both undone).
+  Checked against the real local API (fake embedder): CORS preflight from
+  `localhost:5173` allows `X-API-Key`, and a `401` carries the CORS header, so the UI can
+  read it.
 - [ ] U4. Documents list.
 - [ ] U5. Detail.
 - [ ] U6. Upload/replace.
 - [ ] U7. Rename, reprocess, delete.
-- [ ] U8. Polish and manual run.
+- [ ] U8. Indexing settings page and service status.
+- [ ] U9. Polish and manual run.
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-**U3** (API client and connection screen): write its brief and wait for approval. It
-brings routing, the `openapi-fetch` wrapper (base URL, key, the error type) and the first
-shadcn/ui components.
+**U4** (documents list): write its brief (TanStack Query, filters in the URL, tenant
+sidebar, sort, pagination, states) and wait for approval. Multi-select and bulk delete
+are U7.
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing
