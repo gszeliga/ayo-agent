@@ -268,7 +268,9 @@ export interface paths {
          *     reported in the body (`status: degraded`), not as an error. The public `/health` only
          *     says the process is up and never fails because of these services.
          *
-         *     - **Database:** `select 1` through the connection pool, on every request, within 2 s.
+         *     - **Database:** one query through the connection pool, on every request, within 2 s. It
+         *       reports the PostgreSQL and pgvector versions, and where the database runs as a category
+         *       (`local`, `neon` or `remote`).
          *     - **Embeddings:** one request embedding a single short word, within 5 s and without
          *       retries. The result, a failure included, is kept for 60 s, so loading a page doesn't
          *       call the provider each time; `refresh=true` checks again. Nothing is checked in the
@@ -510,7 +512,8 @@ export interface components {
         };
         /**
          * DatabaseHealth
-         * @description A `select 1` through the connection pool, run on every request.
+         * @description One query through the connection pool, run on every request. Where the database
+         *     runs is given as a category only: never its host or URL.
          */
         DatabaseHealth: {
             /**
@@ -525,6 +528,25 @@ export interface components {
              * @example 4
              */
             latency_ms: number;
+            /**
+             * Location
+             * @description Where it runs, from `DATABASE_URL`: `local` (localhost or a Unix socket), `neon` (a `*.neon.tech` host, pooled or direct) or `remote` (any other host). Known even when it is down.
+             * @example neon
+             * @enum {string}
+             */
+            location: "local" | "neon" | "remote";
+            /**
+             * Pgvector Version
+             * @description Version of the `vector` extension; null when down or not installed.
+             * @example 0.8.1
+             */
+            pgvector_version: string | null;
+            /**
+             * Postgres Version
+             * @description PostgreSQL server version, its number only; null when down.
+             * @example 18.1
+             */
+            postgres_version: string | null;
             /**
              * Status
              * @description `up` if the query answered in time.

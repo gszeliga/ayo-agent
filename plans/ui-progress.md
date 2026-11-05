@@ -314,17 +314,23 @@ the first unchecked item under "Progress log".
   with the fake embedder against the local DB; 38 Spanish documents in three tenants, two
   outdated by `CHUNK_SIZE=600`), but browser tools were not enabled for the session and the
   user chose to skip the click-through. The seeded documents remain in the local dev DB.
+- [x] B4. Database details in `/admin/health` (2026-11-05, asked for by the user).
+  `database` gains `location` (`local` / `neon` / `remote` from `DATABASE_URL`'s host via
+  `classify_database_location`; a socket is local, `*.neon.tech` pooled or direct is neon;
+  never the host), `postgres_version` (`server_version` reduced to its number) and
+  `pgvector_version` (`pg_extension`), read in the same single query that checks the
+  database (`DATABASE_CHECK_SQL`, replacing `select 1`), null when down. The location is
+  computed in the route from the settings (pure, so not passed through startup). UI:
+  "Runs on" and "Version: PostgreSQL 18.6 · pgvector 0.8.7" in the popover and the
+  Services card (version row hidden when down). Tests: classifier cases (including
+  look-alikes such as `neon.tech.example.com`), version parsing and nulls with stub pools,
+  the real testcontainer's versions, the host never in the body. Checked against the local
+  dev DB: `local`, 18.6, 0.8.7.
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-The UI milestone is done (final report below). Next per the plan: **D1** (deployment,
-phase 1; decision 5): write its brief and wait for approval. Asked for by the user on
-2026-11-05, to brief next (before or after D1, the user's call): **B4**, database details
-in `/admin/health`: where it runs as a category (`local` for localhost, 127.0.0.1, ::1 or a
-Unix socket; `neon` for a `*.neon.tech` host; `remote` otherwise; derived from
-`DATABASE_URL`, never the host itself, as agreed in B3), the PostgreSQL server version
-(`show server_version`) and the pgvector version (`pg_extension`), shown in the header
-popover and the Services card.
+The UI milestone and B4 are done. Next: **D1** (deployment, phase 1; decision 5): write
+its brief and wait for approval.
 
 ## Final report (2026-11-05)
 

@@ -10,7 +10,13 @@ import psycopg
 import pytest
 from psycopg_pool import PoolTimeout
 
-from ayo_copilot.health import EmbeddingMonitor, TrackedEmbedder, check_database
+from ayo_copilot.health import (
+    DATABASE_CHECK_SQL,
+    EmbeddingMonitor,
+    TrackedEmbedder,
+    check_database,
+    classify_database_location,
+)
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
 
 T0 = datetime(2026, 11, 5, 10, 0, tzinfo=UTC)
@@ -168,20 +174,37 @@ def test_tracker_starts_empty() -> None:
     )
 
 
-class StubConnection:
-    def __init__(self, error: Exception | None) -> None:
-        self.error = error
+class StubCursor:
+    def __init__(self, row: tuple | None) -> None:
+        self.row = row
 
-    def execute(self, query: str) -> None:
-        assert query == "select 1"
+    def fetchone(self) -> tuple | None:
+        return self.row
+
+
+class StubConnection:
+    def __init__(self, error: Exception | None, row: tuple | None) -> None:
+        self.error = error
+        self.row = row
+
+    def execute(self, query: str) -> StubCursor:
+        assert query == DATABASE_CHECK_SQL
         if self.error is not None:
             raise self.error
+        return StubCursor(self.row)
 
 
 class StubPool:
-    def __init__(self, *, lend_error: Exception | None = None, query_error=None) -> None:
+    def __init__(
+        self,
+        *,
+        lend_error: Exception | None = None,
+        query_error=None,
+        row: tuple | None = ("18.1 (Debian 18.1-1.pgdg13+1)", "0.8.1"),
+    ) -> None:
         self.lend_error = lend_error
         self.query_error = query_error
+        self.row = row
         self.timeouts: list[float] = []
 
     @contextmanager
@@ -189,7 +212,7 @@ class StubPool:
         self.timeouts.append(timeout)
         if self.lend_error is not None:
             raise self.lend_error
-        yield StubConnection(self.query_error)
+        yield StubConnection(self.query_error, self.row)
 
 
 def test_database_up() -> None:
@@ -198,6 +221,14 @@ def test_database_up() -> None:
     check = check_database(pool)
 
     assert (check.up, check.error, pool.timeouts) == (True, None, [2.0])
+    # The server version is reduced to its number.
+    assert (check.postgres_version, check.pgvector_version) == ("18.1", "0.8.1")
+
+
+def test_a_missing_vector_extension_has_no_version() -> None:
+    check = check_database(StubPool(row=("18.1", None)))
+
+    assert (check.up, check.postgres_version, check.pgvector_version) == (True, "18.1", None)
 
 
 def test_database_without_a_connection_in_time_is_a_timeout() -> None:
@@ -212,3 +243,28 @@ def test_a_failed_query_hides_psycopgs_message() -> None:
     check = check_database(StubPool(query_error=error))
 
     assert (check.up, check.error) == (False, "connection failed")
+
+
+def test_versions_are_unknown_when_the_database_is_down() -> None:
+    check = check_database(StubPool(lend_error=PoolTimeout("x")))
+
+    assert (check.postgres_version, check.pgvector_version) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("url", "location"),
+    [
+        ("postgresql://ayo:ayo@localhost:5433/ayo", "local"),
+        ("postgresql://ayo:ayo@127.0.0.1/ayo", "local"),
+        ("postgresql://ayo:ayo@[::1]:5432/ayo", "local"),
+        ("postgresql:///ayo?host=/var/run/postgresql", "local"),
+        ("postgresql://u:p@ep-cool-sun-123456.eu-central-1.aws.neon.tech/neondb", "neon"),
+        ("postgresql://u:p@ep-cool-sun-123456-pooler.eu-central-1.aws.neon.tech/db", "neon"),
+        ("postgresql://u:p@EP-X.EU-CENTRAL-1.AWS.NEON.TECH/db", "neon"),
+        ("postgresql://u:p@db.example.com/ayo", "remote"),
+        ("postgresql://u:p@neon.tech.example.com/ayo", "remote"),
+        ("postgresql://u:p@notneon.tech/ayo", "remote"),
+    ],
+)
+def test_database_location(url: str, location: str) -> None:
+    assert classify_database_location(url) == location

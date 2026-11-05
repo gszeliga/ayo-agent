@@ -518,7 +518,8 @@ ServiceState = Literal["up", "down"]
 
 
 class DatabaseHealth(BaseModel):
-    """A `select 1` through the connection pool, run on every request."""
+    """One query through the connection pool, run on every request. Where the database
+    runs is given as a category only: never its host or URL."""
 
     status: ServiceState = Field(description="`up` if the query answered in time.", examples=["up"])
     latency_ms: int = Field(
@@ -528,6 +529,20 @@ class DatabaseHealth(BaseModel):
         description="`timeout` (no answer, or no free connection, within 2 s) or"
         " `connection failed`; null when up.",
         examples=["timeout"],
+    )
+    location: Literal["local", "neon", "remote"] = Field(
+        description="Where it runs, from `DATABASE_URL`: `local` (localhost or a Unix"
+        " socket), `neon` (a `*.neon.tech` host, pooled or direct) or `remote` (any other"
+        " host). Known even when it is down.",
+        examples=["neon"],
+    )
+    postgres_version: str | None = Field(
+        description="PostgreSQL server version, its number only; null when down.",
+        examples=["18.1"],
+    )
+    pgvector_version: str | None = Field(
+        description="Version of the `vector` extension; null when down or not installed.",
+        examples=["0.8.1"],
     )
 
 

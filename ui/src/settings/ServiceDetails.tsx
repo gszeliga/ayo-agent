@@ -28,6 +28,12 @@ export function StatusDot({ state }: { state: ServiceState }) {
 
 const STATE_TEXT: Record<ServiceState, string> = { up: 'Up', down: 'Down', unknown: 'Unknown' }
 
+const LOCATION_TEXT: Record<components['schemas']['DatabaseHealth']['location'], string> = {
+  local: 'Local',
+  neon: 'Neon',
+  remote: 'Remote',
+}
+
 function When({ iso, now }: { iso: string | null; now: number }) {
   if (iso === null) return <span className="text-muted-foreground">none since the API started</span>
   return (
@@ -73,6 +79,13 @@ export function ServiceDetails() {
           <StatusDot state={database.status} /> Database: {STATE_TEXT[database.status]}
         </h3>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          <Row label="Runs on">{LOCATION_TEXT[database.location]}</Row>
+          {database.postgres_version && (
+            <Row label="Version">
+              PostgreSQL {database.postgres_version}
+              {database.pgvector_version && ` · pgvector ${database.pgvector_version}`}
+            </Row>
+          )}
           <Row label="Latency">{database.latency_ms} ms</Row>
           {database.error && <Row label="Error">{database.error}</Row>}
         </dl>

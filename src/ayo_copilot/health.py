@@ -10,11 +10,12 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 import psycopg
 from psycopg_pool import ConnectionPool, PoolTimeout
 
+from ayo_copilot.config import LOCAL_HOSTS, database_host
 from ayo_copilot.ingestion.embedding import Embedder, EmbeddingError
 
 DATABASE_TIMEOUT_SECONDS = 2.0
@@ -30,11 +31,34 @@ def _elapsed_ms(start: float, clock: Callable[[], float]) -> int:
     return round((clock() - start) * 1000)
 
 
+DatabaseLocation = Literal["local", "neon", "remote"]
+
+# Both pgvector's version and the server's, in the round trip that checks the database.
+DATABASE_CHECK_SQL = (
+    "select current_setting('server_version'),"
+    " (select extversion from pg_extension where extname = 'vector')"
+)
+
+
+def classify_database_location(database_url: str) -> DatabaseLocation:
+    """Where the database runs, as a category: only this leaves the server, never the host.
+    No host means a Unix socket, so local."""
+    host = database_host(database_url)
+    if host is None or host.lower() in LOCAL_HOSTS:
+        return "local"
+    if host.lower().endswith(".neon.tech"):
+        return "neon"
+    return "remote"
+
+
 @dataclass(frozen=True)
 class DatabaseCheck:
     up: bool
     latency_ms: int
     error: str | None
+    # Null when down; pgvector's also when the extension is missing.
+    postgres_version: str | None = None
+    pgvector_version: str | None = None
 
 
 def check_database(
@@ -43,20 +67,30 @@ def check_database(
     timeout_seconds: float = DATABASE_TIMEOUT_SECONDS,
     clock: Callable[[], float] = time.monotonic,
 ) -> DatabaseCheck:
-    """`select 1` through the pool. A pool too busy to lend a connection in time counts as
-    a timeout too: requests would be waiting as well. psycopg's messages are not passed
-    on, since they can name the host or the user."""
+    """One query through the pool, reading the PostgreSQL and pgvector versions. A pool too
+    busy to lend a connection in time counts as a timeout too: requests would be waiting as
+    well. psycopg's messages are not passed on, since they can name the host or the user.
+
+    The server version is reduced to its number: `18.1 (Debian 18.1-1.pgdg13+1)` -> `18.1`.
+    """
     start = clock()
     try:
         with pool.connection(timeout=timeout_seconds) as conn:
-            conn.execute("select 1")
+            row = conn.execute(DATABASE_CHECK_SQL).fetchone()
     except PoolTimeout:
         return DatabaseCheck(up=False, latency_ms=_elapsed_ms(start, clock), error="timeout")
     except psycopg.Error:
         return DatabaseCheck(
             up=False, latency_ms=_elapsed_ms(start, clock), error="connection failed"
         )
-    return DatabaseCheck(up=True, latency_ms=_elapsed_ms(start, clock), error=None)
+    server, pgvector = row if row is not None else (None, None)
+    return DatabaseCheck(
+        up=True,
+        latency_ms=_elapsed_ms(start, clock),
+        error=None,
+        postgres_version=str(server).split()[0] if server else None,
+        pgvector_version=str(pgvector) if pgvector else None,
+    )
 
 
 class Prober(Protocol):

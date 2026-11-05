@@ -233,7 +233,7 @@
         "type": "object"
       },
       "DatabaseHealth": {
-        "description": "A `select 1` through the connection pool, run on every request.",
+        "description": "One query through the connection pool, run on every request. Where the database\nruns is given as a category only: never its host or URL.",
         "properties": {
           "error": {
             "anyOf": [
@@ -258,6 +258,49 @@
             "title": "Latency Ms",
             "type": "integer"
           },
+          "location": {
+            "description": "Where it runs, from `DATABASE_URL`: `local` (localhost or a Unix socket), `neon` (a `*.neon.tech` host, pooled or direct) or `remote` (any other host). Known even when it is down.",
+            "enum": [
+              "local",
+              "neon",
+              "remote"
+            ],
+            "examples": [
+              "neon"
+            ],
+            "title": "Location",
+            "type": "string"
+          },
+          "pgvector_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Version of the `vector` extension; null when down or not installed.",
+            "examples": [
+              "0.8.1"
+            ],
+            "title": "Pgvector Version"
+          },
+          "postgres_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PostgreSQL server version, its number only; null when down.",
+            "examples": [
+              "18.1"
+            ],
+            "title": "Postgres Version"
+          },
           "status": {
             "description": "`up` if the query answered in time.",
             "enum": [
@@ -274,7 +317,10 @@
         "required": [
           "status",
           "latency_ms",
-          "error"
+          "error",
+          "location",
+          "postgres_version",
+          "pgvector_version"
         ],
         "title": "DatabaseHealth",
         "type": "object"
@@ -2806,7 +2852,7 @@
     },
     "/admin/health": {
       "get": {
-        "description": "Whether the database and the embedding provider work, for a\nstatus display. Always `200` when the report could be made: a service that is down is\nreported in the body (`status: degraded`), not as an error. The public `/health` only\nsays the process is up and never fails because of these services.\n\n- **Database:** `select 1` through the connection pool, on every request, within 2 s.\n- **Embeddings:** one request embedding a single short word, within 5 s and without\n  retries. The result, a failure included, is kept for 60 s, so loading a page doesn't\n  call the provider each time; `refresh=true` checks again. Nothing is checked in the\n  background. Also reported: when the last real embedding call (by an upload or a\n  reprocess) succeeded and failed since the service started.\n\nNo keys, URLs or hosts are included.\n\n| Status | Meaning |\n|---|---|\n| `200` | The report, with each service `up` or `down`. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | `refresh` is not a boolean (FastAPI validation). |",
+        "description": "Whether the database and the embedding provider work, for a\nstatus display. Always `200` when the report could be made: a service that is down is\nreported in the body (`status: degraded`), not as an error. The public `/health` only\nsays the process is up and never fails because of these services.\n\n- **Database:** one query through the connection pool, on every request, within 2 s. It\n  reports the PostgreSQL and pgvector versions, and where the database runs as a category\n  (`local`, `neon` or `remote`).\n- **Embeddings:** one request embedding a single short word, within 5 s and without\n  retries. The result, a failure included, is kept for 60 s, so loading a page doesn't\n  call the provider each time; `refresh=true` checks again. Nothing is checked in the\n  background. Also reported: when the last real embedding call (by an upload or a\n  reprocess) succeeded and failed since the service started.\n\nNo keys, URLs or hosts are included.\n\n| Status | Meaning |\n|---|---|\n| `200` | The report, with each service `up` or `down`. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | `refresh` is not a boolean (FastAPI validation). |",
         "operationId": "get_service_health",
         "parameters": [
           {

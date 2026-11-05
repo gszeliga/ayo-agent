@@ -1,5 +1,6 @@
 """GET /admin/health through HTTP on a real database, with stand-ins for failing services."""
 
+import re
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime
@@ -10,8 +11,9 @@ from fastapi.testclient import TestClient
 from psycopg_pool import ConnectionPool, PoolTimeout
 
 from ayo_copilot.app import create_app
+from ayo_copilot.config import database_host
 from ayo_copilot.dependencies import get_embedder, get_embedding_monitor, get_pool
-from ayo_copilot.health import EmbeddingMonitor, TrackedEmbedder
+from ayo_copilot.health import EmbeddingMonitor, TrackedEmbedder, classify_database_location
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
 from tests.api.test_documents_read import doc, make_client, make_settings
 
@@ -136,3 +138,35 @@ def test_refresh_must_be_a_boolean(client: TestClient) -> None:
     assert response.status_code == 422
     (item,) = response.json()["detail"]
     assert (item["type"], item["loc"]) == ("bool_parsing", ["query", "refresh"])
+
+
+def test_the_database_reports_where_it_runs_and_its_versions(
+    client: TestClient, migrated_database_url: str
+) -> None:
+    database = service_health(client)["database"]
+
+    # testcontainers may report a Docker host other than localhost: ask the classifier.
+    assert database["location"] == classify_database_location(migrated_database_url)
+    assert re.fullmatch(r"\d+(\.\d+)*", database["postgres_version"])
+    assert re.fullmatch(r"\d+(\.\d+)*", database["pgvector_version"])
+
+
+def test_the_body_never_names_the_database_host(
+    client: TestClient, migrated_database_url: str
+) -> None:
+    host = database_host(migrated_database_url)
+    body = client.get("/admin/health").text
+
+    assert host and host not in body
+    assert "postgresql://" not in body
+
+
+def test_a_database_that_is_down_keeps_its_location(
+    client: TestClient, migrated_database_url: str
+) -> None:
+    client.app.dependency_overrides[get_pool] = TimingOutPool
+
+    database = service_health(client)["database"]
+
+    assert database["location"] == classify_database_location(migrated_database_url)
+    assert (database["postgres_version"], database["pgvector_version"]) == (None, None)

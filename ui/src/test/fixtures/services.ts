@@ -10,7 +10,15 @@ export function makeHealth(
     embeddings?: Partial<ServiceHealth['embeddings']>
   } = {},
 ): ServiceHealth {
-  const database = { status: 'up' as const, latency_ms: 3, error: null, ...overrides.database }
+  const database = {
+    status: 'up' as const,
+    latency_ms: 3,
+    error: null,
+    location: 'local' as const,
+    postgres_version: '18.1',
+    pgvector_version: '0.8.1',
+    ...overrides.database,
+  }
   const embeddings = {
     status: 'up' as const,
     provider: 'voyage' as const,

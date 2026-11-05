@@ -35,7 +35,7 @@ from ayo_copilot.documents import (
     rename_document,
 )
 from ayo_copilot.errors import ApiError
-from ayo_copilot.health import EmbeddingMonitor, check_database
+from ayo_copilot.health import EmbeddingMonitor, check_database, classify_database_location
 from ayo_copilot.ingestion.embedding import Embedder, EmbeddingError
 from ayo_copilot.ingestion.service import (
     DocumentChangedError,
@@ -1109,7 +1109,9 @@ status display. Always `200` when the report could be made: a service that is do
 reported in the body (`status: degraded`), not as an error. The public `/health` only
 says the process is up and never fails because of these services.
 
-- **Database:** `select 1` through the connection pool, on every request, within 2 s.
+- **Database:** one query through the connection pool, on every request, within 2 s. It
+  reports the PostgreSQL and pgvector versions, and where the database runs as a category
+  (`local`, `neon` or `remote`).
 - **Embeddings:** one request embedding a single short word, within 5 s and without
   retries. The result, a failure included, is kept for 60 s, so loading a page doesn't
   call the provider each time; `refresh=true` checks again. Nothing is checked in the
@@ -1173,6 +1175,9 @@ def get_service_health(
             status="up" if database.up else "down",
             latency_ms=database.latency_ms,
             error=database.error,
+            location=classify_database_location(settings.database_url.get_secret_value()),
+            postgres_version=database.postgres_version,
+            pgvector_version=database.pgvector_version,
         ),
         embeddings=EmbeddingHealth(
             status="up" if probe.up else "down",

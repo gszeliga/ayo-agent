@@ -118,7 +118,7 @@ describe('service status', () => {
 
     const popover = await screen.findByRole('dialog')
     expect(within(popover).getByRole('region', { name: 'Database service' })).toHaveTextContent(
-      'Database: UpLatency3 ms',
+      'Database: UpRuns onLocalVersionPostgreSQL 18.1 · pgvector 0.8.1Latency3 ms',
     )
     const embeddings = within(popover).getByRole('region', { name: 'Embeddings service' })
     expect(embeddings).toHaveTextContent('Providervoyage')
@@ -184,6 +184,36 @@ describe('service status', () => {
         'Service status: database status unknown, embeddings status unknown',
       )
     })
+  })
+
+  test.each([
+    ['neon', '18.1', null, 'Runs onNeonVersionPostgreSQL 18.1Latency'],
+    ['remote', null, null, 'Runs onRemoteLatency'],
+  ] as const)('a %s database with versions %s / %s', async (location, postgres, pgvector, text) => {
+    serveHealth([
+      () =>
+        HttpResponse.json(
+          makeHealth({
+            database: {
+              location,
+              postgres_version: postgres,
+              pgvector_version: pgvector,
+              ...(postgres === null ? { status: 'down', error: 'timeout' } : {}),
+            },
+          }),
+        ),
+    ])
+    const { user } = renderApp('/settings', { connected: true })
+    await waitFor(() => {
+      expect(indicator()).toHaveAccessibleName(/^Service status: database (up|down)/)
+    })
+
+    await user.click(indicator())
+
+    const database = within(await screen.findByRole('dialog')).getByRole('region', {
+      name: 'Database service',
+    })
+    expect(database).toHaveTextContent(text)
   })
 
   test('it is never polled', async () => {
