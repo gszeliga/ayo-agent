@@ -7,12 +7,15 @@ import {
 } from 'lucide-react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
-// Colours come from our tokens; `system` matches index.html's theme choice (U9's toggle will
-// pass its theme here). shadcn's version read it from next-themes, which we don't use.
+import { useTheme } from '@/layout/themeContext'
+
+// Colours come from our tokens; the theme from ours (shadcn's version read it from
+// next-themes, which we don't use).
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme } = useTheme()
   return (
     <Sonner
-      theme="system"
+      theme={theme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

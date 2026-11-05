@@ -35,4 +35,9 @@ export default tseslint.config(
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },
+  {
+    // Served as is and run by the browser before the app (index.html).
+    files: ['public/**/*.js'],
+    languageOptions: { globals: globals.browser, sourceType: 'script' },
+  },
 )

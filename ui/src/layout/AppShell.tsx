@@ -1,6 +1,6 @@
 import { LogOut, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { NavLink, Outlet, useLocation } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { useConnection } from '@/connection/context'
@@ -8,7 +8,9 @@ import { cn } from '@/lib/utils'
 import { ROUTES } from '@/paths'
 
 import { dismissBanner, isBannerDismissed } from './banner'
+import { ErrorBoundary } from './ErrorBoundary'
 import { StatusIndicator } from './StatusIndicator'
+import { ThemeToggle } from './ThemeToggle'
 
 const NAV = [
   { to: ROUTES.documents, label: 'Documents' },
@@ -17,34 +19,35 @@ const NAV = [
 
 export function AppShell() {
   const { connection, disconnect } = useConnection()
+  const { pathname } = useLocation()
   const [bannerVisible, setBannerVisible] = useState(() => !isBannerDismissed())
   const host = connection ? new URL(connection.baseUrl).host : ''
 
   return (
     <div className="min-h-screen">
-      {bannerVisible && (
-        <div
-          role="note"
-          className="bg-warning-muted text-warning flex items-center gap-3 px-4 py-2 text-[13px]"
-        >
-          <ShieldAlert aria-hidden="true" className="size-4 flex-none" />
-          <p className="flex-1">
-            Internal use only: this UI sends the shared admin key from your browser.
-          </p>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            className="hover:bg-warning/10 rounded-sm p-1"
-            onClick={() => {
-              dismissBanner()
-              setBannerVisible(false)
-            }}
-          >
-            <X aria-hidden="true" className="size-4" />
-          </button>
-        </div>
-      )}
       <header className="bg-card border-b">
+        {bannerVisible && (
+          <div
+            role="note"
+            className="bg-warning-muted text-warning flex items-center gap-3 px-4 py-2 text-[13px]"
+          >
+            <ShieldAlert aria-hidden="true" className="size-4 flex-none" />
+            <p className="flex-1">
+              Internal use only: this UI sends the shared admin key from your browser.
+            </p>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              className="hover:bg-warning/10 rounded-sm p-1"
+              onClick={() => {
+                dismissBanner()
+                setBannerVisible(false)
+              }}
+            >
+              <X aria-hidden="true" className="size-4" />
+            </button>
+          </div>
+        )}
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <div className="flex items-center gap-3">
             <div
@@ -75,6 +78,7 @@ export function AppShell() {
             ))}
           </nav>
           <StatusIndicator />
+          <ThemeToggle />
           <Button
             variant="outline"
             onClick={() => {
@@ -87,7 +91,9 @@ export function AppShell() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
-        <Outlet />
+        <ErrorBoundary resetKey={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   )

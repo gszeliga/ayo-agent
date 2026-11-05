@@ -5,13 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
     <title>AYO Admin</title>
-    <script>
-      // Before the first paint, so a dark system doesn't flash a light page. A theme
-      // switch can override this later.
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.classList.add('dark')
-      }
-    </script>
+    <!-- Blocking on purpose: sets the theme before the first paint. -->
+    <script src="/theme-boot.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { LoadError } from '@/components/LoadError'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
@@ -8,7 +9,6 @@ import { ChunkCard } from './ChunkCard'
 import { isNotFound } from './errors'
 import { CHUNK_PAGE_SIZE, type View } from './params'
 import { useChunks } from './queries'
-import { TabError } from './TabError'
 import { ViewToggle } from './ViewToggle'
 
 export function ChunksTab({
@@ -57,7 +57,7 @@ export function ChunksTab({
         </label>
       </div>
       {chunks.isError && !data ? (
-        <TabError error={chunks.error} onRetry={() => void chunks.refetch()} />
+        <LoadError error={chunks.error} onRetry={() => void chunks.refetch()} />
       ) : !data ? (
         <div aria-busy="true" aria-label="Loading chunks" className="space-y-3">
           {[0, 1, 2].map((i) => (

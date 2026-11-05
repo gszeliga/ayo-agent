@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react'
 
-import { describeError } from '@/api/errors'
 import type { components } from '@/api/schema'
 import { CopyButton } from '@/components/CopyButton'
+import { LoadError } from '@/components/LoadError'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useConnection } from '@/connection/context'
 import { OUTDATED_REASONS } from '@/documents/status'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { formatBytes } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 import { useIndexingSettings } from './queries'
 import { ServiceDetails } from './ServiceDetails'
@@ -25,9 +25,21 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** A setting, with the environment variable that sets it. */
-function Setting({ label, env, children }: { label: string; env?: string; children: ReactNode }) {
+function Setting({
+  label,
+  env,
+  children,
+  className,
+}: {
+  label: string
+  env?: string
+  children: ReactNode
+  className?: string
+}) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+    <div
+      className={cn('flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5', className)}
+    >
       <dt>
         {label}
         {env && <code className="text-muted-foreground ml-2 font-mono text-[12px]">{env}</code>}
@@ -74,9 +86,13 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
         <Setting label="Indexed with the current settings">{indexed}</Setting>
         <Setting label="Outdated">{outdatedTotal}</Setting>
         {reasons.map(({ reason, count }) => (
-          <div key={reason} className="text-muted-foreground pl-4 text-[13px]">
-            <Setting label={OUTDATED_REASONS[reason]}>{count}</Setting>
-          </div>
+          <Setting
+            key={reason}
+            label={OUTDATED_REASONS[reason]}
+            className="text-muted-foreground pl-4 text-[13px]"
+          >
+            {count}
+          </Setting>
         ))}
       </dl>
       {outdatedTotal > 0 && (
@@ -90,8 +106,8 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
 }
 
 export function SettingsPage() {
+  useDocumentTitle('Indexing settings')
   const settings = useIndexingSettings()
-  const { connection } = useConnection()
   const data = settings.data
 
   return (
@@ -104,19 +120,7 @@ export function SettingsPage() {
         </p>
       </div>
       {settings.isError && !data ? (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-            <span>{describeError(settings.error, connection?.baseUrl ?? '')}</span>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void settings.refetch()
-              }}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <LoadError error={settings.error} onRetry={() => void settings.refetch()} />
       ) : !data ? (
         <div aria-busy="true" aria-label="Loading settings" className="grid gap-4 md:grid-cols-2">
           {[0, 1, 2, 3].map((i) => (

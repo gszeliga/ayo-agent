@@ -2,11 +2,11 @@ import { Loader2, Search, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
-import { describeError } from '@/api/errors'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { LoadError } from '@/components/LoadError'
+import { EmptyState } from '@/components/StateMessage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useConnection } from '@/connection/context'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { LazyUploadDialog } from '@/upload/LazyUploadDialog'
 
 import { DocumentsTable, DocumentsTableSkeleton } from './DocumentsTable'
@@ -31,7 +31,7 @@ import { useSelection } from './useSelection'
 export const SEARCH_DELAY_MS = 300
 
 export function DocumentsPage() {
-  const { connection } = useConnection()
+  useDocumentTitle('Documents')
   const [searchParams, setSearchParams] = useSearchParams()
   const params = parseListParams(searchParams)
   const canonical = toSearchParams(params).toString()
@@ -179,47 +179,32 @@ export function DocumentsPage() {
         )}
 
         {documents.isError && !data ? (
-          <Alert variant="destructive" role="alert">
-            <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-              <span>{describeError(documents.error, connection?.baseUrl ?? '')}</span>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void documents.refetch()
-                }}
-              >
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <LoadError error={documents.error} onRetry={() => void documents.refetch()} />
         ) : !data ? (
           <DocumentsTableSkeleton />
         ) : data.total === 0 ? (
-          <div className="bg-card rounded-xl border p-10 text-center">
-            {hasFilters(params) ? (
-              <>
-                <h2 className="font-semibold">No documents match</h2>
-                <p className="text-muted-foreground mt-1">Try another search or tenant.</p>
+          hasFilters(params) ? (
+            <EmptyState
+              title="No documents match"
+              description="Try another search or tenant."
+              action={
                 <Button
                   variant="outline"
-                  className="mt-4"
                   onClick={() => {
                     update({ tenant: null, q: '' })
                   }}
                 >
                   Clear filters
                 </Button>
-              </>
-            ) : (
-              <>
-                <h2 className="font-semibold">No documents yet</h2>
-                <p className="text-muted-foreground mt-1 mb-4">
-                  Upload a Markdown document to make it available to the copilot.
-                </p>
-                {uploadButton}
-              </>
-            )}
-          </div>
+              }
+            />
+          ) : (
+            <EmptyState
+              title="No documents yet"
+              description="Upload a Markdown document to make it available to the copilot."
+              action={uploadButton}
+            />
+          )
         ) : (
           <>
             <div className="bg-card rounded-xl border">

@@ -2,12 +2,12 @@ import { useEffect } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/CopyButton'
+import { LoadError } from '@/components/LoadError'
 
 import { isNotFound } from './errors'
 import { LazyMarkdown } from './LazyMarkdown'
 import type { View } from './params'
 import { useContent } from './queries'
-import { TabError } from './TabError'
 import { ViewToggle } from './ViewToggle'
 
 export function ContentTab({
@@ -36,7 +36,7 @@ export function ContentTab({
         )}
       </div>
       {content.isError ? (
-        <TabError error={content.error} onRetry={() => void content.refetch()} />
+        <LoadError error={content.error} onRetry={() => void content.refetch()} />
       ) : content.data === undefined ? (
         <div aria-busy="true" aria-label="Loading content" className="space-y-2">
           <Skeleton className="h-5 w-1/2" />

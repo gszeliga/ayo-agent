@@ -9,9 +9,12 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active milestone: admin UI** (React + Vite + TS in `ui/`, prototype first). Plan,
-  decisions and progress log in `plans/ui-progress.md`. **Read it first**; resume from
-  the first unchecked item.
+- **Next: D1, deployment phase 1**, and B4 (database details in `/admin/health`: local /
+  neon / remote, PostgreSQL and pgvector versions), asked for by the user. Both are under "Next" in `plans/ui-progress.md`.
+  **Read it first.**
+- Done (2026-11-05): admin UI (React + Vite + TS in `ui/`, details in `ui/README.md`).
+  Decisions (deployment: decision 5), progress log, final report and "Open items" in
+  `plans/ui-progress.md`.
 - Done (2026-11-02): documents CRUD. Spec `plans/claude-code-prompt-documents-crud.md`;
   plan, agreed deviations, progress log, final report and "Open items" in
   `plans/crud-progress.md` (the reference for its decisions).

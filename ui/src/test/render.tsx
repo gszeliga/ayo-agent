@@ -8,6 +8,7 @@ import { createQueryClient } from '@/api/queryClient'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionProvider } from '@/connection/ConnectionProvider'
+import { ThemeProvider } from '@/layout/ThemeProvider'
 import { saveConnection, type Connection } from '@/connection/storage'
 import { AppRoutes } from '@/routes'
 
@@ -25,6 +26,7 @@ function LocationProbe() {
       <button
         type="button"
         data-testid="back"
+        aria-label="Back (test)"
         onClick={() => {
           void navigate(-1)
         }}
@@ -43,15 +45,17 @@ export function renderApp(
   const queryClient = createQueryClient({ retryDelay: 0 })
   const result = render(
     <MemoryRouter initialEntries={[path]}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <ConnectionProvider>
-            {routes ?? <AppRoutes />}
-            <LocationProbe />
-          </ConnectionProvider>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <ConnectionProvider>
+              {routes ?? <AppRoutes />}
+              <LocationProbe />
+            </ConnectionProvider>
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </MemoryRouter>,
   )
   return { user, queryClient, ...result }

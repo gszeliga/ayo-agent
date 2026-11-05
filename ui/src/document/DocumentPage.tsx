@@ -1,12 +1,14 @@
 import { ArrowLeft, FileUp } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router'
 
 import { CopyButton } from '@/components/CopyButton'
+import { LoadError } from '@/components/LoadError'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusBadge } from '@/documents/StatusBadge'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { LazyUploadDialog } from '@/upload/LazyUploadDialog'
 
 import { ChunksTab } from './ChunksTab'
@@ -25,7 +27,6 @@ import {
 } from './params'
 import { useDocument } from './queries'
 import { ReprocessButton } from './ReprocessButton'
-import { TabError } from './TabError'
 import { TitleEditor } from './TitleEditor'
 
 export function DocumentPage() {
@@ -48,14 +49,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
   const doc = document.data
   const title = doc ? (doc.title ?? doc.source_key) : null
 
-  useEffect(() => {
-    if (title === null) return
-    const previous = window.document.title
-    window.document.title = `${title} · AYO Admin`
-    return () => {
-      window.document.title = previous
-    }
-  }, [title])
+  useDocumentTitle(title)
 
   function update(changes: Partial<DetailParams>) {
     // `replace`: switching views is not a step worth a history entry; the location state
@@ -79,7 +73,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
       </Link>
 
       {document.isError && !doc ? (
-        <TabError error={document.error} onRetry={() => void document.refetch()} />
+        <LoadError error={document.error} onRetry={() => void document.refetch()} />
       ) : !doc ? (
         <div aria-busy="true" aria-label="Loading document" className="space-y-3">
           <Skeleton className="h-7 w-2/3" />

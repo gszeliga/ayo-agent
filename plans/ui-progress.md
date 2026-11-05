@@ -298,12 +298,59 @@ the first unchecked item under "Progress log".
   handlers for `/admin/health` and `/admin/settings` (every page now asks for them), the
   document fixtures' `chunker_config` in the real format; a fake-clock test that nothing
   polls. Placeholder page removed. Main bundle 132 KB gz.
-- [ ] U9. Polish and manual run.
+- [x] U9. Polish (2026-11-05). Theme toggle (Light / Dark / System in the header;
+  `localStorage` with fallback; `public/theme-boot.js`, a blocking script, applies it
+  before the first paint and is run verbatim by its test; System follows the OS live; the
+  toaster follows). Error boundary around the routes ("Something went wrong" with Reload
+  and Back; a lost lazy chunk after a deploy asks to reload; cleared on navigation; no
+  telemetry). States review: one `EmptyState` and one `ErrorState` / `LoadError` for the
+  list, detail, settings and not-found pages (replacing `TabError` and three local alerts;
+  dialog errors stay inline). Tab titles per page (`useDocumentTitle`). Accessibility
+  baseline with `axe-core` (not the stale `vitest-axe`) on connect, list, detail,
+  settings and the upload and delete dialogs, colour contrast off under jsdom; it found
+  and we fixed the banner outside any landmark (moved into the header), an invalid `dl`
+  on the settings page, and the test harness's unnamed Back button.
+  **Manual end-to-end run: not done.** The stack was set up and seeded (an API on :8001
+  with the fake embedder against the local DB; 38 Spanish documents in three tenants, two
+  outdated by `CHUNK_SIZE=600`), but browser tools were not enabled for the session and the
+  user chose to skip the click-through. The seeded documents remain in the local dev DB.
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-**U9** (polish: theme toggle, empty/error states review, manual end-to-end run against
-the local API with the fake embedder): write its brief and wait for approval.
+The UI milestone is done (final report below). Next per the plan: **D1** (deployment,
+phase 1; decision 5): write its brief and wait for approval. Asked for by the user on
+2026-11-05, to brief next (before or after D1, the user's call): **B4**, database details
+in `/admin/health`: where it runs as a category (`local` for localhost, 127.0.0.1, ::1 or a
+Unix socket; `neon` for a `*.neon.tech` host; `remote` otherwise; derived from
+`DATABASE_URL`, never the host itself, as agreed in B3), the PostgreSQL server version
+(`show server_version`) and the pgvector version (`pg_extension`), shown in the header
+popover and the Services card.
+
+## Final report (2026-11-05)
+
+**Done.** The admin UI in `ui/`: connect screen, documents list (tenant filter, search,
+sort, paging, selection and bulk delete), document detail (facts with "now differs",
+rendered and raw content, chunks with optional vectors and rendering), upload and replace
+(with the overwrite warning), rename, reprocess, delete, the indexing settings page, the
+service status in the header, light and dark themes. Three backend steps made for it:
+`GET /admin/settings` (B1), bulk delete (B2), `GET /admin/health` (B3). Plus the
+deployment decision (decision 5) for D1.
+
+**How.** React 19 + Vite 8 + TypeScript 5.9, Tailwind v4 + shadcn/ui (Radix), TanStack
+Query, React Router, openapi-fetch with types generated from the committed
+`docs/openapi.json` (checked for staleness in `pnpm check`). The URL holds every view's
+state; writes update or invalidate the cache they touch; customer documents are rendered
+without raw HTML, scripts or remote images.
+
+**Tests.** 258 UI tests (Vitest, Testing Library, MSW; one file under happy-dom), an
+accessibility baseline with axe-core; the backend suite (`uv run pytest`) unchanged by the
+UI steps and extended by B1-B3. Main bundle 141 KB gzipped; the detail page, the settings
+page, the upload dialog and the Markdown renderer load on demand.
+
+**Agreed deviations from the plan** are in the progress log; the main ones: the
+overwrite warning (U6), raw-by-default rendered chunks (U5 follow-up), the CORS hint on
+the connect screen (U3 follow-up), the error boundary, tab titles and axe check (U9), and
+`POST` for bulk delete (B2).
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing
@@ -312,3 +359,14 @@ the local API with the fake embedder): write its brief and wait for approval.
 - Health state per process: with several uvicorn workers, `/admin/health`'s probe
   cache and last-call tracking would differ by worker. Fine with one worker (decision 5);
   move it to the database before scaling out.
+- The manual browser run of U9 was skipped: the UI has only been exercised through its
+  tests (MSW) and the user's own manual tries. Worth a click-through before relying on it,
+  ideally against the Neon dev branch with the real embedder.
+- No status filter in `GET /admin/documents` and no bulk reprocess: the settings page can
+  count outdated documents but not list or fix them in one go.
+- The UI's test environment needs workarounds: upload tests run under happy-dom (Vitest's
+  jsdom cannot fetch a multipart body with a file), and jsdom's missing `matchMedia` and
+  pointer capture are stubbed. Re-check when Vitest or jsdom are upgraded.
+- TypeScript stays on 5.9 until typescript-eslint and openapi-typescript support 7.
+- shadcn's registry imports its own `cn` package; each `shadcn add` needs the import
+  rewritten (see `ui/README.md`).

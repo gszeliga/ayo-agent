@@ -5,8 +5,18 @@ delete knowledge documents, and see the indexing settings and service status. Re
 Vite + TypeScript, Tailwind CSS v4 and shadcn/ui components. **Internal use only:** it
 sends the shared admin key from the browser.
 
-Being built step by step: plan and progress in `../plans/ui-progress.md`. The approved
+Plan, decisions, progress log and final report in `../plans/ui-progress.md`; the approved
 clickable prototype it follows is linked there (U1).
+
+## Themes and errors
+
+Light, Dark or System (the default) from the header; the choice is kept in this browser.
+`public/theme-boot.js`, a blocking script in `index.html`, applies it before the first
+paint; keep it in step with `src/lib/theme.ts` (its test runs the file). An error boundary
+around the pages shows "Something went wrong" instead of a blank page, and asks for a
+reload when a lazy chunk is gone after a deploy. Empty and error states use
+`components/StateMessage.tsx` and `components/LoadError.tsx`; every page sets its tab title
+with `useDocumentTitle`. `src/a11y.test.tsx` runs axe-core on the main screens.
 
 ## Setup
 
@@ -215,7 +225,8 @@ src/
   api/                schema.d.ts (generated; schema.test.ts checks it at compile time),
                       client.ts (createApiClient, unwrap), errors.ts (ApiError)
   connection/         storage, base URL rules, provider + useConnection/useApiClient, guard
-  layout/AppShell.tsx header, nav, Disconnect, internal-use banner
+  layout/             AppShell (header, nav, Disconnect, internal-use banner), ErrorBoundary,
+                      ThemeProvider + ThemeToggle, StatusIndicator (status dots, popover)
   documents/          the list: DocumentsPage, listParams (URL <-> state), queries,
                       mutations (rename, reprocess, delete, bulk delete), useSelection,
                       SelectionBar, BulkDeleteDialog,
@@ -229,8 +240,7 @@ src/
                       error placement), useExistingDocument (overwrite warning), validation
   settings/           SettingsPage, queries (useIndexingSettings), healthQuery (one shared
                       query, Check now), ServiceDetails, configDiff ("now differs")
-  layout/StatusIndicator.tsx  the header's status dots and popover
-  hooks/              useDebouncedValue
+  hooks/              useDebouncedValue, useDocumentTitle
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping
   pages/              ConnectPage, NotFoundPage
@@ -238,7 +248,9 @@ src/
                       warning variants), tooltip, skeleton, tabs, dialog, sonner (toasts;
                       without next-themes), checkbox, collapsible, dropdown-menu,
                       alert-dialog, popover
-  lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes)
+  lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes), theme.ts,
+                      chunkError.ts
+  public/theme-boot.js  applies the theme before the first paint
   test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
                       render.tsx (renderApp(path, {connected}): router, query client,
                       location probe and Back), fixtures/ (Spanish documents, a procedure

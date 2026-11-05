@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { defaultBaseUrl, normalizeBaseUrl } from '@/connection/baseUrl'
 import { useConnection } from '@/connection/context'
 import { safeNext } from '@/connection/next'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { isServerReachable, unreachableMessage } from '@/connection/reachability'
 
 interface FieldErrors {
@@ -37,6 +38,7 @@ async function checkConnection(baseUrl: string, apiKey: string): Promise<FieldEr
 }
 
 export function ConnectPage() {
+  useDocumentTitle('Connect')
   const { connection, connect, notice } = useConnection()
   const navigate = useNavigate()
   const [params] = useSearchParams()

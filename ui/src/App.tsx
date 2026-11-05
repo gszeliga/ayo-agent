@@ -6,20 +6,23 @@ import { createQueryClient } from '@/api/queryClient'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionProvider } from '@/connection/ConnectionProvider'
+import { ThemeProvider } from '@/layout/ThemeProvider'
 import { AppRoutes } from '@/routes'
 
 export function App() {
   const [queryClient] = useState<QueryClient>(() => createQueryClient())
   return (
     <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={300}>
-          <ConnectionProvider>
-            <AppRoutes />
-          </ConnectionProvider>
-          <Toaster position="bottom-right" />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider delayDuration={300}>
+            <ConnectionProvider>
+              <AppRoutes />
+            </ConnectionProvider>
+            <Toaster position="bottom-right" />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </BrowserRouter>
   )
 }

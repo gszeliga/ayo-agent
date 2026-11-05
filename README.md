@@ -249,8 +249,9 @@ or development use, not for a public UI (real authentication will replace the ke
 
 ## Admin UI
 
-The browser UI lives in `ui/` (React + Vite + TypeScript, built step by step); see
-[`ui/README.md`](ui/README.md). In short: `cd ui && pnpm install && pnpm dev`, with the API
+The browser UI lives in `ui/` (React + Vite + TypeScript): documents, upload and replace,
+rename, reprocess, delete, indexing settings and service status, light and dark themes;
+see [`ui/README.md`](ui/README.md). In short: `cd ui && pnpm install && pnpm dev`, with the API
 started with `CORS_ALLOWED_ORIGINS=http://localhost:5173`. Its API types are generated
 from `docs/openapi.json`, so an API change also runs `pnpm gen:api` there.
 
