@@ -206,6 +206,10 @@ the first unchecked item under "Progress log".
   Checked against the real local API (fake embedder): CORS preflight from
   `localhost:5173` allows `X-API-Key`, and a `401` carries the CORS header, so the UI can
   read it.
+  Follow-up (2026-11-05, agreed after a manual test hit it): the connect screen tells a
+  CORS refusal from an unreachable API with one `no-cors` request to `/health` after a
+  network failure (`connection/reachability.ts`): "answers, but refuses requests from this
+  page; add <origin> to CORS_ALLOWED_ORIGINS" vs "can't reach".
 - [ ] U4. Documents list.
 - [ ] U5. Detail.
 - [ ] U6. Upload/replace.

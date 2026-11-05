@@ -34,6 +34,11 @@ The UI opens on a connect screen: the API address and the admin key, checked wit
 tab and only until it closes. Any `401` later (a changed key) returns to the connect screen
 with a notice; Disconnect forgets them.
 
+A browser reports a CORS refusal exactly like a network failure. When the check fails that
+way, the screen sends one `no-cors` request to the public `/health` (exempt from CORS): if
+it succeeds, the API is up and refuses this page's origin, and the message says to add it
+to `CORS_ALLOWED_ORIGINS`; otherwise the API is unreachable (`src/connection/reachability.ts`).
+
 The address defaults to `VITE_API_BASE_URL` when it is set at build time, else to the
 page's own origin, which is right when a proxy serves the UI and the API together
 (production, see `../plans/ui-progress.md` decision 5). `.env.development` sets it to

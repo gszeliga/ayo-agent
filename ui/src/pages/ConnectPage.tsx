@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { defaultBaseUrl, normalizeBaseUrl } from '@/connection/baseUrl'
 import { useConnection } from '@/connection/context'
 import { safeNext } from '@/connection/next'
+import { isServerReachable, unreachableMessage } from '@/connection/reachability'
 
 interface FieldErrors {
   baseUrl?: string
@@ -28,11 +29,8 @@ async function checkConnection(baseUrl: string, apiKey: string): Promise<FieldEr
     if (!(error instanceof ApiError)) throw error
     if (error.status === 401) return { apiKey: 'Key rejected.' }
     if (error.isNetworkError) {
-      return {
-        form:
-          `Can't reach the API at ${baseUrl}. Check the URL, that the API is running, and` +
-          ` that CORS_ALLOWED_ORIGINS includes ${window.location.origin}.`,
-      }
+      const reachable = await isServerReachable(baseUrl)
+      return { form: unreachableMessage(baseUrl, reachable, window.location.origin) }
     }
     return { form: error.message }
   }

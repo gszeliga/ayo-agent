@@ -56,15 +56,33 @@ test('a rejected key is reported next to the key field', async () => {
   expect(loadConnection()).toBeNull()
 })
 
-test('an unreachable API names the URL and CORS', async () => {
-  server.use(http.get(`${API}/admin/tenants`, () => HttpResponse.error()))
+test('an API that answers but refuses this origin is reported as a CORS problem', async () => {
+  // How a CORS refusal looks to the page: the call fails, a no-cors request succeeds.
+  server.use(
+    http.get(`${API}/admin/tenants`, () => HttpResponse.error()),
+    http.get(`${API}/health`, () => HttpResponse.json({ status: 'ok' })),
+  )
+  const { user } = renderApp('/connect')
+
+  await fillAndConnect(user)
+
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent(`The API at ${API} answers, but refuses requests`)
+  expect(alert).toHaveTextContent(`Add ${window.location.origin} to CORS_ALLOWED_ORIGINS`)
+})
+
+test('an API that does not answer at all is reported as unreachable', async () => {
+  server.use(
+    http.get(`${API}/admin/tenants`, () => HttpResponse.error()),
+    http.get(`${API}/health`, () => HttpResponse.error()),
+  )
   const { user } = renderApp('/connect')
 
   await fillAndConnect(user)
 
   const alert = await screen.findByRole('alert')
   expect(alert).toHaveTextContent(`Can't reach the API at ${API}`)
-  expect(alert).toHaveTextContent(`CORS_ALLOWED_ORIGINS includes ${window.location.origin}`)
+  expect(alert).not.toHaveTextContent('CORS')
 })
 
 test('another error shows its message', async () => {
