@@ -59,6 +59,7 @@ and example.
 | `POST /admin/documents/{doc_id}/reprocess` | Re-chunk and re-embed it with the current settings |
 | `DELETE /admin/documents/{doc_id}` | Delete it and its chunks |
 | `GET /admin/tenants` | Tenants with document and chunk counts |
+| `GET /admin/settings` | Current indexing settings and document counts by status |
 | `GET /health` | Liveness, no key |
 
 ## Uploading a document
@@ -182,6 +183,24 @@ curl -H "$H" "http://127.0.0.1:8000/admin/tenants"
 
 Every tenant with stored documents, ordered by tenant, with its document and chunk counts
 (for a tenant filter). Not paginated; a tenant whose last document is deleted disappears.
+
+## Indexing settings
+
+```sh
+curl -H "$H" "http://127.0.0.1:8000/admin/settings"
+# {"chunking": {"chunker_version": "md-header+recursive@v3", "chunk_size": 800, ...,
+#   "chunker_config": "md-header+recursive@v3/size=800/..."},
+#  "embedding": {"provider": "voyage", "model": "voyage-4", "dimensions": 1024,
+#   "batch_size": 128, "embedder_config": "voyage-4/document/1024"},
+#  "uploads": {"max_upload_bytes": 5242880},
+#  "documents": {"total": 12, "indexed": 9,
+#   "outdated": {"unknown": 0, "chunker_changed": 2, "embedder_changed": 1}}}
+```
+
+Read-only: the chunking, embedding and upload settings new uploads and reprocesses use
+(from the environment; no keys, URLs or database settings), and how many documents across
+all tenants are `indexed` with them or `outdated`, by the same reasons as each document's
+`outdated_reason`. The two config strings are the ones documents are compared with.
 
 ## Browser clients (CORS)
 

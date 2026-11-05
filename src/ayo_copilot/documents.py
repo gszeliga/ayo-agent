@@ -3,8 +3,10 @@ lives in `db/repository.py`."""
 
 from psycopg_pool import ConnectionPool
 
+from ayo_copilot.config import Settings
 from ayo_copilot.db import repository
-from ayo_copilot.db.repository import ChunkRow, DocumentRow, TenantRow
+from ayo_copilot.db.repository import ChunkRow, DocumentRow, StatusCounts, TenantRow
+from ayo_copilot.ingestion.service import current_configs
 
 
 def read_document_page(
@@ -72,3 +74,12 @@ def delete_document(pool: ConnectionPool, doc_id: str) -> tuple[str, int] | None
 def read_tenants(pool: ConnectionPool) -> list[TenantRow]:
     with pool.connection() as conn:
         return repository.tenant_summaries(conn)
+
+
+def read_status_counts(pool: ConnectionPool, settings: Settings) -> StatusCounts:
+    """Documents per status against the configs the current settings index with."""
+    chunker_config, embedder_config = current_configs(settings)
+    with pool.connection() as conn:
+        return repository.document_status_counts(
+            conn, chunker_config=chunker_config, embedder_config=embedder_config
+        )

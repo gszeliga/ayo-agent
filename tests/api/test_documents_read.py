@@ -1,5 +1,5 @@
-"""GET /admin/documents, GET /admin/documents/{doc_id} and its /content and /chunks, through
-HTTP on a real database.
+"""GET /admin/documents, GET /admin/documents/{doc_id} and its /content and /chunks, and the
+/admin/tenants and /admin/settings summaries, through HTTP on a real database.
 
 Documents are created with the upload endpoint, so these tests also check that what the
 upload stores is what the listing shows.
@@ -378,3 +378,74 @@ def test_tenants_drop_deleted_documents(client: TestClient) -> None:
 
     remaining = listing(client)["items"][0]["chunk_count"]
     assert tenants(client) == [{"tenant": "acme", "document_count": 1, "chunk_count": remaining}]
+
+
+def indexing_settings(client: TestClient) -> dict[str, Any]:
+    response = client.get("/admin/settings")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_settings_report_the_current_values_without_secrets(
+    client: TestClient, migrated_database_url: str
+) -> None:
+    settings = make_settings(migrated_database_url)
+    chunker_config, embedder_config = current_configs(settings)
+
+    body = indexing_settings(client)
+
+    assert body == {
+        "chunking": {
+            "chunker_version": "md-header+recursive@v3",
+            "chunk_size": 800,
+            "chunk_overlap": 80,
+            "min_chunk_size": 100,
+            "chunker_config": chunker_config,
+        },
+        "embedding": {
+            "provider": "fake",
+            "model": "voyage-4",
+            "dimensions": 1024,
+            "batch_size": 128,
+            "embedder_config": embedder_config,
+        },
+        "uploads": {"max_upload_bytes": 5 * 1024 * 1024},
+        "documents": {
+            "total": 0,
+            "indexed": 0,
+            "outdated": {"unknown": 0, "chunker_changed": 0, "embedder_changed": 0},
+        },
+    }
+    assert API_KEY not in str(body) and "postgresql" not in str(body)
+
+
+def test_settings_configs_are_the_ones_documents_store(client: TestClient) -> None:
+    doc_id = upload(client, "a.md", doc("A"))
+    detail = client.get(f"/admin/documents/{doc_id}").json()
+
+    body = indexing_settings(client)
+
+    assert body["chunking"]["chunker_config"] == detail["chunker_config"]
+    assert body["embedding"]["embedder_config"] == detail["embedder_config"]
+    assert body["documents"]["total"] == body["documents"]["indexed"] == 1
+
+
+def test_settings_count_documents_by_status(
+    client: TestClient, db_pool: ConnectionPool, migrated_database_url: str
+) -> None:
+    upload(client, "a.md", doc("A"))
+    upload(client, "b.md", doc("B"), tenant="zeta")
+    unknown = upload(client, "c.md", doc("C"))
+    with db_pool.connection() as conn:
+        conn.execute("update documents set chunker_config = null where doc_id = %s", (unknown,))
+
+    changed = create_app(make_settings(migrated_database_url, chunk_size=300))
+    with make_client(changed) as other:
+        counts = indexing_settings(other)["documents"]
+
+    assert counts == {
+        "total": 3,
+        "indexed": 0,
+        "outdated": {"unknown": 1, "chunker_changed": 2, "embedder_changed": 0},
+    }
+    assert indexing_settings(client)["documents"]["indexed"] == 2

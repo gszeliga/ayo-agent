@@ -109,7 +109,15 @@ the first unchecked item under "Progress log".
     Services (B3) and Uploads cards, each setting with its env var; read-only.
   - Errors: 422 next to the field, 404 "no longer exists" page, 409 retry toast, 502
     "nothing changed" toast/alert, 413 on the file field.
-- [ ] B1. `GET /admin/settings`.
+- [x] B1. `GET /admin/settings` (2026-11-05). Operation `get_settings`, new OpenAPI tag
+  `settings`. Body `IndexingSettings`: `chunking` (`chunker_version`, `chunk_size`,
+  `chunk_overlap`, `min_chunk_size`, `chunker_config`), `embedding` (`provider`, `model`,
+  `dimensions`, `batch_size`, `embedder_config`), `uploads.max_upload_bytes`, `documents`
+  (`total`, `indexed`, `outdated.{unknown,chunker_changed,embedder_changed}`). The configs
+  come from `service.current_configs`; counts are one `count(*) filter` statement
+  (`repository.document_status_counts`) with `document_status`'s precedence, cross-checked
+  against it in a test. `200`/`401` only. Not included (agreed): a tenant filter on the
+  counts, the embedding timeout/retries. The UI keeps the env var names itself.
 - [ ] B2. Bulk delete endpoint.
 - [ ] B3. `GET /admin/health`.
 - [ ] U2. Scaffold `ui/`.
@@ -121,8 +129,7 @@ the first unchecked item under "Progress log".
 - [ ] U8. Polish and manual run.
 
 ## Next (resume here)
-**B1** (`GET /admin/settings`): write its brief (shape, field names, SQL for the counts,
-tests) and wait for approval. Then B2, B3, U2 in that order, each briefed and committed
+**B2** (bulk delete): write its brief and wait for approval. Then B3, U2 in that order, each briefed and committed
 separately. The backend steps follow the CRUD conventions in `CLAUDE.md` (OpenAPI with
 examples, contract cases, `docs/openapi.json` export, README).
 

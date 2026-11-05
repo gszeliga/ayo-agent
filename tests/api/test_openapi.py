@@ -95,7 +95,7 @@ def test_info_comes_from_the_package(spec: dict[str, Any]) -> None:
     assert spec["info"]["title"] == "AYO Plant Copilot API"
     assert spec["info"]["version"] == version("ayo-copilot")
     assert "X-API-Key" in spec["info"]["description"]
-    assert {tag["name"] for tag in spec["tags"]} == {"documents", "health"}
+    assert {tag["name"] for tag in spec["tags"]} == {"documents", "settings", "health"}
 
 
 def test_docs_pages_are_served() -> None:

@@ -26,12 +26,13 @@ working rules, update this file in that step's commit.
   what it delivers, files, design choices and deviations, tests. Wait for approval.
 - Keep `README.md` current: any step that adds or changes an endpoint, a setting or a
   command updates it in the same commit.
-- After the step: update `plans/progress.md`, make **exactly one commit** (code + tests
-  + log together), summarise what changed and what to check, then **stop** for review.
+- After the step: update the active milestone's progress file (now
+  `plans/ui-progress.md`), make **exactly one commit** (code + tests + log together),
+  summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.
 - Tell the user before deviating from the spec; record agreed deviations under
-  "Decisions" in `plans/progress.md`.
+  "Decisions" in that progress file.
 - Commit messages end with the `Co-Authored-By` line given by the harness.
 
 ## Safety rules
@@ -78,7 +79,7 @@ src/ayo_copilot/
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, errors
   dependencies.py      get_settings / get_pool / get_embedder (from request.state)
-  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, tenants (provisional X-API-Key auth, size limits)
+  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, tenants, settings (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS) < Settings

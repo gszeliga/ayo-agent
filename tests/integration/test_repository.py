@@ -4,11 +4,14 @@ import psycopg
 import pytest
 from psycopg_pool import ConnectionPool
 
+from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import (
     ChunkRecord,
     DocumentRecord,
+    StatusCounts,
     TenantRow,
     delete_document,
+    document_status_counts,
     get_chunk_count,
     get_document,
     list_chunks,
@@ -20,6 +23,7 @@ from ayo_copilot.db.repository import (
     upsert_document,
 )
 from ayo_copilot.ingestion.embedding import FakeEmbedder
+from ayo_copilot.ingestion.service import current_configs, document_status
 from ayo_copilot.ingestion.signatures import make_doc_id
 
 pytestmark = pytest.mark.integration
@@ -399,3 +403,55 @@ def test_tenant_summaries_leave_out_deleted_documents(db_pool: ConnectionPool) -
         delete_document(conn, make_doc_id("zeta", "a.md"))
 
     assert tenants(db_pool) == [TenantRow("acme", 1, 1)]
+
+
+def status_counts(pool: ConnectionPool, chunker: str, embedder: str) -> StatusCounts:
+    with pool.connection() as conn:
+        return document_status_counts(conn, chunker_config=chunker, embedder_config=embedder)
+
+
+def store_with_configs(pool: ConnectionPool, name: str, chunker: str | None, embedder: str | None):
+    store(pool, make_document(source_key=name), [])
+    with pool.connection() as conn:
+        conn.execute(
+            "update documents set chunker_config = %s, embedder_config = %s where doc_id = %s",
+            (chunker, embedder, make_doc_id("acme", name)),
+        )
+
+
+def test_document_status_counts_of_an_empty_table_are_zero(db_pool: ConnectionPool) -> None:
+    assert status_counts(db_pool, "chunker-1", "embedder-1") == StatusCounts(0, 0, 0, 0, 0)
+
+
+def test_document_status_counts_follow_the_status_precedence(db_pool: ConnectionPool) -> None:
+    settings = Settings(_env_file=None, admin_api_key="k", embedding_provider="fake")
+    chunker, embedder = current_configs(settings)
+    rows = {
+        "same.md": (chunker, embedder),
+        "same-2.md": (chunker, embedder),
+        "chunker.md": ("old-chunker", embedder),
+        "both.md": ("old-chunker", "old-embedder"),
+        "embedder.md": (chunker, "old-embedder"),
+        "no-chunker.md": (None, embedder),
+        "no-embedder.md": (chunker, None),
+        "none.md": (None, None),
+    }
+    for name, (row_chunker, row_embedder) in rows.items():
+        store_with_configs(db_pool, name, row_chunker, row_embedder)
+
+    counts = status_counts(db_pool, chunker, embedder)
+
+    assert counts == StatusCounts(
+        total=8, indexed=2, unknown=3, chunker_changed=2, embedder_changed=1
+    )
+    # The SQL buckets agree with the per-document status the API reports.
+    expected = {"indexed": 0, "unknown": 0, "chunker_changed": 0, "embedder_changed": 0}
+    for row_chunker, row_embedder in rows.values():
+        status, reason = document_status(row_chunker, row_embedder, settings)
+        expected[reason or status] += 1
+    assert expected == {
+        "indexed": counts.indexed,
+        "unknown": counts.unknown,
+        "chunker_changed": counts.chunker_changed,
+        "embedder_changed": counts.embedder_changed,
+    }

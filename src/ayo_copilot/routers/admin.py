@@ -1,4 +1,4 @@
-"""Admin endpoints: upload, list and inspect knowledge documents.
+"""Admin endpoints: upload, list and inspect knowledge documents; the indexing settings.
 
 Authentication is **provisional**: one shared key in `ADMIN_API_KEY`, sent as `X-API-Key`.
 It will be replaced by real identity and per-tenant authorization.
@@ -24,6 +24,7 @@ from ayo_copilot.documents import (
     read_document,
     read_document_page,
     read_markdown,
+    read_status_counts,
     read_tenants,
     rename_document,
 )
@@ -38,6 +39,7 @@ from ayo_copilot.ingestion.service import (
 from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
 from ayo_copilot.ingestion.storage import TENANT_PATTERN, InvalidInputError
 from ayo_copilot.schemas import (
+    CHUNKER_CONFIG_EXAMPLE,
     EMBED_SIGNATURE_EXAMPLE,
     Chunk,
     ChunkPage,
@@ -46,6 +48,7 @@ from ayo_copilot.schemas import (
     DocumentSort,
     DocumentUpdate,
     ErrorResponse,
+    IndexingSettings,
     IngestResponse,
     TenantSummary,
 )
@@ -911,3 +914,73 @@ document is deleted is no longer listed. Not paginated.
 )
 def list_tenants(pool: Annotated[ConnectionPool, Depends(get_pool)]) -> list[TenantSummary]:
     return [TenantSummary.from_row(row) for row in read_tenants(pool)]
+
+
+SETTINGS_DESCRIPTION = """The chunking, embedding and upload settings that new uploads and
+reprocesses use, and how many stored documents, across all tenants, are `indexed` with
+them or `outdated` (by reason, as each document's `outdated_reason`). Read-only: the
+settings come from the environment and change with a restart. No keys, URLs or database
+settings are included.
+
+The `chunker_config` and `embedder_config` strings are the ones each document is compared
+with, so a client can show which part of a document's configs differs.
+
+| Status | Meaning |
+|---|---|
+| `200` | The settings and the counts. |
+| `401` | `X-API-Key` missing or wrong. |
+"""
+
+
+@router.get(
+    "/settings",
+    operation_id="get_settings",
+    summary="Get the indexing settings",
+    description=SETTINGS_DESCRIPTION,
+    tags=["settings"],
+    responses={
+        200: {
+            "description": "The current settings and the document counts by status.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "settings": {
+                            "summary": "Some documents outdated",
+                            "value": {
+                                "chunking": {
+                                    "chunker_version": "md-header+recursive@v3",
+                                    "chunk_size": 800,
+                                    "chunk_overlap": 80,
+                                    "min_chunk_size": 100,
+                                    "chunker_config": CHUNKER_CONFIG_EXAMPLE,
+                                },
+                                "embedding": {
+                                    "provider": "voyage",
+                                    "model": "voyage-4",
+                                    "dimensions": 1024,
+                                    "batch_size": 128,
+                                    "embedder_config": "voyage-4/document/1024",
+                                },
+                                "uploads": {"max_upload_bytes": 5242880},
+                                "documents": {
+                                    "total": 12,
+                                    "indexed": 9,
+                                    "outdated": {
+                                        "unknown": 0,
+                                        "chunker_changed": 2,
+                                        "embedder_changed": 1,
+                                    },
+                                },
+                            },
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+def read_settings(
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> IndexingSettings:
+    return IndexingSettings.build(settings, read_status_counts(pool, settings))

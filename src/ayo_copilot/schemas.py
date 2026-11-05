@@ -6,8 +6,9 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from ayo_copilot.config import Settings
-from ayo_copilot.db.repository import ChunkRow, DocumentRow, TenantRow
-from ayo_copilot.ingestion.service import IngestResult, document_status
+from ayo_copilot.db.repository import ChunkRow, DocumentRow, StatusCounts, TenantRow
+from ayo_copilot.ingestion import signatures
+from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
 
 # The sort keys of `db.repository.SORT_KEYS`, each also with `-` for descending.
 DocumentSort = Literal[
@@ -331,4 +332,132 @@ class TenantSummary(BaseModel):
     def from_row(cls, row: TenantRow) -> "TenantSummary":
         return cls(
             tenant=row.tenant, document_count=row.document_count, chunk_count=row.chunk_count
+        )
+
+
+CHUNKER_CONFIG_EXAMPLE = (
+    "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
+)
+
+
+class ChunkingSettings(BaseModel):
+    """How new uploads and reprocesses are chunked."""
+
+    chunker_version: str = Field(
+        description="Version of the chunking algorithm and of the embedded text format.",
+        examples=["md-header+recursive@v3"],
+    )
+    chunk_size: int = Field(
+        description="Target chunk size in characters (`CHUNK_SIZE`).", examples=[800]
+    )
+    chunk_overlap: int = Field(
+        description="Characters shared by consecutive chunks of a split section (`CHUNK_OVERLAP`).",
+        examples=[80],
+    )
+    min_chunk_size: int = Field(
+        description="Chunks shorter than this are merged into a neighbour (`MIN_CHUNK_SIZE`).",
+        examples=[100],
+    )
+    chunker_config: str = Field(
+        description="All of the above as one string: a document whose `chunker_config`"
+        " differs is outdated (`chunker_changed`).",
+        examples=[CHUNKER_CONFIG_EXAMPLE],
+    )
+
+
+class EmbeddingSettings(BaseModel):
+    """How chunks are embedded. No keys or URLs."""
+
+    provider: Literal["voyage", "fake"] = Field(
+        description="Embedding provider (`EMBEDDING_PROVIDER`); `fake` is for tests and"
+        " local runs.",
+        examples=["voyage"],
+    )
+    model: str = Field(description="Embedding model (`EMBEDDING_MODEL`).", examples=["voyage-4"])
+    dimensions: int = Field(
+        description="Vector size (`EMBEDDING_DIMENSIONS`); the database column must match.",
+        examples=[1024],
+    )
+    batch_size: int = Field(
+        description="Texts per provider request (`EMBEDDING_BATCH_SIZE`).", examples=[128]
+    )
+    embedder_config: str = Field(
+        description="Model and dimensions as one string: a document whose `embedder_config`"
+        " differs is outdated (`embedder_changed`).",
+        examples=["voyage-4/document/1024"],
+    )
+
+
+class UploadSettings(BaseModel):
+    """Limits on uploads."""
+
+    max_upload_bytes: int = Field(
+        description="Largest accepted file in bytes (`MAX_UPLOAD_BYTES`); larger ones get `413`.",
+        examples=[5242880],
+    )
+
+
+class OutdatedCounts(BaseModel):
+    """Outdated documents by reason, as `outdated_reason` reports them. A document whose
+    chunker and embedder configs both differ counts as `chunker_changed` only."""
+
+    unknown: int = Field(
+        description="Indexed before configs were stored: their settings are not known.",
+        examples=[0],
+    )
+    chunker_changed: int = Field(description="Chunked with other chunking settings.", examples=[2])
+    embedder_changed: int = Field(
+        description="Same chunking, embedded with another model or vector size.", examples=[1]
+    )
+
+
+class DocumentStatusCounts(BaseModel):
+    """How the stored documents compare with the current settings, across all tenants."""
+
+    total: int = Field(description="Stored documents.", examples=[12])
+    indexed: int = Field(
+        description="Documents the current settings would index the same way.", examples=[9]
+    )
+    outdated: OutdatedCounts = Field(
+        description="The other documents, by reason; reprocessing brings them up to date."
+    )
+
+
+class IndexingSettings(BaseModel):
+    """The settings new uploads and reprocesses use, and the documents' status against
+    them."""
+
+    chunking: ChunkingSettings = Field(description="Chunking settings.")
+    embedding: EmbeddingSettings = Field(description="Embedding settings.")
+    uploads: UploadSettings = Field(description="Upload limits.")
+    documents: DocumentStatusCounts = Field(description="Document counts by status.")
+
+    @classmethod
+    def build(cls, settings: Settings, counts: StatusCounts) -> "IndexingSettings":
+        chunker_config, embedder_config = current_configs(settings)
+        return cls(
+            chunking=ChunkingSettings(
+                chunker_version=signatures.CHUNKER_VERSION,
+                chunk_size=settings.chunk_size,
+                chunk_overlap=settings.chunk_overlap,
+                min_chunk_size=settings.min_chunk_size,
+                chunker_config=chunker_config,
+            ),
+            embedding=EmbeddingSettings(
+                provider=settings.embedding_provider,
+                model=settings.embedding_model,
+                dimensions=settings.embedding_dimensions,
+                batch_size=settings.embedding_batch_size,
+                embedder_config=embedder_config,
+            ),
+            uploads=UploadSettings(max_upload_bytes=settings.max_upload_bytes),
+            documents=DocumentStatusCounts(
+                total=counts.total,
+                indexed=counts.indexed,
+                outdated=OutdatedCounts(
+                    unknown=counts.unknown,
+                    chunker_changed=counts.chunker_changed,
+                    embedder_changed=counts.embedder_changed,
+                ),
+            ),
         )

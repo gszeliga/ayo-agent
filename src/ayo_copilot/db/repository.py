@@ -94,6 +94,18 @@ class TenantRow:
 
 
 @dataclass(frozen=True)
+class StatusCounts:
+    """How many stored documents the given configs would index the same way, and why the
+    others are outdated (the buckets of `service.document_status`)."""
+
+    total: int
+    indexed: int
+    unknown: int
+    chunker_changed: int
+    embedder_changed: int
+
+
+@dataclass(frozen=True)
 class SimilarChunk:
     doc_id: str
     chunk_index: int
@@ -377,6 +389,29 @@ def tenant_summaries(conn: Connection) -> list[TenantRow]:
             " coalesce(sum(chunk_count), 0)::int as chunk_count"
             " from documents group by tenant order by tenant"
         ).fetchall()
+
+
+def document_status_counts(
+    conn: Connection, *, chunker_config: str, embedder_config: str
+) -> StatusCounts:
+    """Documents per status bucket against the given configs, with the precedence of
+    `service.document_status`: a missing config is `unknown`, then the chunker wins."""
+    with conn.cursor(row_factory=class_row(StatusCounts)) as cur:
+        row = cur.execute(
+            "select count(*)::int as total,"
+            " count(*) filter (where chunker_config = %(chunker)s"
+            "  and embedder_config = %(embedder)s)::int as indexed,"
+            " count(*) filter (where chunker_config is null"
+            "  or embedder_config is null)::int as unknown,"
+            " count(*) filter (where embedder_config is not null"
+            "  and chunker_config <> %(chunker)s)::int as chunker_changed,"
+            " count(*) filter (where chunker_config = %(chunker)s"
+            "  and embedder_config <> %(embedder)s)::int as embedder_changed"
+            " from documents",
+            {"chunker": chunker_config, "embedder": embedder_config},
+        ).fetchone()
+    assert row is not None  # an aggregate without group by always returns one row
+    return row
 
 
 def similar_chunks(

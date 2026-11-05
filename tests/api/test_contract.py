@@ -66,7 +66,8 @@ UPDATE = ("patch", "/admin/documents/{doc_id}")
 REPROCESS = ("post", "/admin/documents/{doc_id}/reprocess")
 DELETE = ("delete", "/admin/documents/{doc_id}")
 TENANTS = ("get", "/admin/tenants")
-OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE, REPROCESS, DELETE, TENANTS]
+SETTINGS = ("get", "/admin/settings")
+OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE, REPROCESS, DELETE, TENANTS, SETTINGS]
 
 
 def documented_schema(
@@ -238,6 +239,12 @@ CASES = {
         lambda c: (post(c, SMALL_DOC), get(c, "/admin/tenants"))[1],
     ),
     "tenants 401 no key": (TENANTS, 401, lambda c: get(c, "/admin/tenants", headers={})),
+    "settings 200": (
+        SETTINGS,
+        200,
+        lambda c: (post(c, SMALL_DOC), get(c, "/admin/settings"))[1],
+    ),
+    "settings 401 no key": (SETTINGS, 401, lambda c: get(c, "/admin/settings", headers={})),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}}

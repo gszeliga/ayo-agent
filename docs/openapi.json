@@ -178,6 +178,60 @@
         "title": "ChunkPage",
         "type": "object"
       },
+      "ChunkingSettings": {
+        "description": "How new uploads and reprocesses are chunked.",
+        "properties": {
+          "chunk_overlap": {
+            "description": "Characters shared by consecutive chunks of a split section (`CHUNK_OVERLAP`).",
+            "examples": [
+              80
+            ],
+            "title": "Chunk Overlap",
+            "type": "integer"
+          },
+          "chunk_size": {
+            "description": "Target chunk size in characters (`CHUNK_SIZE`).",
+            "examples": [
+              800
+            ],
+            "title": "Chunk Size",
+            "type": "integer"
+          },
+          "chunker_config": {
+            "description": "All of the above as one string: a document whose `chunker_config` differs is outdated (`chunker_changed`).",
+            "examples": [
+              "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
+            ],
+            "title": "Chunker Config",
+            "type": "string"
+          },
+          "chunker_version": {
+            "description": "Version of the chunking algorithm and of the embedded text format.",
+            "examples": [
+              "md-header+recursive@v3"
+            ],
+            "title": "Chunker Version",
+            "type": "string"
+          },
+          "min_chunk_size": {
+            "description": "Chunks shorter than this are merged into a neighbour (`MIN_CHUNK_SIZE`).",
+            "examples": [
+              100
+            ],
+            "title": "Min Chunk Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chunker_version",
+          "chunk_size",
+          "chunk_overlap",
+          "min_chunk_size",
+          "chunker_config"
+        ],
+        "title": "ChunkingSettings",
+        "type": "object"
+      },
       "Document": {
         "description": "A stored document, the same in the listing and on its own. `status` compares it with\nthe current settings.",
         "properties": {
@@ -447,6 +501,38 @@
         "title": "DocumentPage",
         "type": "object"
       },
+      "DocumentStatusCounts": {
+        "description": "How the stored documents compare with the current settings, across all tenants.",
+        "properties": {
+          "indexed": {
+            "description": "Documents the current settings would index the same way.",
+            "examples": [
+              9
+            ],
+            "title": "Indexed",
+            "type": "integer"
+          },
+          "outdated": {
+            "$ref": "#/components/schemas/OutdatedCounts",
+            "description": "The other documents, by reason; reprocessing brings them up to date."
+          },
+          "total": {
+            "description": "Stored documents.",
+            "examples": [
+              12
+            ],
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "indexed",
+          "outdated"
+        ],
+        "title": "DocumentStatusCounts",
+        "type": "object"
+      },
       "DocumentUpdate": {
         "additionalProperties": false,
         "description": "Changes to a document that need no reprocessing. Only the title, for now.",
@@ -466,6 +552,64 @@
           "title"
         ],
         "title": "DocumentUpdate",
+        "type": "object"
+      },
+      "EmbeddingSettings": {
+        "description": "How chunks are embedded. No keys or URLs.",
+        "properties": {
+          "batch_size": {
+            "description": "Texts per provider request (`EMBEDDING_BATCH_SIZE`).",
+            "examples": [
+              128
+            ],
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "dimensions": {
+            "description": "Vector size (`EMBEDDING_DIMENSIONS`); the database column must match.",
+            "examples": [
+              1024
+            ],
+            "title": "Dimensions",
+            "type": "integer"
+          },
+          "embedder_config": {
+            "description": "Model and dimensions as one string: a document whose `embedder_config` differs is outdated (`embedder_changed`).",
+            "examples": [
+              "voyage-4/document/1024"
+            ],
+            "title": "Embedder Config",
+            "type": "string"
+          },
+          "model": {
+            "description": "Embedding model (`EMBEDDING_MODEL`).",
+            "examples": [
+              "voyage-4"
+            ],
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "description": "Embedding provider (`EMBEDDING_PROVIDER`); `fake` is for tests and local runs.",
+            "enum": [
+              "voyage",
+              "fake"
+            ],
+            "examples": [
+              "voyage"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "dimensions",
+          "batch_size",
+          "embedder_config"
+        ],
+        "title": "EmbeddingSettings",
         "type": "object"
       },
       "ErrorItem": {
@@ -584,6 +728,35 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "IndexingSettings": {
+        "description": "The settings new uploads and reprocesses use, and the documents' status against\nthem.",
+        "properties": {
+          "chunking": {
+            "$ref": "#/components/schemas/ChunkingSettings",
+            "description": "Chunking settings."
+          },
+          "documents": {
+            "$ref": "#/components/schemas/DocumentStatusCounts",
+            "description": "Document counts by status."
+          },
+          "embedding": {
+            "$ref": "#/components/schemas/EmbeddingSettings",
+            "description": "Embedding settings."
+          },
+          "uploads": {
+            "$ref": "#/components/schemas/UploadSettings",
+            "description": "Upload limits."
+          }
+        },
+        "required": [
+          "chunking",
+          "embedding",
+          "uploads",
+          "documents"
+        ],
+        "title": "IndexingSettings",
+        "type": "object"
+      },
       "IngestResponse": {
         "description": "The outcome of an upload or a reprocess. Sent without the optional fields when\n`up_to_date`.",
         "examples": [
@@ -670,6 +843,42 @@
         "title": "IngestResponse",
         "type": "object"
       },
+      "OutdatedCounts": {
+        "description": "Outdated documents by reason, as `outdated_reason` reports them. A document whose\nchunker and embedder configs both differ counts as `chunker_changed` only.",
+        "properties": {
+          "chunker_changed": {
+            "description": "Chunked with other chunking settings.",
+            "examples": [
+              2
+            ],
+            "title": "Chunker Changed",
+            "type": "integer"
+          },
+          "embedder_changed": {
+            "description": "Same chunking, embedded with another model or vector size.",
+            "examples": [
+              1
+            ],
+            "title": "Embedder Changed",
+            "type": "integer"
+          },
+          "unknown": {
+            "description": "Indexed before configs were stored: their settings are not known.",
+            "examples": [
+              0
+            ],
+            "title": "Unknown",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unknown",
+          "chunker_changed",
+          "embedder_changed"
+        ],
+        "title": "OutdatedCounts",
+        "type": "object"
+      },
       "TenantSummary": {
         "description": "A tenant with stored documents.",
         "properties": {
@@ -704,6 +913,24 @@
           "chunk_count"
         ],
         "title": "TenantSummary",
+        "type": "object"
+      },
+      "UploadSettings": {
+        "description": "Limits on uploads.",
+        "properties": {
+          "max_upload_bytes": {
+            "description": "Largest accepted file in bytes (`MAX_UPLOAD_BYTES`); larger ones get `413`.",
+            "examples": [
+              5242880
+            ],
+            "title": "Max Upload Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_upload_bytes"
+        ],
+        "title": "UploadSettings",
         "type": "object"
       }
     },
@@ -2110,6 +2337,94 @@
         ]
       }
     },
+    "/admin/settings": {
+      "get": {
+        "description": "The chunking, embedding and upload settings that new uploads and\nreprocesses use, and how many stored documents, across all tenants, are `indexed` with\nthem or `outdated` (by reason, as each document's `outdated_reason`). Read-only: the\nsettings come from the environment and change with a restart. No keys, URLs or database\nsettings are included.\n\nThe `chunker_config` and `embedder_config` strings are the ones each document is compared\nwith, so a client can show which part of a document's configs differs.\n\n| Status | Meaning |\n|---|---|\n| `200` | The settings and the counts. |\n| `401` | `X-API-Key` missing or wrong. |",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "settings": {
+                    "summary": "Some documents outdated",
+                    "value": {
+                      "chunking": {
+                        "chunk_overlap": 80,
+                        "chunk_size": 800,
+                        "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
+                        "chunker_version": "md-header+recursive@v3",
+                        "min_chunk_size": 100
+                      },
+                      "documents": {
+                        "indexed": 9,
+                        "outdated": {
+                          "chunker_changed": 2,
+                          "embedder_changed": 1,
+                          "unknown": 0
+                        },
+                        "total": 12
+                      },
+                      "embedding": {
+                        "batch_size": 128,
+                        "dimensions": 1024,
+                        "embedder_config": "voyage-4/document/1024",
+                        "model": "voyage-4",
+                        "provider": "voyage"
+                      },
+                      "uploads": {
+                        "max_upload_bytes": 5242880
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/IndexingSettings"
+                }
+              }
+            },
+            "description": "The current settings and the document counts by status."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Get the indexing settings",
+        "tags": [
+          "documents",
+          "settings"
+        ]
+      }
+    },
     "/admin/tenants": {
       "get": {
         "description": "Every tenant that has stored documents, in alphabetical order, with\nhow many documents and chunks it has: the values for a tenant filter. A tenant whose last\ndocument is deleted is no longer listed. Not paginated.\n\n| Status | Meaning |\n|---|---|\n| `200` | The tenants, possibly none. |\n| `401` | `X-API-Key` missing or wrong. |",
@@ -2216,6 +2531,10 @@
     {
       "description": "Upload, list and inspect the Markdown documents the copilot retrieves from.",
       "name": "documents"
+    },
+    {
+      "description": "The current indexing settings and how the stored documents compare with them. Read-only; no secrets.",
+      "name": "settings"
     },
     {
       "description": "Liveness of the service.",

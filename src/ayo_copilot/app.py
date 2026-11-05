@@ -69,6 +69,11 @@ OPENAPI_TAGS = [
         "description": "Upload, list and inspect the Markdown documents the copilot"
         " retrieves from.",
     },
+    {
+        "name": "settings",
+        "description": "The current indexing settings and how the stored documents compare"
+        " with them. Read-only; no secrets.",
+    },
     {"name": "health", "description": "Liveness of the service."},
 ]
 
