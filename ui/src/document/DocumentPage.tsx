@@ -11,6 +11,7 @@ import { LazyUploadDialog } from '@/upload/LazyUploadDialog'
 
 import { ChunksTab } from './ChunksTab'
 import { ContentTab } from './ContentTab'
+import { DeleteDialog } from './DeleteDialog'
 import { FactsPanel } from './FactsPanel'
 import { isNotFound } from './errors'
 import { DocumentNotFound } from './NotFound'
@@ -23,7 +24,9 @@ import {
   type Tab,
 } from './params'
 import { useDocument } from './queries'
+import { ReprocessButton } from './ReprocessButton'
 import { TabError } from './TabError'
+import { TitleEditor } from './TitleEditor'
 
 export function DocumentPage() {
   const { docId = '' } = useParams()
@@ -86,16 +89,30 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
         <>
           <header className="space-y-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <h1 className="min-w-0 text-xl font-semibold break-words">{title}</h1>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setReplacing(true)
+              <TitleEditor
+                doc={doc}
+                onGone={() => {
+                  setGone(true)
                 }}
-              >
-                <FileUp aria-hidden="true" />
-                Replace
-              </Button>
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setReplacing(true)
+                  }}
+                >
+                  <FileUp aria-hidden="true" />
+                  Replace
+                </Button>
+                <ReprocessButton
+                  docId={docId}
+                  onGone={() => {
+                    setGone(true)
+                  }}
+                />
+                <DeleteDialog doc={doc} back={back} />
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge document={doc} />

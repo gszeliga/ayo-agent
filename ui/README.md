@@ -96,6 +96,23 @@ keep the dialog and its input: `422` next to its field, `413` on the file, `502`
 was stored". While sending, Esc and clicks outside do nothing; Cancel aborts and says the
 API may still finish indexing.
 
+## Rename, reprocess, delete
+
+On a document (`src/document/`): **rename** in place (pencil or double-click; Enter saves,
+Esc cancels; trimmed, 1–200 characters; not optimistic), **Reprocess** as a split button
+(normal, or Force from its menu; a `409` says a newer upload won, with Retry in the toast;
+`502` says nothing was written), and **Delete**, confirmed by typing the title (the
+`source_key` without one); a `404` counts as already gone. Both return to the list as it
+was left.
+
+On the list (`src/documents/`): row checkboxes and select-all (indeterminate when part of
+the page is selected). The selection is kept across pages and sorts, cleared when the
+tenant or the search changes, and never put in the URL. **Bulk delete** is confirmed by
+typing `delete N`, lists up to five titles, and sends batches of 100 (each all or nothing);
+ids already gone are reported in the toast; if a later batch fails, the dialog says what
+was deleted and keeps the rest selected. All writes go through `src/documents/mutations.ts`,
+which updates or invalidates the cached data they change.
+
 ## Routes
 
 `/connect`, `/documents`, `/documents/:docId`, `/settings`; everything but `/connect` needs
@@ -142,7 +159,9 @@ self-hosted (Inter, JetBrains Mono for ids, hashes and configs) via Fontsource.
 shadcn/ui components are added as needed with `pnpm dlx shadcn@latest add <component>`
 (config in `components.json`; it resolves `@/` through the root `tsconfig.json`, and wrote
 into a literal `@/` folder before that was set); they are copied into `src/components/ui/`
-and are ours to edit. The registry's components import `cn` from shadcn's `cn` package
+and are ours to edit. When `add` asks to overwrite an existing component (a dependency such
+as `button`), answer no (`yes n | pnpm dlx shadcn@latest add …`): ours carry changes. The
+registry's components import `cn` from shadcn's `cn` package
 whatever the config says, and `add` installs it: after adding, point the import at
 `@/lib/utils` and `pnpm remove cn`. shadcn/ui is MIT-licensed (<https://github.com/shadcn-ui/ui>, copyright shadcn);
 the copied files keep that licence.
@@ -158,7 +177,8 @@ of `src/upload/UploadDialog.test.tsx`), the rest under jsdom. In Vitest's jsdom 
 `fetch` cannot send a multipart body with a file: its typed arrays come from another realm,
 so Node miscounts the body (`RequestContentLengthMismatchError`). happy-dom runs in Node's
 own realm; the page is given the mocked API's origin (as behind the production proxy) so it
-sends no CORS preflights. Browsers are not affected. An MSW response is single use: build
+sends no CORS preflights. Browsers are not affected. The setup also stubs what jsdom lacks
+and the UI calls: `matchMedia` and pointer capture (the toaster). An MSW response is single use: build
 one per request (`() => HttpResponse.json(...)`), never share an instance.
 
 ## Layout
@@ -178,20 +198,25 @@ src/
   connection/         storage, base URL rules, provider + useConnection/useApiClient, guard
   layout/AppShell.tsx header, nav, Disconnect, internal-use banner
   documents/          the list: DocumentsPage, listParams (URL <-> state), queries,
+                      mutations (rename, reprocess, delete, bulk delete), useSelection,
+                      SelectionBar, BulkDeleteDialog,
                       TenantFilter (sidebar + narrow select), DocumentsTable, StatusBadge,
                       status (reasons in words), Pagination
-  document/           the detail: DocumentPage, params (URL <-> state, back link), queries,
+  document/           the detail (lazy-loaded route): DocumentPage, params (URL <-> state, back
+                      link), queries, TitleEditor, ReprocessButton, DeleteDialog,
                       FactsPanel, ContentTab + Markdown (safe rendering) + LazyMarkdown,
                       ChunksTab + ChunkCard, ViewToggle, NotFound, TabError, errors
   upload/             UploadDialog (+ LazyUploadDialog), FileDrop, Field, useUpload (mutation,
                       error placement), useExistingDocument (overwrite warning), validation
   settings/queries.ts useIndexingSettings (GET /admin/settings)
   hooks/              useDebouncedValue
-  components/CopyButton.tsx  copy with feedback, "Copy unavailable" outside secure contexts
+  components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
+                      ConfirmByTyping
   pages/              ConnectPage, NotFoundPage, Placeholder (until U8)
   components/ui/      shadcn/ui: button, input, label, card, alert, table, badge (+ success,
                       warning variants), tooltip, skeleton, tabs, dialog, sonner (toasts;
-                      without next-themes), checkbox, collapsible
+                      without next-themes), checkbox, collapsible, dropdown-menu,
+                      alert-dialog
   lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes)
   test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
                       render.tsx (renderApp(path, {connected}): router, query client,

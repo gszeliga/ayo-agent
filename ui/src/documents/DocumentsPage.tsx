@@ -23,7 +23,10 @@ import {
 } from './listParams'
 import { Pagination } from './Pagination'
 import { useDocuments, useTenants } from './queries'
+import { BulkDeleteDialog } from './BulkDeleteDialog'
+import { SelectionBar } from './SelectionBar'
 import { TenantSelect, TenantSidebar } from './TenantFilter'
+import { useSelection } from './useSelection'
 
 export const SEARCH_DELAY_MS = 300
 
@@ -35,6 +38,9 @@ export function DocumentsPage() {
   const documents = useDocuments(params)
   const tenants = useTenants()
   const [uploading, setUploading] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  // Kept across pages and sorts; a new tenant or search starts a new one.
+  const selection = useSelection(`${params.tenant ?? ''}\u0000${params.q}`)
   const uploadButton = (
     <Button
       onClick={() => {
@@ -100,63 +106,77 @@ export function DocumentsPage() {
           </div>
           {uploadButton}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <TenantSelect tenants={tenants.data} params={params} />
-          <div className="relative min-w-56 flex-1">
-            <Search
-              aria-hidden="true"
-              className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
-            />
-            <label htmlFor="q" className="sr-only">
-              Search title or file name
-            </label>
-            <Input
-              id="q"
-              type="search"
-              className="pl-9"
-              placeholder="Search title or file name"
-              maxLength={Q_MAX_LENGTH}
-              value={qDraft}
-              onChange={(event) => {
-                setQDraft(event.target.value)
-              }}
-            />
-          </div>
-          <label htmlFor="sort" className="sr-only">
-            Sort
-          </label>
-          <select
-            id="sort"
-            className="border-input bg-card h-9 rounded-md border px-3"
-            value={params.sort}
-            onChange={(event) => {
-              update({ sort: event.target.value as DocumentSort })
+        {selection.items.size > 0 ? (
+          <SelectionBar
+            count={selection.items.size}
+            offPage={
+              selection.items.size -
+              (data?.items.filter((doc) => selection.has(doc.doc_id)).length ?? 0)
+            }
+            onClear={selection.clear}
+            onDelete={() => {
+              setBulkDeleting(true)
             }}
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {hasFilters(params) && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                update({ tenant: DEFAULT_PARAMS.tenant, q: DEFAULT_PARAMS.q })
+          />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <TenantSelect tenants={tenants.data} params={params} />
+            <div className="relative min-w-56 flex-1">
+              <Search
+                aria-hidden="true"
+                className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
+              />
+              <label htmlFor="q" className="sr-only">
+                Search title or file name
+              </label>
+              <Input
+                id="q"
+                type="search"
+                className="pl-9"
+                placeholder="Search title or file name"
+                maxLength={Q_MAX_LENGTH}
+                value={qDraft}
+                onChange={(event) => {
+                  setQDraft(event.target.value)
+                }}
+              />
+            </div>
+            <label htmlFor="sort" className="sr-only">
+              Sort
+            </label>
+            <select
+              id="sort"
+              className="border-input bg-card h-9 rounded-md border px-3"
+              value={params.sort}
+              onChange={(event) => {
+                update({ sort: event.target.value as DocumentSort })
               }}
             >
-              Clear filters
-            </Button>
-          )}
-          {documents.isFetching && data && (
-            <Loader2
-              role="status"
-              aria-label="Loading"
-              className="text-muted-foreground size-4 animate-spin"
-            />
-          )}
-        </div>
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {hasFilters(params) && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  update({ tenant: DEFAULT_PARAMS.tenant, q: DEFAULT_PARAMS.q })
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+            {documents.isFetching && data && (
+              <Loader2
+                role="status"
+                aria-label="Loading"
+                className="text-muted-foreground size-4 animate-spin"
+              />
+            )}
+          </div>
+        )}
 
         {documents.isError && !data ? (
           <Alert variant="destructive" role="alert">
@@ -207,6 +227,7 @@ export function DocumentsPage() {
                 documents={data.items}
                 busy={documents.isPlaceholderData}
                 now={documents.dataUpdatedAt}
+                selection={selection}
               />
             </div>
             <Pagination
@@ -220,6 +241,12 @@ export function DocumentsPage() {
           </>
         )}
       </section>
+      <BulkDeleteDialog
+        selected={selection.items}
+        open={bulkDeleting}
+        onOpenChange={setBulkDeleting}
+        onDeleted={selection.remove}
+      />
       <LazyUploadDialog
         mode={{ kind: 'upload', defaultTenant: params.tenant }}
         open={uploading}

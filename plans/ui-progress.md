@@ -268,13 +268,30 @@ the first unchecked item under "Progress log".
   arrays -> `RequestContentLengthMismatchError`; plain Node + MSW is fine); upload tests run
   under happy-dom (dev dependency) with the page on the mocked API's origin. jsdom also
   lacks `matchMedia` (stubbed in the test setup for the toaster).
-- [ ] U7. Rename, reprocess, delete.
+- [x] U7. Rename, reprocess, delete, bulk delete (2026-11-05). `documents/mutations.ts`:
+  `useRename` (sets the document and list entries, then refetches lists), `useReprocess`
+  (invalidates the document prefix and lists), `useDelete` (removes the document's cache
+  after success or 404), `useBulkDelete` (sequential batches of 100;
+  `PartialBulkDeleteError` when a later batch fails). Detail: `TitleEditor` (in place, not
+  optimistic, 1–200 chars, unchanged = no request, 422 under the input, 404 -> gone),
+  `ReprocessButton` (split button + dropdown Force; toasts for indexed / up_to_date / 409
+  with Retry / 502), `DeleteDialog` (alert dialog, type the title or `source_key`; 404 =
+  already gone; back to the list as left). List: checkbox column + select-all
+  (indeterminate), `useSelection` (kept across pages and sorts, cleared on tenant/search,
+  not in the URL), `SelectionBar` in place of the toolbar ("N selected (M on other
+  pages)"), `BulkDeleteDialog` (five titles + "and N more", chunk total, `delete N`;
+  not-found reported; partial failure keeps the rest selected). Shared `ConfirmByTyping`.
+  Detail route lazy-loaded (main bundle 150 KB gz). Found: jsdom lacks pointer capture
+  (sonner calls it on a toast button click; stubbed in the setup); `shadcn add` prompts to
+  overwrite existing dependencies (answered no).
 - [ ] U8. Indexing settings page and service status.
 - [ ] U9. Polish and manual run.
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-**U7** (rename, reprocess, delete, bulk delete): write its brief and wait for approval.
+**U8** (Indexing settings page and service status: B1 counts and cards with "now differs"
+notes on the detail's configs, B3 header dots + popover + Services card + the upload
+dialog's "embeddings down" warning): write its brief and wait for approval.
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing
