@@ -316,3 +316,80 @@ def test_build_voyage_embedder_uses_settings() -> None:
     assert embedder.batch_size == 64
     assert embedder.timeout_seconds == 12.5
     embedder.close()
+
+
+# --- probe ----------------------------------------------------------------------
+
+
+def test_probe_sends_one_request_for_one_word_with_its_own_timeout() -> None:
+    requests: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return vectors_response(request)
+
+    make_voyage(handler).probe(timeout_seconds=5.0)
+
+    (request,) = requests
+    assert json.loads(request.content)["input"] == ["ping"]
+    assert request.extensions["timeout"] == {
+        "connect": 5.0,
+        "read": 5.0,
+        "write": 5.0,
+        "pool": 5.0,
+    }
+
+
+def test_probe_fails_at_once_without_retrying() -> None:
+    calls: list[httpx2.Request] = []
+    sleeps: list[float] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        calls.append(request)
+        return httpx2.Response(503, json={"detail": SECRET_TEXT})
+
+    with pytest.raises(EmbeddingError) as raised:
+        make_voyage(handler, max_retries=3, sleeps=sleeps).probe(timeout_seconds=5.0)
+
+    assert (len(calls), sleeps) == (1, [])
+    assert str(raised.value) == "Embedding provider returned HTTP 503"
+
+
+def test_probe_reports_a_timeout_without_the_exception_text() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ReadTimeout(f"slow {API_KEY}")
+
+    with pytest.raises(EmbeddingError) as raised:
+        make_voyage(handler).probe(timeout_seconds=5.0)
+
+    assert str(raised.value) == "Embedding provider unreachable (ReadTimeout)"
+
+
+def test_probe_rejects_a_malformed_answer() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return vectors_response(request, dimensions=3)
+
+    with pytest.raises(EmbeddingError, match="malformed"):
+        make_voyage(handler, dimensions=4).probe(timeout_seconds=5.0)
+
+
+def test_normal_calls_keep_the_client_timeout() -> None:
+    requests: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return vectors_response(request)
+
+    client = httpx2.Client(
+        transport=httpx2.MockTransport(handler), base_url="https://voyage.test/v1", timeout=30.0
+    )
+    embedder = VoyageEmbedder(
+        api_key=API_KEY, model="voyage-4", dimensions=4, batch_size=8, max_retries=0, client=client
+    )
+    embedder.embed_documents(["a"])
+
+    assert requests[0].extensions["timeout"]["read"] == 30.0
+
+
+def test_fake_probe_always_succeeds() -> None:
+    FakeEmbedder(dimensions=4).probe(timeout_seconds=0.001)

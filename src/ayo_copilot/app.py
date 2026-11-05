@@ -11,6 +11,7 @@ from ayo_copilot.config import BuildSettings, Settings, database_host, default_e
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
 from ayo_copilot.errors import install_error_handlers
+from ayo_copilot.health import EmbeddingMonitor, TrackedEmbedder
 from ayo_copilot.ingestion.embedding import (
     Embedder,
     FakeEmbedder,
@@ -74,7 +75,11 @@ OPENAPI_TAGS = [
         "description": "The current indexing settings and how the stored documents compare"
         " with them. Read-only; no secrets.",
     },
-    {"name": "health", "description": "Liveness of the service."},
+    {
+        "name": "health",
+        "description": "Liveness of the service (public), and the status of the database"
+        " and the embedding provider (behind the key).",
+    },
 ]
 
 
@@ -113,14 +118,20 @@ def _make_lifespan(
             logger.info("database ready at %r, vector(%d)", host, resolved.embedding_dimensions)
             embedder = build_embedder(resolved)
             _log_embedder(embedder, resolved)
+            # Uploads and reprocesses go through the tracker, so /admin/health can report
+            # their last outcome; the monitor checks the provider itself, on demand.
+            tracked = TrackedEmbedder(embedder)
             try:
                 # Endpoints read these through `request.state` (see dependencies.py).
-                yield {"settings": resolved, "pool": pool, "embedder": embedder}
+                yield {
+                    "settings": resolved,
+                    "pool": pool,
+                    "embedder": tracked,
+                    "embedding_monitor": EmbeddingMonitor(embedder, tracked),
+                }
             finally:
                 # FakeEmbedder holds no resources and has no close().
-                close = getattr(embedder, "close", None)
-                if close is not None:
-                    close()
+                tracked.close()
         finally:
             pool.close()
 

@@ -17,7 +17,12 @@ from psycopg_pool import ConnectionPool
 
 from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import DEFAULT_SORT
-from ayo_copilot.dependencies import get_embedder, get_pool, get_settings
+from ayo_copilot.dependencies import (
+    get_embedder,
+    get_embedding_monitor,
+    get_pool,
+    get_settings,
+)
 from ayo_copilot.documents import (
     delete_document,
     delete_documents,
@@ -30,6 +35,7 @@ from ayo_copilot.documents import (
     rename_document,
 )
 from ayo_copilot.errors import ApiError
+from ayo_copilot.health import EmbeddingMonitor, check_database
 from ayo_copilot.ingestion.embedding import Embedder, EmbeddingError
 from ayo_copilot.ingestion.service import (
     DocumentChangedError,
@@ -45,6 +51,7 @@ from ayo_copilot.schemas import (
     MAX_BULK_DELETE,
     Chunk,
     ChunkPage,
+    DatabaseHealth,
     DeletedDocument,
     Document,
     DocumentDeleteRequest,
@@ -52,9 +59,11 @@ from ayo_copilot.schemas import (
     DocumentPage,
     DocumentSort,
     DocumentUpdate,
+    EmbeddingHealth,
     ErrorResponse,
     IndexingSettings,
     IngestResponse,
+    ServiceHealth,
     TenantSummary,
 )
 
@@ -1093,3 +1102,87 @@ def read_settings(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> IndexingSettings:
     return IndexingSettings.build(settings, read_status_counts(pool, settings))
+
+
+SERVICE_HEALTH_DESCRIPTION = """Whether the database and the embedding provider work, for a
+status display. Always `200` when the report could be made: a service that is down is
+reported in the body (`status: degraded`), not as an error. The public `/health` only
+says the process is up and never fails because of these services.
+
+- **Database:** `select 1` through the connection pool, on every request, within 2 s.
+- **Embeddings:** one request embedding a single short word, within 5 s and without
+  retries. The result, a failure included, is kept for 60 s, so loading a page doesn't
+  call the provider each time; `refresh=true` checks again. Nothing is checked in the
+  background. Also reported: when the last real embedding call (by an upload or a
+  reprocess) succeeded and failed since the service started.
+
+No keys, URLs or hosts are included.
+
+| Status | Meaning |
+|---|---|
+| `200` | The report, with each service `up` or `down`. |
+| `401` | `X-API-Key` missing or wrong. |
+| `422` | `refresh` is not a boolean (FastAPI validation). |
+"""
+
+
+@router.get(
+    "/health",
+    operation_id="get_service_health",
+    summary="Check the database and the embedding provider",
+    description=SERVICE_HEALTH_DESCRIPTION,
+    tags=["health"],
+    responses={
+        # Examples per field only: the body has nullable fields (see schemas.py).
+        200: {"description": "The status of each service."},
+        422: {
+            "model": ErrorResponse,
+            "description": "`refresh` is not a boolean (`bool_parsing`).",
+            "content": _examples(
+                bool_parsing=(
+                    "Not a boolean",
+                    _error(
+                        "bool_parsing",
+                        ["query", "refresh"],
+                        "Input should be a valid boolean, unable to interpret input",
+                        input="maybe",
+                    ),
+                )
+            ),
+        },
+    },
+)
+def get_service_health(
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    monitor: Annotated[EmbeddingMonitor, Depends(get_embedding_monitor)],
+    refresh: Annotated[
+        bool,
+        Query(
+            description="Check the embedding provider again instead of using the result"
+            " of a check in the last 60 s."
+        ),
+    ] = False,
+) -> ServiceHealth:
+    database = check_database(pool)
+    probe, cached = monitor.check(refresh=refresh)
+    tracker = monitor.tracker
+    return ServiceHealth(
+        status="ok" if database.up and probe.up else "degraded",
+        database=DatabaseHealth(
+            status="up" if database.up else "down",
+            latency_ms=database.latency_ms,
+            error=database.error,
+        ),
+        embeddings=EmbeddingHealth(
+            status="up" if probe.up else "down",
+            provider=settings.embedding_provider,
+            checked_at=probe.checked_at,
+            latency_ms=probe.latency_ms,
+            error=probe.error,
+            cached=cached,
+            last_success_at=tracker.last_success_at,
+            last_error_at=tracker.last_error_at,
+            last_error=tracker.last_error,
+        ),
+    )

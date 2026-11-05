@@ -12,6 +12,8 @@ from ayo_copilot.config import Settings
 
 # Voyage answers these with "retry after a brief wait"; other 4xx need a fixed request.
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+# What `probe` embeds: one short word, so a health check costs about one token.
+PROBE_TEXT = "ping"
 
 
 class EmbeddingError(Exception):
@@ -29,6 +31,9 @@ class FakeEmbedder:
     def __init__(self, *, dimensions: int) -> None:
         self.dimensions = dimensions
         self.calls: list[list[str]] = []
+
+    def probe(self, *, timeout_seconds: float) -> None:
+        """Always answers: there is no provider to reach."""
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
@@ -85,8 +90,19 @@ class VoyageEmbedder:
             vectors.extend(self._embed_batch(texts[start : start + self.batch_size]))
         return vectors
 
+    def probe(self, *, timeout_seconds: float) -> None:
+        """Whether the provider embeds right now: one request for one short word, with its
+        own timeout and no retries. Raises EmbeddingError, as `embed_documents` does."""
+        payload = self._payload([PROBE_TEXT])
+        response = self._post_with_retries(payload, max_retries=0, timeout=timeout_seconds)
+        self._parse(response, expected=1)
+
     def _embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
-        payload = {
+        response = self._post_with_retries(self._payload(texts), max_retries=self.max_retries)
+        return self._parse(response, expected=len(texts))
+
+    def _payload(self, texts: Sequence[str]) -> dict[str, object]:
+        return {
             "input": list(texts),
             "model": self.model,
             "input_type": "document",
@@ -95,14 +111,22 @@ class VoyageEmbedder:
             # A chunk longer than the context is a chunker bug; fail instead of embedding a prefix.
             "truncation": False,
         }
-        response = self._post_with_retries(payload)
-        return self._parse(response, expected=len(texts))
 
-    def _post_with_retries(self, payload: dict[str, object]) -> httpx2.Response:
-        for attempt in range(self.max_retries + 1):
-            is_last = attempt == self.max_retries
+    def _post_with_retries(
+        self,
+        payload: dict[str, object],
+        *,
+        max_retries: int,
+        timeout: float | None = None,
+    ) -> httpx2.Response:
+        """`timeout` None means the client's (in httpx2, None itself would mean none)."""
+        request_timeout = httpx2.USE_CLIENT_DEFAULT if timeout is None else timeout
+        for attempt in range(max_retries + 1):
+            is_last = attempt == max_retries
             try:
-                response = self._client.post("/embeddings", json=payload, headers=self._headers)
+                response = self._client.post(
+                    "/embeddings", json=payload, headers=self._headers, timeout=request_timeout
+                )
             except httpx2.TransportError as exc:
                 # The exception text is dropped: it can quote the request.
                 if is_last:

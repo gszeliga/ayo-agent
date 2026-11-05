@@ -5,6 +5,7 @@ from fastapi import Request
 from psycopg_pool import ConnectionPool
 
 from ayo_copilot.config import Settings
+from ayo_copilot.health import EmbeddingMonitor
 from ayo_copilot.ingestion.embedding import Embedder
 
 
@@ -18,3 +19,7 @@ def get_pool(request: Request) -> ConnectionPool:
 
 def get_embedder(request: Request) -> Embedder:
     return request.state.embedder
+
+
+def get_embedding_monitor(request: Request) -> EmbeddingMonitor:
+    return request.state.embedding_monitor

@@ -61,6 +61,7 @@ and example.
 | `POST /admin/documents/delete` | Delete up to 100 documents at once |
 | `GET /admin/tenants` | Tenants with document and chunk counts |
 | `GET /admin/settings` | Current indexing settings and document counts by status |
+| `GET /admin/health` | Status of the database and the embedding provider |
 | `GET /health` | Liveness, no key |
 
 ## Uploading a document
@@ -216,6 +217,24 @@ Read-only: the chunking, embedding and upload settings new uploads and reprocess
 (from the environment; no keys, URLs or database settings), and how many documents across
 all tenants are `indexed` with them or `outdated`, by the same reasons as each document's
 `outdated_reason`. The two config strings are the ones documents are compared with.
+
+## Service status
+
+```sh
+curl -H "$H" "http://127.0.0.1:8000/admin/health"                # refresh=true: check again
+# {"status": "ok",
+#  "database": {"status": "up", "latency_ms": 4, "error": null},
+#  "embeddings": {"status": "up", "provider": "voyage", "checked_at": "2026-11-05T10:14:03Z",
+#   "latency_ms": 180, "error": null, "cached": false,
+#   "last_success_at": "2026-11-05T09:58:41Z", "last_error_at": null, "last_error": null}}
+```
+
+Always `200`; a service that is down shows as `"status": "degraded"` with its `error`. The
+database gets a `select 1` (2 s timeout) on every request. The embedding provider gets one
+request for a single word (5 s timeout, no retries), and the result is kept for 60 s, a
+failure included; `refresh=true` checks again, and nothing is checked in the background.
+`last_success_at`, `last_error_at` and `last_error` describe the last real embedding calls
+(uploads, reprocesses) since the service started. The public `/health` stays liveness only.
 
 ## Browser clients (CORS)
 

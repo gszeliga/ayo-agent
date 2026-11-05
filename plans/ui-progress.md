@@ -128,7 +128,16 @@ the first unchecked item under "Progress log".
   order by doc_id for update)`) so overlapping bulk deletes can't deadlock (agreed
   deviation from the plan's plain `any()` delete). One transaction; the single delete's
   log line per deleted document.
-- [ ] B3. `GET /admin/health`.
+- [x] B3. `GET /admin/health` (2026-11-05). Operation `get_service_health`, tag `health`,
+  always `200` (`status: ok|degraded`), plus `401` and `422` (`refresh`). `database`:
+  `select 1` with `pool.connection(timeout=2)`, error `timeout` / `connection failed` (never
+  psycopg's text). `embeddings`: `VoyageEmbedder.probe` (one word, 5 s, no retries;
+  `FakeEmbedder.probe` always up; not on the `Embedder` protocol), cached 60 s in
+  `health.EmbeddingMonitor` (failures too; a lock makes concurrent callers share one
+  check; `refresh=true` bypasses), plus `last_success_at` / `last_error_at` / `last_error`
+  of real calls from `health.TrackedEmbedder`, which the lifespan wraps around the
+  embedder (in memory). Nullable fields: examples per field only. Agreed: no minimum gap
+  between refreshes.
 - [ ] U2. Scaffold `ui/`.
 - [ ] U3. API client and connection.
 - [ ] U4. Documents list.
@@ -138,9 +147,9 @@ the first unchecked item under "Progress log".
 - [ ] U8. Polish and manual run.
 
 ## Next (resume here)
-**B3** (`GET /admin/health`): write its brief and wait for approval. Then U2, each briefed
-and committed separately. The backend steps follow the CRUD conventions in `CLAUDE.md` (OpenAPI with
-examples, contract cases, `docs/openapi.json` export, README).
+**U2** (scaffold `ui/`): write its brief (tooling choices, styling decision from the
+prototype, type generation and its staleness check) and wait for approval. The backend
+steps B1-B3 are done; the UI builds against `docs/openapi.json`.
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing

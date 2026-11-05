@@ -512,3 +512,72 @@ class IndexingSettings(BaseModel):
                 ),
             ),
         )
+
+
+ServiceState = Literal["up", "down"]
+
+
+class DatabaseHealth(BaseModel):
+    """A `select 1` through the connection pool, run on every request."""
+
+    status: ServiceState = Field(description="`up` if the query answered in time.", examples=["up"])
+    latency_ms: int = Field(
+        description="How long the check took, waiting for a connection included.", examples=[4]
+    )
+    error: str | None = Field(
+        description="`timeout` (no answer, or no free connection, within 2 s) or"
+        " `connection failed`; null when up.",
+        examples=["timeout"],
+    )
+
+
+class EmbeddingHealth(BaseModel):
+    """The embedding provider: a check embedding one short word (cached for 60 s), and the
+    outcome of the last real embedding calls since the service started."""
+
+    status: ServiceState = Field(
+        description="`up` if the check embedded its word within 5 s, without retries.",
+        examples=["up"],
+    )
+    provider: Literal["voyage", "fake"] = Field(
+        description="Embedding provider (`EMBEDDING_PROVIDER`); `fake` is always up.",
+        examples=["voyage"],
+    )
+    checked_at: datetime = Field(
+        description="When the check ran (UTC); older than this request when `cached`.",
+        examples=["2026-11-05T10:14:03Z"],
+    )
+    latency_ms: int = Field(description="How long the check took.", examples=[180])
+    error: str | None = Field(
+        description="Why the check failed; null when up.",
+        examples=["Embedding provider unreachable (ReadTimeout)"],
+    )
+    cached: bool = Field(
+        description="Whether this is the result of an earlier check (up to 60 s old)."
+        " `refresh=true` always checks again.",
+        examples=[True],
+    )
+    last_success_at: datetime | None = Field(
+        description="Last successful embedding call by an upload or a reprocess (UTC); null"
+        " if none since the service started.",
+        examples=["2026-11-05T09:58:41Z"],
+    )
+    last_error_at: datetime | None = Field(
+        description="Last failed embedding call by an upload or a reprocess (UTC); null if"
+        " none since the service started.",
+        examples=["2026-11-05T10:12:10Z"],
+    )
+    last_error: str | None = Field(
+        description="Why that call failed.", examples=["Embedding provider returned HTTP 503"]
+    )
+
+
+class ServiceHealth(BaseModel):
+    """Whether the services the API depends on work."""
+
+    status: Literal["ok", "degraded"] = Field(
+        description="`ok` when the database and the embedding provider are both up.",
+        examples=["ok"],
+    )
+    database: DatabaseHealth = Field(description="The database.")
+    embeddings: EmbeddingHealth = Field(description="The embedding provider.")

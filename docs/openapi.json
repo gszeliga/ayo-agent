@@ -232,6 +232,53 @@
         "title": "ChunkingSettings",
         "type": "object"
       },
+      "DatabaseHealth": {
+        "description": "A `select 1` through the connection pool, run on every request.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`timeout` (no answer, or no free connection, within 2 s) or `connection failed`; null when up.",
+            "examples": [
+              "timeout"
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "description": "How long the check took, waiting for a connection included.",
+            "examples": [
+              4
+            ],
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "status": {
+            "description": "`up` if the query answered in time.",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "examples": [
+              "up"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "latency_ms",
+          "error"
+        ],
+        "title": "DatabaseHealth",
+        "type": "object"
+      },
       "DeletedDocument": {
         "description": "A document that was deleted, with its chunks.",
         "properties": {
@@ -660,6 +707,135 @@
         "title": "DocumentUpdate",
         "type": "object"
       },
+      "EmbeddingHealth": {
+        "description": "The embedding provider: a check embedding one short word (cached for 60 s), and the\noutcome of the last real embedding calls since the service started.",
+        "properties": {
+          "cached": {
+            "description": "Whether this is the result of an earlier check (up to 60 s old). `refresh=true` always checks again.",
+            "examples": [
+              true
+            ],
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "checked_at": {
+            "description": "When the check ran (UTC); older than this request when `cached`.",
+            "examples": [
+              "2026-11-05T10:14:03Z"
+            ],
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the check failed; null when up.",
+            "examples": [
+              "Embedding provider unreachable (ReadTimeout)"
+            ],
+            "title": "Error"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why that call failed.",
+            "examples": [
+              "Embedding provider returned HTTP 503"
+            ],
+            "title": "Last Error"
+          },
+          "last_error_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last failed embedding call by an upload or a reprocess (UTC); null if none since the service started.",
+            "examples": [
+              "2026-11-05T10:12:10Z"
+            ],
+            "title": "Last Error At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last successful embedding call by an upload or a reprocess (UTC); null if none since the service started.",
+            "examples": [
+              "2026-11-05T09:58:41Z"
+            ],
+            "title": "Last Success At"
+          },
+          "latency_ms": {
+            "description": "How long the check took.",
+            "examples": [
+              180
+            ],
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Embedding provider (`EMBEDDING_PROVIDER`); `fake` is always up.",
+            "enum": [
+              "voyage",
+              "fake"
+            ],
+            "examples": [
+              "voyage"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "status": {
+            "description": "`up` if the check embedded its word within 5 s, without retries.",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "examples": [
+              "up"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "provider",
+          "checked_at",
+          "latency_ms",
+          "error",
+          "cached",
+          "last_success_at",
+          "last_error_at",
+          "last_error"
+        ],
+        "title": "EmbeddingHealth",
+        "type": "object"
+      },
       "EmbeddingSettings": {
         "description": "How chunks are embedded. No keys or URLs.",
         "properties": {
@@ -983,6 +1159,38 @@
           "embedder_changed"
         ],
         "title": "OutdatedCounts",
+        "type": "object"
+      },
+      "ServiceHealth": {
+        "description": "Whether the services the API depends on work.",
+        "properties": {
+          "database": {
+            "$ref": "#/components/schemas/DatabaseHealth",
+            "description": "The database."
+          },
+          "embeddings": {
+            "$ref": "#/components/schemas/EmbeddingHealth",
+            "description": "The embedding provider."
+          },
+          "status": {
+            "description": "`ok` when the database and the embedding provider are both up.",
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "examples": [
+              "ok"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "database",
+          "embeddings"
+        ],
+        "title": "ServiceHealth",
         "type": "object"
       },
       "TenantSummary": {
@@ -2596,6 +2804,103 @@
         ]
       }
     },
+    "/admin/health": {
+      "get": {
+        "description": "Whether the database and the embedding provider work, for a\nstatus display. Always `200` when the report could be made: a service that is down is\nreported in the body (`status: degraded`), not as an error. The public `/health` only\nsays the process is up and never fails because of these services.\n\n- **Database:** `select 1` through the connection pool, on every request, within 2 s.\n- **Embeddings:** one request embedding a single short word, within 5 s and without\n  retries. The result, a failure included, is kept for 60 s, so loading a page doesn't\n  call the provider each time; `refresh=true` checks again. Nothing is checked in the\n  background. Also reported: when the last real embedding call (by an upload or a\n  reprocess) succeeded and failed since the service started.\n\nNo keys, URLs or hosts are included.\n\n| Status | Meaning |\n|---|---|\n| `200` | The report, with each service `up` or `down`. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | `refresh` is not a boolean (FastAPI validation). |",
+        "operationId": "get_service_health",
+        "parameters": [
+          {
+            "description": "Check the embedding provider again instead of using the result of a check in the last 60 s.",
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Check the embedding provider again instead of using the result of a check in the last 60 s.",
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealth"
+                }
+              }
+            },
+            "description": "The status of each service."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "bool_parsing": {
+                    "summary": "Not a boolean",
+                    "value": {
+                      "detail": [
+                        {
+                          "input": "maybe",
+                          "loc": [
+                            "query",
+                            "refresh"
+                          ],
+                          "msg": "Input should be a valid boolean, unable to interpret input",
+                          "type": "bool_parsing"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`refresh` is not a boolean (`bool_parsing`)."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Check the database and the embedding provider",
+        "tags": [
+          "documents",
+          "health"
+        ]
+      }
+    },
     "/admin/settings": {
       "get": {
         "description": "The chunking, embedding and upload settings that new uploads and\nreprocesses use, and how many stored documents, across all tenants, are `indexed` with\nthem or `outdated` (by reason, as each document's `outdated_reason`). Read-only: the\nsettings come from the environment and change with a restart. No keys, URLs or database\nsettings are included.\n\nThe `chunker_config` and `embedder_config` strings are the ones each document is compared\nwith, so a client can show which part of a document's configs differs.\n\n| Status | Meaning |\n|---|---|\n| `200` | The settings and the counts. |\n| `401` | `X-API-Key` missing or wrong. |",
@@ -2796,7 +3101,7 @@
       "name": "settings"
     },
     {
-      "description": "Liveness of the service.",
+      "description": "Liveness of the service (public), and the status of the database and the embedding provider (behind the key).",
       "name": "health"
     }
   ]

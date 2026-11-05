@@ -68,6 +68,7 @@ DELETE = ("delete", "/admin/documents/{doc_id}")
 TENANTS = ("get", "/admin/tenants")
 SETTINGS = ("get", "/admin/settings")
 BULK_DELETE = ("post", "/admin/documents/delete")
+SERVICE_HEALTH = ("get", "/admin/health")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -80,6 +81,7 @@ OPERATIONS = [
     BULK_DELETE,
     TENANTS,
     SETTINGS,
+    SERVICE_HEALTH,
 ]
 
 
@@ -275,6 +277,17 @@ CASES = {
         422,
         lambda c: bulk_delete(c, {"doc_ids": ["pro-014.md"]}),
     ),
+    "service health 200": (SERVICE_HEALTH, 200, lambda c: get(c, "/admin/health")),
+    "service health 401 no key": (
+        SERVICE_HEALTH,
+        401,
+        lambda c: get(c, "/admin/health", headers={}),
+    ),
+    "service health 422 refresh": (
+        SERVICE_HEALTH,
+        422,
+        lambda c: get(c, "/admin/health", refresh="maybe"),
+    ),
     "tenants 200 empty": (TENANTS, 200, lambda c: get(c, "/admin/tenants")),
     "tenants 200 items": (
         TENANTS,
@@ -390,4 +403,4 @@ def test_reprocess_conflict_matches_its_documented_schema(
 
 def test_fake_embedder_is_used(client: TestClient) -> None:
     # Guards the fixture: no case above may reach a real provider.
-    assert isinstance(client.app_state["embedder"], FakeEmbedder)
+    assert isinstance(client.app_state["embedder"].inner, FakeEmbedder)

@@ -78,9 +78,10 @@ src/ayo_copilot/
                        CORS middleware, lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, errors
-  dependencies.py      get_settings / get_pool / get_embedder (from request.state)
-  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, tenants, settings (provisional X-API-Key auth, size limits)
+  dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor (request.state)
+  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, tenants, settings, health (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
+  health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS) < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
