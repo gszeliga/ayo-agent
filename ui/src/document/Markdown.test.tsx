@@ -19,6 +19,18 @@ test('headings and GFM tables render', () => {
   expect(table).toHaveTextContent('Selladora B4,0 bar4,6 bar')
 })
 
+test('inline code and fenced blocks become code elements', () => {
+  const { container } = renderProcedure()
+
+  const inline = screen.getByText('PRESION_MIN')
+  expect(inline.tagName).toBe('CODE')
+  expect(inline.closest('pre')).toBeNull()
+  const block = container.querySelector('pre > code.language-sh')
+  expect(block).toHaveTextContent('selladora --set PRESION_MIN=3.8')
+  // The backticks are Markdown syntax, never shown as text.
+  expect(container.textContent).not.toContain('`')
+})
+
 test('links open in a new tab without access to this page', () => {
   renderProcedure()
 

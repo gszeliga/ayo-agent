@@ -12,6 +12,12 @@ Verificar la presión de la junta antes de cada turno. Ver la [norma interna](ht
 | Selladora A | 3,8 bar | 4,4 bar |
 | Selladora B | 4,0 bar | 4,6 bar |
 
+Ajustar \`PRESION_MIN\` en el panel antes de arrancar:
+
+\`\`\`sh
+selladora --set PRESION_MIN=3.8
+\`\`\`
+
 ![Esquema de la junta](https://tracker.example/junta.png)
 
 <script>window.__pwned = true</script>

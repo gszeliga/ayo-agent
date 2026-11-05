@@ -242,6 +242,10 @@ the first unchecked item under "Progress log".
   in their tab with Retry. `CopyButton` says "Copy unavailable" without the clipboard API.
   Shared `describeError()` now in `api/errors.ts` (list and detail). Found while testing: an
   MSW `HttpResponse` reused across tests has its body consumed; tests build one per call.
+  Follow-up (2026-11-05, raised by the user): inline code looked unrendered, because the
+  typography plugin draws literal backticks around it, bold, with no background. `.markdown`
+  now drops the backticks and styles inline code as a mono chip (`secondary` background);
+  fenced blocks unchanged. The test procedure gained inline code and a fenced block.
 - [ ] U6. Upload/replace.
 - [ ] U7. Rename, reprocess, delete.
 - [ ] U8. Indexing settings page and service status.

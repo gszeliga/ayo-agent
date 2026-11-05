@@ -144,3 +144,24 @@
   --tw-prose-th-borders: var(--input);
   --tw-prose-td-borders: var(--border);
 }
+
+/*
+ * Inline code as a chip, like ids elsewhere. Typography's default (bold, no background,
+ * literal backticks drawn around it) reads as Markdown that failed to render.
+ */
+.markdown :where(code):not(:where(pre code))::before,
+.markdown :where(code):not(:where(pre code))::after {
+  content: none;
+}
+.markdown :where(code):not(:where(pre code)) {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 400;
+  background: var(--secondary);
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.35em;
+}
+.markdown :where(pre) {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
