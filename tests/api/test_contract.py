@@ -67,7 +67,20 @@ REPROCESS = ("post", "/admin/documents/{doc_id}/reprocess")
 DELETE = ("delete", "/admin/documents/{doc_id}")
 TENANTS = ("get", "/admin/tenants")
 SETTINGS = ("get", "/admin/settings")
-OPERATIONS = [UPLOAD, LIST, GET, CONTENT, CHUNKS, UPDATE, REPROCESS, DELETE, TENANTS, SETTINGS]
+BULK_DELETE = ("post", "/admin/documents/delete")
+OPERATIONS = [
+    UPLOAD,
+    LIST,
+    GET,
+    CONTENT,
+    CHUNKS,
+    UPDATE,
+    REPROCESS,
+    DELETE,
+    BULK_DELETE,
+    TENANTS,
+    SETTINGS,
+]
 
 
 def documented_schema(
@@ -140,6 +153,20 @@ def delete_uploaded(client: TestClient):
 
 
 UNKNOWN = "/admin/documents/upload-000000000000"
+
+
+def bulk_delete(client: TestClient, body: Any, headers: dict[str, str] | None = None):
+    return client.post(
+        "/admin/documents/delete",
+        json=body,
+        headers={"X-API-Key": API_KEY} if headers is None else headers,
+    )
+
+
+def bulk_delete_uploaded(client: TestClient):
+    doc_id = post(client, SMALL_DOC).json()["doc_id"]
+    return bulk_delete(client, {"doc_ids": [doc_id, "upload-000000000000"]})
+
 
 # name -> (operation, expected status, how to trigger it)
 CASES = {
@@ -232,6 +259,22 @@ CASES = {
     "delete 401 no key": (DELETE, 401, lambda c: delete(c, UNKNOWN, headers={})),
     "delete 404": (DELETE, 404, lambda c: delete(c, UNKNOWN)),
     "delete 422 malformed id": (DELETE, 422, lambda c: delete(c, "/admin/documents/pro-014.md")),
+    "bulk delete 200": (BULK_DELETE, 200, bulk_delete_uploaded),
+    "bulk delete 401 no key": (
+        BULK_DELETE,
+        401,
+        lambda c: bulk_delete(c, {"doc_ids": ["upload-000000000000"]}, headers={}),
+    ),
+    "bulk delete 422 duplicates": (
+        BULK_DELETE,
+        422,
+        lambda c: bulk_delete(c, {"doc_ids": ["upload-000000000000"] * 2}),
+    ),
+    "bulk delete 422 malformed id": (
+        BULK_DELETE,
+        422,
+        lambda c: bulk_delete(c, {"doc_ids": ["pro-014.md"]}),
+    ),
     "tenants 200 empty": (TENANTS, 200, lambda c: get(c, "/admin/tenants")),
     "tenants 200 items": (
         TENANTS,

@@ -7,10 +7,12 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.config import Settings
 from ayo_copilot.db.repository import (
     ChunkRecord,
+    DeletedRow,
     DocumentRecord,
     StatusCounts,
     TenantRow,
     delete_document,
+    delete_documents,
     document_status_counts,
     get_chunk_count,
     get_document,
@@ -365,6 +367,37 @@ def test_delete_document_takes_its_chunks_and_nothing_else(db_pool: ConnectionPo
     assert deleted == ("acme", 2)
     assert remaining == [(other.doc_id,)]
     assert chunk_texts(db_pool) == ["Ajeno."]
+
+
+def test_delete_documents_takes_the_listed_ones_and_their_chunks(
+    db_pool: ConnectionPool,
+) -> None:
+    a = make_document(source_key="a.md", chunk_count=2)
+    b = make_document("zeta", "b.md", chunk_count=1)
+    kept = make_document(source_key="kept.md", chunk_count=1)
+    store(db_pool, a, make_chunks("Paso uno.", "Paso dos."))
+    store(db_pool, b, make_chunks("Paso tres."))
+    store(db_pool, kept, make_chunks("Ajeno."))
+
+    with db_pool.connection() as conn:
+        deleted = delete_documents(conn, [b.doc_id, "upload-000000000000", a.doc_id])
+        remaining = conn.execute("select doc_id from documents").fetchall()
+
+    assert sorted(deleted, key=lambda row: row.doc_id) == sorted(
+        [DeletedRow(a.doc_id, "acme", 2), DeletedRow(b.doc_id, "zeta", 1)],
+        key=lambda row: row.doc_id,
+    )
+    assert remaining == [(kept.doc_id,)]
+    assert chunk_texts(db_pool) == ["Ajeno."]
+
+
+def test_delete_documents_with_only_unknown_ids_deletes_nothing(db_pool: ConnectionPool) -> None:
+    store(db_pool, make_document(), make_chunks("a"))
+
+    with db_pool.connection() as conn:
+        assert delete_documents(conn, ["upload-000000000000"]) == []
+
+    assert chunk_texts(db_pool) == ["a"]
 
 
 def test_delete_document_returns_none_for_an_unknown_doc_id(db_pool: ConnectionPool) -> None:

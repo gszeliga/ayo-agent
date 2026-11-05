@@ -5,7 +5,13 @@ from psycopg_pool import ConnectionPool
 
 from ayo_copilot.config import Settings
 from ayo_copilot.db import repository
-from ayo_copilot.db.repository import ChunkRow, DocumentRow, StatusCounts, TenantRow
+from ayo_copilot.db.repository import (
+    ChunkRow,
+    DeletedRow,
+    DocumentRow,
+    StatusCounts,
+    TenantRow,
+)
 from ayo_copilot.ingestion.service import current_configs
 
 
@@ -69,6 +75,15 @@ def delete_document(pool: ConnectionPool, doc_id: str) -> tuple[str, int] | None
     """The deleted document's tenant and chunk count; None if there was no such document."""
     with pool.connection() as conn, conn.transaction():
         return repository.delete_document(conn, doc_id)
+
+
+def delete_documents(pool: ConnectionPool, doc_ids: list[str]) -> list[DeletedRow]:
+    """Delete these documents in one transaction, all or none; ids with no document are
+    skipped. The deleted ones come back in the order of `doc_ids`."""
+    with pool.connection() as conn, conn.transaction():
+        rows = repository.delete_documents(conn, doc_ids)
+    position = {doc_id: i for i, doc_id in enumerate(doc_ids)}
+    return sorted(rows, key=lambda row: position[row.doc_id])
 
 
 def read_tenants(pool: ConnectionPool) -> list[TenantRow]:

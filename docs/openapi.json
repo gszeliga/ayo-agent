@@ -232,6 +232,42 @@
         "title": "ChunkingSettings",
         "type": "object"
       },
+      "DeletedDocument": {
+        "description": "A document that was deleted, with its chunks.",
+        "properties": {
+          "chunk_count": {
+            "description": "Chunks deleted with it.",
+            "examples": [
+              12
+            ],
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "doc_id": {
+            "description": "Id of the deleted document.",
+            "examples": [
+              "upload-1890b5dc5335"
+            ],
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "tenant": {
+            "description": "Tenant it belonged to.",
+            "examples": [
+              "acme"
+            ],
+            "title": "Tenant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "tenant",
+          "chunk_count"
+        ],
+        "title": "DeletedDocument",
+        "type": "object"
+      },
       "Document": {
         "description": "A stored document, the same in the listing and on its own. `status` compares it with\nthe current settings.",
         "properties": {
@@ -454,6 +490,76 @@
           "embedded_at"
         ],
         "title": "Document",
+        "type": "object"
+      },
+      "DocumentDeleteRequest": {
+        "additionalProperties": false,
+        "description": "The documents to delete at once.",
+        "properties": {
+          "doc_ids": {
+            "description": "Ids of the documents to delete: 1 to 100, no repeats.",
+            "examples": [
+              [
+                "upload-1890b5dc5335",
+                "upload-4be0c2a91d7f"
+              ]
+            ],
+            "items": {
+              "pattern": "^[a-z]+-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Doc Ids",
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "doc_ids"
+        ],
+        "title": "DocumentDeleteRequest",
+        "type": "object"
+      },
+      "DocumentDeleteResult": {
+        "description": "What a bulk delete did. Both lists keep the order of the request.",
+        "properties": {
+          "deleted": {
+            "description": "The documents deleted, with their chunks.",
+            "examples": [
+              [
+                {
+                  "chunk_count": 12,
+                  "doc_id": "upload-1890b5dc5335",
+                  "tenant": "acme"
+                }
+              ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DeletedDocument"
+            },
+            "title": "Deleted",
+            "type": "array"
+          },
+          "not_found": {
+            "description": "Requested ids with no document (never stored, or already deleted).",
+            "examples": [
+              [
+                "upload-4be0c2a91d7f"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Found",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deleted",
+          "not_found"
+        ],
+        "title": "DocumentDeleteResult",
         "type": "object"
       },
       "DocumentPage": {
@@ -1388,6 +1494,159 @@
           }
         ],
         "summary": "Upload a Markdown document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/admin/documents/delete": {
+      "post": {
+        "description": "Delete up to 100 documents and their chunks at\nonce, permanently, in one transaction: all of them or, on a failure, none. A `POST`, since\na body on `DELETE` may be dropped by proxies.\n\nAn id with no document (never stored, or already deleted) is listed in `not_found`; that\nis not an error, so repeating a request is safe. Uploads and reprocesses in progress behave\nas with the single delete.\n\n| Status | Meaning |\n|---|---|\n| `200` | Done: what was deleted and what was not found, in the request's order. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | Not 1 to 100 distinct, well-formed ids (FastAPI validation). |",
+        "operationId": "delete_documents",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentDeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "mixed": {
+                    "summary": "One deleted, one already gone",
+                    "value": {
+                      "deleted": [
+                        {
+                          "chunk_count": 12,
+                          "doc_id": "upload-1890b5dc5335",
+                          "tenant": "acme"
+                        }
+                      ],
+                      "not_found": [
+                        "upload-4be0c2a91d7f"
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDeleteResult"
+                }
+              }
+            },
+            "description": "The deleted documents and the ids that were not found."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "duplicate_doc_ids": {
+                    "summary": "Repeated id",
+                    "value": {
+                      "detail": [
+                        {
+                          "input": [
+                            "upload-1890b5dc5335",
+                            "upload-1890b5dc5335"
+                          ],
+                          "loc": [
+                            "body",
+                            "doc_ids"
+                          ],
+                          "msg": "doc_ids must not repeat an id",
+                          "type": "duplicate_doc_ids"
+                        }
+                      ]
+                    }
+                  },
+                  "string_pattern_mismatch": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z]+-[0-9a-f]{12}$"
+                          },
+                          "input": "pro-014.md",
+                          "loc": [
+                            "body",
+                            "doc_ids",
+                            1
+                          ],
+                          "msg": "String should match pattern '^[a-z]+-[0-9a-f]{12}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  },
+                  "too_short": {
+                    "summary": "No ids",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "actual_length": 0,
+                            "field_type": "List",
+                            "min_length": 1
+                          },
+                          "input": [],
+                          "loc": [
+                            "body",
+                            "doc_ids"
+                          ],
+                          "msg": "List should have at least 1 item after validation, not 0",
+                          "type": "too_short"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The body is not acceptable. `type` is a FastAPI validation code such as `too_short` (no ids), `too_long` (more than 100), `string_pattern_mismatch` (an id, `loc` ends with its index), `duplicate_doc_ids`, `missing`, `extra_forbidden` or `json_invalid`."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Delete several documents",
         "tags": [
           "documents"
         ]

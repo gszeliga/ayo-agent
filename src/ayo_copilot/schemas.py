@@ -3,12 +3,14 @@
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic_core import PydanticCustomError
 
 from ayo_copilot.config import Settings
-from ayo_copilot.db.repository import ChunkRow, DocumentRow, StatusCounts, TenantRow
+from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusCounts, TenantRow
 from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
+from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
 
 # The sort keys of `db.repository.SORT_KEYS`, each also with `-` for descending.
 DocumentSort = Literal[
@@ -312,6 +314,55 @@ class DocumentUpdate(BaseModel):
         description="New display title. Surrounding whitespace is removed; 1 to 200"
         " characters remain.",
         examples=["PRO-014 Control de sellado (rev. 3)"],
+    )
+
+
+MAX_BULK_DELETE = 100
+
+
+class DocumentDeleteRequest(BaseModel):
+    """The documents to delete at once."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    doc_ids: list[Annotated[str, StringConstraints(pattern=DOC_ID_PATTERN)]] = Field(
+        min_length=1,
+        max_length=MAX_BULK_DELETE,
+        json_schema_extra={"uniqueItems": True},
+        description=f"Ids of the documents to delete: 1 to {MAX_BULK_DELETE}, no repeats.",
+        examples=[["upload-1890b5dc5335", "upload-4be0c2a91d7f"]],
+    )
+
+    @field_validator("doc_ids")
+    @classmethod
+    def _no_repeats(cls, doc_ids: list[str]) -> list[str]:
+        if len(set(doc_ids)) != len(doc_ids):
+            raise PydanticCustomError("duplicate_doc_ids", "doc_ids must not repeat an id")
+        return doc_ids
+
+
+class DeletedDocument(BaseModel):
+    """A document that was deleted, with its chunks."""
+
+    doc_id: str = Field(description="Id of the deleted document.", examples=["upload-1890b5dc5335"])
+    tenant: str = Field(description="Tenant it belonged to.", examples=["acme"])
+    chunk_count: int = Field(description="Chunks deleted with it.", examples=[12])
+
+    @classmethod
+    def from_row(cls, row: DeletedRow) -> "DeletedDocument":
+        return cls(doc_id=row.doc_id, tenant=row.tenant, chunk_count=row.chunk_count)
+
+
+class DocumentDeleteResult(BaseModel):
+    """What a bulk delete did. Both lists keep the order of the request."""
+
+    deleted: list[DeletedDocument] = Field(
+        description="The documents deleted, with their chunks.",
+        examples=[[{"doc_id": "upload-1890b5dc5335", "tenant": "acme", "chunk_count": 12}]],
+    )
+    not_found: list[str] = Field(
+        description="Requested ids with no document (never stored, or already deleted).",
+        examples=[["upload-4be0c2a91d7f"]],
     )
 
 

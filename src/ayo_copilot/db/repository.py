@@ -94,6 +94,15 @@ class TenantRow:
 
 
 @dataclass(frozen=True)
+class DeletedRow:
+    """A document removed by a bulk delete."""
+
+    doc_id: str
+    tenant: str
+    chunk_count: int
+
+
+@dataclass(frozen=True)
 class StatusCounts:
     """How many stored documents the given configs would index the same way, and why the
     others are outdated (the buckets of `service.document_status`)."""
@@ -341,6 +350,19 @@ def delete_document(conn: Connection, doc_id: str) -> tuple[str, int] | None:
     return conn.execute(
         "delete from documents where doc_id = %s returning tenant, chunk_count", (doc_id,)
     ).fetchone()
+
+
+def delete_documents(conn: Connection, doc_ids: Sequence[str]) -> list[DeletedRow]:
+    """Delete the documents with these ids, in one statement; chunks go by cascade. Ids
+    with no document are skipped. The rows are locked in `doc_id` order first, so two
+    overlapping bulk deletes wait for each other instead of deadlocking."""
+    with conn.cursor(row_factory=class_row(DeletedRow)) as cur:
+        return cur.execute(
+            "delete from documents where id in ("
+            " select id from documents where doc_id = any(%s) order by doc_id for update"
+            ") returning doc_id, tenant, chunk_count",
+            (list(doc_ids),),
+        ).fetchall()
 
 
 def get_chunk_count(conn: Connection, doc_id: str) -> tuple[UUID, int] | None:

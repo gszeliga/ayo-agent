@@ -58,6 +58,7 @@ and example.
 | `PATCH /admin/documents/{doc_id}` | Rename it |
 | `POST /admin/documents/{doc_id}/reprocess` | Re-chunk and re-embed it with the current settings |
 | `DELETE /admin/documents/{doc_id}` | Delete it and its chunks |
+| `POST /admin/documents/delete` | Delete up to 100 documents at once |
 | `GET /admin/tenants` | Tenants with document and chunk counts |
 | `GET /admin/settings` | Current indexing settings and document counts by status |
 | `GET /health` | Liveness, no key |
@@ -173,6 +174,20 @@ Removes the document and its chunks for good (no undo, no audit table yet: the o
 is a log line with `doc_id`, tenant and chunk count). A second delete answers `404`.
 Uploading the same file name for the same tenant afterwards creates a new document with
 the same `doc_id`.
+
+## Deleting several documents
+
+```sh
+curl -H "$H" -H "Content-Type: application/json" \
+  -d '{"doc_ids": ["upload-1890b5dc5335", "upload-4be0c2a91d7f"]}' "$API/delete"
+# {"deleted": [{"doc_id": "upload-1890b5dc5335", "tenant": "acme", "chunk_count": 12}],
+#  "not_found": ["upload-4be0c2a91d7f"]}
+```
+
+1 to 100 distinct ids, deleted with their chunks in one transaction (all or none). Ids with
+no document come back in `not_found`, not as an error, so repeating the request is safe.
+A `POST` rather than `DELETE`, since proxies may drop a body on `DELETE`. Each deleted
+document gets the same log line as a single delete.
 
 ## Tenants
 

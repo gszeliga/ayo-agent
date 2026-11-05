@@ -118,7 +118,16 @@ the first unchecked item under "Progress log".
   (`repository.document_status_counts`) with `document_status`'s precedence, cross-checked
   against it in a test. `200`/`401` only. Not included (agreed): a tenant filter on the
   counts, the embedding timeout/retries. The UI keeps the env var names itself.
-- [ ] B2. Bulk delete endpoint.
+- [x] B2. Bulk delete (2026-11-05). `POST /admin/documents/delete`, operation
+  `delete_documents`; kept a `POST` after discussing `DELETE` with a body (allowed by HTTP
+  and OpenAPI 3.1, but proxies may drop it) and `DELETE` with query ids. Body
+  `{"doc_ids": [...]}`: 1-100 ids matching `DOC_ID_PATTERN`, unknown fields rejected,
+  repeats rejected with `422 duplicate_doc_ids` (agreed; schema says `uniqueItems`).
+  `200 {"deleted": [{doc_id, tenant, chunk_count}], "not_found": [...]}`, both in request
+  order. One statement locking the rows in `doc_id` order (`... where id in (select ...
+  order by doc_id for update)`) so overlapping bulk deletes can't deadlock (agreed
+  deviation from the plan's plain `any()` delete). One transaction; the single delete's
+  log line per deleted document.
 - [ ] B3. `GET /admin/health`.
 - [ ] U2. Scaffold `ui/`.
 - [ ] U3. API client and connection.
@@ -129,8 +138,8 @@ the first unchecked item under "Progress log".
 - [ ] U8. Polish and manual run.
 
 ## Next (resume here)
-**B2** (bulk delete): write its brief and wait for approval. Then B3, U2 in that order, each briefed and committed
-separately. The backend steps follow the CRUD conventions in `CLAUDE.md` (OpenAPI with
+**B3** (`GET /admin/health`): write its brief and wait for approval. Then U2, each briefed
+and committed separately. The backend steps follow the CRUD conventions in `CLAUDE.md` (OpenAPI with
 examples, contract cases, `docs/openapi.json` export, README).
 
 ## Open items

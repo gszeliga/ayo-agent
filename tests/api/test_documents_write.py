@@ -1,5 +1,5 @@
-"""PATCH and DELETE /admin/documents/{doc_id} and POST .../reprocess, through HTTP on a real
-database."""
+"""PATCH and DELETE /admin/documents/{doc_id}, POST .../reprocess and POST
+/admin/documents/delete, through HTTP on a real database."""
 
 import logging
 from collections.abc import Iterator
@@ -14,6 +14,7 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.app import create_app
 from ayo_copilot.dependencies import get_embedder
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
+from ayo_copilot.schemas import MAX_BULK_DELETE
 from tests.api.test_documents_read import doc, listing, make_client, make_settings, upload
 
 pytestmark = pytest.mark.integration
@@ -300,3 +301,110 @@ def test_delete_with_a_malformed_doc_id_is_a_422(client: TestClient) -> None:
     assert response.status_code == 422
     (item,) = response.json()["detail"]
     assert (item["type"], item["loc"]) == ("string_pattern_mismatch", ["path", "doc_id"])
+
+
+UNKNOWN_ID = "upload-000000000000"
+
+
+def bulk_delete(client: TestClient, body: Any):
+    return client.post("/admin/documents/delete", json=body)
+
+
+def test_bulk_delete_reports_deleted_and_not_found_in_request_order(client: TestClient) -> None:
+    a = upload(client, "a.md", doc("A"))
+    b = upload(client, "b.md", doc("B"), tenant="zeta")
+    kept = upload(client, "c.md", doc("C"))
+    chunks = {d: client.get(f"/admin/documents/{d}").json()["chunk_count"] for d in (a, b)}
+
+    response = bulk_delete(client, {"doc_ids": [b, UNKNOWN_ID, a]})
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "deleted": [
+            {"doc_id": b, "tenant": "zeta", "chunk_count": chunks[b]},
+            {"doc_id": a, "tenant": "acme", "chunk_count": chunks[a]},
+        ],
+        "not_found": [UNKNOWN_ID],
+    }
+    assert [item["doc_id"] for item in listing(client)["items"]] == [kept]
+    assert [t["tenant"] for t in client.get("/admin/tenants").json()] == ["acme"]
+    for doc_id in (a, b):
+        assert client.get(f"/admin/documents/{doc_id}/chunks").status_code == 404
+
+
+def test_bulk_delete_again_finds_nothing(client: TestClient) -> None:
+    a = upload(client, "a.md", doc("A"))
+    assert bulk_delete(client, {"doc_ids": [a]}).status_code == 200
+
+    response = bulk_delete(client, {"doc_ids": [a]})
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": [], "not_found": [a]}
+
+
+def test_bulk_delete_logs_each_document_but_no_content(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    a = upload(client, "pro-014.md", FIXTURE.read_text())
+    b = upload(client, "b.md", doc("Válvula de purga"))
+    chunks = {d: client.get(f"/admin/documents/{d}").json()["chunk_count"] for d in (a, b)}
+    caplog.set_level(logging.INFO, logger="ayo_copilot")
+
+    bulk_delete(client, {"doc_ids": [a, b, UNKNOWN_ID]})
+
+    lines = [r.getMessage() for r in caplog.records if "deleted" in r.getMessage()]
+    assert lines == [f"document deleted doc_id={d} tenant=acme chunks={chunks[d]}" for d in (a, b)]
+    assert "sellado" not in caplog.text.lower() and "purga" not in caplog.text.lower()
+
+
+# Stands for the id of a stored document, so each case also shows that nothing is deleted.
+KEPT = "<kept>"
+
+
+def with_kept(value: Any, doc_id: str) -> Any:
+    if isinstance(value, dict):
+        return {key: with_kept(item, doc_id) for key, item in value.items()}
+    if isinstance(value, list):
+        return [with_kept(item, doc_id) for item in value]
+    return doc_id if value == KEPT else value
+
+
+@pytest.mark.parametrize(
+    ("body", "error_type", "loc"),
+    [
+        ({"doc_ids": []}, "too_short", ["body", "doc_ids"]),
+        (
+            {"doc_ids": [KEPT, *(f"upload-{i:012x}" for i in range(MAX_BULK_DELETE))]},
+            "too_long",
+            ["body", "doc_ids"],
+        ),
+        ({"doc_ids": [KEPT, "pro-014.md"]}, "string_pattern_mismatch", ["body", "doc_ids", 1]),
+        ({"doc_ids": [KEPT, KEPT]}, "duplicate_doc_ids", ["body", "doc_ids"]),
+        ({}, "missing", ["body", "doc_ids"]),
+        ({"doc_ids": [KEPT], "tenant": "acme"}, "extra_forbidden", ["body", "tenant"]),
+        ({"doc_ids": KEPT}, "list_type", ["body", "doc_ids"]),
+    ],
+    ids=["empty", "too many", "malformed id", "duplicates", "missing", "extra field", "not a list"],
+)
+def test_invalid_bulk_delete_is_a_422_and_deletes_nothing(
+    client: TestClient, body: Any, error_type: str, loc: list[str | int]
+) -> None:
+    kept = upload(client, "a.md", doc("A"))
+
+    response = bulk_delete(client, with_kept(body, kept))
+
+    assert response.status_code == 422, response.text
+    (item,) = response.json()["detail"]
+    assert (item["type"], item["loc"]) == (error_type, loc)
+    assert client.get(f"/admin/documents/{kept}").status_code == 200
+
+
+def test_bulk_delete_with_invalid_json_is_a_422(client: TestClient) -> None:
+    response = client.post(
+        "/admin/documents/delete",
+        content=b"{not json",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "json_invalid"

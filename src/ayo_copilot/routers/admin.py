@@ -20,6 +20,7 @@ from ayo_copilot.db.repository import DEFAULT_SORT
 from ayo_copilot.dependencies import get_embedder, get_pool, get_settings
 from ayo_copilot.documents import (
     delete_document,
+    delete_documents,
     read_chunk_page,
     read_document,
     read_document_page,
@@ -41,9 +42,13 @@ from ayo_copilot.ingestion.storage import TENANT_PATTERN, InvalidInputError
 from ayo_copilot.schemas import (
     CHUNKER_CONFIG_EXAMPLE,
     EMBED_SIGNATURE_EXAMPLE,
+    MAX_BULK_DELETE,
     Chunk,
     ChunkPage,
+    DeletedDocument,
     Document,
+    DocumentDeleteRequest,
+    DocumentDeleteResult,
     DocumentPage,
     DocumentSort,
     DocumentUpdate,
@@ -874,6 +879,110 @@ def delete(
     # The only trace of the deletion (no audit table yet); no title or content.
     logger.info("document deleted doc_id=%s tenant=%s chunks=%d", doc_id, tenant, chunk_count)
     return Response(status_code=204)
+
+
+BULK_DELETE_DESCRIPTION = f"""Delete up to {MAX_BULK_DELETE} documents and their chunks at
+once, permanently, in one transaction: all of them or, on a failure, none. A `POST`, since
+a body on `DELETE` may be dropped by proxies.
+
+An id with no document (never stored, or already deleted) is listed in `not_found`; that
+is not an error, so repeating a request is safe. Uploads and reprocesses in progress behave
+as with the single delete.
+
+| Status | Meaning |
+|---|---|
+| `200` | Done: what was deleted and what was not found, in the request's order. |
+| `401` | `X-API-Key` missing or wrong. |
+| `422` | Not 1 to {MAX_BULK_DELETE} distinct, well-formed ids (FastAPI validation). |
+"""
+
+
+@router.post(
+    "/documents/delete",
+    operation_id="delete_documents",
+    summary="Delete several documents",
+    description=BULK_DELETE_DESCRIPTION,
+    responses={
+        200: {
+            "description": "The deleted documents and the ids that were not found.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "mixed": {
+                            "summary": "One deleted, one already gone",
+                            "value": {
+                                "deleted": [
+                                    {
+                                        "doc_id": "upload-1890b5dc5335",
+                                        "tenant": "acme",
+                                        "chunk_count": 12,
+                                    }
+                                ],
+                                "not_found": ["upload-4be0c2a91d7f"],
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        422: {
+            "model": ErrorResponse,
+            "description": "The body is not acceptable. `type` is a FastAPI validation code"
+            " such as `too_short` (no ids), `too_long` (more than"
+            f" {MAX_BULK_DELETE}), `string_pattern_mismatch` (an id, `loc` ends with its"
+            " index), `duplicate_doc_ids`, `missing`, `extra_forbidden` or `json_invalid`.",
+            "content": _examples(
+                string_pattern_mismatch=(
+                    "Malformed id",
+                    _error(
+                        "string_pattern_mismatch",
+                        ["body", "doc_ids", 1],
+                        f"String should match pattern '{DOC_ID_PATTERN}'",
+                        input="pro-014.md",
+                        ctx={"pattern": DOC_ID_PATTERN},
+                    ),
+                ),
+                duplicate_doc_ids=(
+                    "Repeated id",
+                    _error(
+                        "duplicate_doc_ids",
+                        ["body", "doc_ids"],
+                        "doc_ids must not repeat an id",
+                        input=["upload-1890b5dc5335", "upload-1890b5dc5335"],
+                    ),
+                ),
+                too_short=(
+                    "No ids",
+                    _error(
+                        "too_short",
+                        ["body", "doc_ids"],
+                        "List should have at least 1 item after validation, not 0",
+                        input=[],
+                        ctx={"field_type": "List", "min_length": 1, "actual_length": 0},
+                    ),
+                ),
+            ),
+        },
+    },
+)
+def bulk_delete(
+    request: DocumentDeleteRequest,
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+) -> DocumentDeleteResult:
+    rows = delete_documents(pool, request.doc_ids)
+    for row in rows:
+        # Same line as the single delete; no title or content.
+        logger.info(
+            "document deleted doc_id=%s tenant=%s chunks=%d",
+            row.doc_id,
+            row.tenant,
+            row.chunk_count,
+        )
+    deleted = {row.doc_id for row in rows}
+    return DocumentDeleteResult(
+        deleted=[DeletedDocument.from_row(row) for row in rows],
+        not_found=[doc_id for doc_id in request.doc_ids if doc_id not in deleted],
+    )
 
 
 TENANTS_DESCRIPTION = """Every tenant that has stored documents, in alphabetical order, with
