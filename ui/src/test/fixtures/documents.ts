@@ -24,7 +24,8 @@ export function makeDocument(overrides: Partial<Document> & { hoursAgo?: number 
     content_hash: 'a'.repeat(64),
     chunk_signature: 'b'.repeat(64),
     embed_signature: 'c'.repeat(64),
-    chunker_config: 'md-header+recursive@v3/size=800/overlap=80/min=100',
+    chunker_config:
+      'md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1',
     embedder_config: 'voyage-4/document/1024',
     created_at: updated,
     updated_at: updated,

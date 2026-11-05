@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { ROUTES } from '@/paths'
 
 import { dismissBanner, isBannerDismissed } from './banner'
+import { StatusIndicator } from './StatusIndicator'
 
 const NAV = [
   { to: ROUTES.documents, label: 'Documents' },
@@ -73,6 +74,7 @@ export function AppShell() {
               </NavLink>
             ))}
           </nav>
+          <StatusIndicator />
           <Button
             variant="outline"
             onClick={() => {

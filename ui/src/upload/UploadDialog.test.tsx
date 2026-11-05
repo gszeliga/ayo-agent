@@ -10,6 +10,7 @@ import { delay, http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
 import { DOCUMENTS, makeDocument, TENANTS } from '@/test/fixtures/documents'
+import { makeHealth } from '@/test/fixtures/services'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
@@ -356,6 +357,46 @@ test('while sending, Esc does not close; Cancel aborts and says what that means'
 
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(CANCELLED_NOTE)
+})
+
+test('a provider that is down is a warning, not a block', async () => {
+  const calls = serve()
+  server.use(
+    http.get(`${API}/admin/health`, () =>
+      HttpResponse.json(
+        makeHealth({
+          embeddings: { status: 'down', error: 'Embedding provider returned HTTP 503' },
+        }),
+      ),
+    ),
+  )
+  const { user } = renderApp('/documents', { connected: true })
+  await screen.findByRole('table', { name: 'Documents' })
+  // The header has asked for the status by the time the dialog opens.
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: /^Service status/ })).toHaveAccessibleName(
+      /embeddings down/,
+    )
+  })
+  await user.click(screen.getByRole('button', { name: 'Upload' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Upload a document' })
+
+  expect(within(dialog).getByRole('note')).toHaveTextContent(
+    'The embedding provider is down: uploads will fail until it is back (Embedding provider returned HTTP 503).',
+  )
+  await user.upload(within(dialog).getByLabelText('Markdown file'), markdownFile())
+  await user.type(within(dialog).getByLabelText('Tenant'), 'planta-norte')
+  await user.click(within(dialog).getByRole('button', { name: 'Upload' }))
+  await waitFor(() => {
+    expect(calls.uploads).toHaveLength(1)
+  })
+})
+
+test('no warning while the provider is up', async () => {
+  serve()
+  const { dialog } = await openUpload()
+
+  expect(within(dialog).queryByRole('note')).not.toBeInTheDocument()
 })
 
 describe('replace', () => {

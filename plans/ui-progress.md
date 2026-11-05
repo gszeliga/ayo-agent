@@ -284,14 +284,26 @@ the first unchecked item under "Progress log".
   Detail route lazy-loaded (main bundle 150 KB gz). Found: jsdom lacks pointer capture
   (sonner calls it on a toast button click; stubbed in the setup); `shadcn add` prompts to
   overwrite existing dependencies (answered no).
-- [ ] U8. Indexing settings page and service status.
+- [x] U8. Indexing settings page and service status (2026-11-05). `/settings`
+  (lazy-loaded): Documents (total, indexed, outdated by reason, a share bar with the numbers
+  written out, a reprocess hint; no link to a filtered list, there is no status filter),
+  Chunking / Embeddings / Uploads with each setting's env var and copyable configs, a fake
+  provider warning, Services. Header `StatusIndicator`: two dots + popover with details and
+  Check now (`refresh=true`); grey "status unknown" when `/admin/health` fails. One shared
+  query (`settings/healthQuery.ts`, stale after 60 s, refetch on focus, no polling; Check
+  now through `queryClient.query`, `fetchQuery` is deprecated). Facts panel "Now differs"
+  notes from `settings/configDiff.ts` (parses the descriptors; pinned against the API's
+  examples; generic fallback; none for null configs). Upload dialog warns when the cached
+  status says embeddings are down (no new check; upload still allowed). Tests: default MSW
+  handlers for `/admin/health` and `/admin/settings` (every page now asks for them), the
+  document fixtures' `chunker_config` in the real format; a fake-clock test that nothing
+  polls. Placeholder page removed. Main bundle 132 KB gz.
 - [ ] U9. Polish and manual run.
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-**U8** (Indexing settings page and service status: B1 counts and cards with "now differs"
-notes on the detail's configs, B3 header dots + popover + Services card + the upload
-dialog's "embeddings down" warning): write its brief and wait for approval.
+**U9** (polish: theme toggle, empty/error states review, manual end-to-end run against
+the local API with the fake embedder): write its brief and wait for approval.
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing

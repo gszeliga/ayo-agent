@@ -4,6 +4,7 @@ import { delay, http, HttpResponse } from 'msw'
 import type { components } from '@/api/schema'
 import { DOCUMENTS, makeDocument, TENANTS } from '@/test/fixtures/documents'
 import { PROCEDURE_MD } from '@/test/fixtures/markdown'
+import { makeSettings } from '@/test/fixtures/services'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
@@ -102,6 +103,7 @@ test('missing values read "not recorded"', async () => {
 
   await screen.findByRole('complementary', { name: 'Facts' })
   expect(within(facts()).getAllByText('not recorded')).toHaveLength(4)
+  expect(within(facts()).queryByText(/differs/i)).not.toBeInTheDocument()
 })
 
 test('hashes copy their full value', async () => {
@@ -309,5 +311,43 @@ test('chunks show raw by default and can be rendered, kept in the URL', async ()
   const rendered = await screen.findByRole('article', { name: 'Chunk 0' })
   await waitFor(() => {
     expect(rendered.querySelector('.markdown')).not.toBeNull()
+  })
+})
+
+describe('now differs', () => {
+  test('a config that differs from the current settings says what changed', async () => {
+    serve()
+    const current = makeSettings()
+    server.use(
+      http.get(`${API}/admin/settings`, () =>
+        HttpResponse.json({
+          ...current,
+          chunking: {
+            ...current.chunking,
+            chunk_size: 1000,
+            chunker_config: current.chunking.chunker_config.replace('size=800', 'size=1000'),
+          },
+          embedding: {
+            ...current.embedding,
+            model: 'voyage-5',
+            embedder_config: 'voyage-5/document/1024',
+          },
+        }),
+      ),
+    )
+    renderApp(`/documents/${DOC.doc_id}`, { connected: true })
+
+    const panel = await screen.findByRole('complementary', { name: 'Facts' })
+    expect(await within(panel).findByText('Now differs: size 800 → 1000')).toBeInTheDocument()
+    expect(within(panel).getByText('Now differs: model voyage-4 → voyage-5')).toBeInTheDocument()
+  })
+
+  test('nothing is noted when the configs match', async () => {
+    serve()
+    renderApp(`/documents/${DOC.doc_id}`, { connected: true })
+
+    const panel = await screen.findByRole('complementary', { name: 'Facts' })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(within(panel).queryByText(/differs/i)).not.toBeInTheDocument()
   })
 })

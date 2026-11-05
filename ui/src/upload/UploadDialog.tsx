@@ -20,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { useTenants } from '@/documents/queries'
 import { relativeTime } from '@/lib/format'
+import { useCachedServiceHealth } from '@/settings/healthQuery'
 import { useIndexingSettings } from '@/settings/queries'
 
 import { Field } from './Field'
@@ -72,6 +73,7 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
   const problemsOf = useUploadProblems()
   const maxBytes = useIndexingSettings().data?.uploads.max_upload_bytes
   const tenants = useTenants().data
+  const embeddings = useCachedServiceHealth()?.embeddings
 
   const [file, setFile] = useState<File | null>(null)
   const [tenant, setTenant] = useState(
@@ -160,6 +162,16 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
         </DialogDescription>
       </DialogHeader>
       <form noValidate className="space-y-4" onSubmit={submit}>
+        {embeddings?.status === 'down' && (
+          // A warning, not a block: the provider may be back by now.
+          <Alert role="note" className="bg-warning-muted text-warning border-transparent">
+            <AlertTriangle aria-hidden="true" />
+            <AlertDescription className="text-warning">
+              The embedding provider is down: uploads will fail until it is back
+              {embeddings.error ? ` (${embeddings.error})` : ''}.
+            </AlertDescription>
+          </Alert>
+        )}
         <FileDrop
           file={file}
           onFile={(next) => {

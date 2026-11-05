@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import type { components } from '@/api/schema'
 import { CopyButton } from '@/components/CopyButton'
 import { formatBytes, formatUtc, relativeTime } from '@/lib/format'
+import { chunkerDiff, differsNote, embedderDiff } from '@/settings/configDiff'
+import { useIndexingSettings } from '@/settings/queries'
 
 type Document = components['schemas']['Document']
 
@@ -38,12 +40,31 @@ function Hash({ value, label }: { value: string; label: string }) {
   )
 }
 
-function Config({ value }: { value: string | null }) {
+/**
+ * A stored config and, when the current one differs, what changed. A config never recorded
+ * gets no note: the status badge already says why the document is outdated.
+ */
+function Config({
+  value,
+  current,
+  compare,
+}: {
+  value: string | null
+  current: string | undefined
+  compare: (stored: string, current: string) => string[] | null
+}) {
   if (value === null) return NOT_RECORDED
-  return <code className="font-mono text-[12.5px] break-all">{value}</code>
+  const note = current === undefined ? null : differsNote(compare(value, current))
+  return (
+    <>
+      <code className="font-mono text-[12.5px] break-all">{value}</code>
+      {note && <p className="text-warning mt-1 text-[13px] font-medium">{note}</p>}
+    </>
+  )
 }
 
 export function FactsPanel({ document, now }: { document: Document; now: number }) {
+  const current = useIndexingSettings().data
   return (
     <aside aria-label="Facts" className="bg-card rounded-xl border p-5">
       <dl className="space-y-4">
@@ -71,10 +92,18 @@ export function FactsPanel({ document, now }: { document: Document; now: number 
           <Hash value={document.embed_signature} label="embed signature" />
         </Fact>
         <Fact label="Chunker config">
-          <Config value={document.chunker_config} />
+          <Config
+            value={document.chunker_config}
+            current={current?.chunking.chunker_config}
+            compare={chunkerDiff}
+          />
         </Fact>
         <Fact label="Embedder config">
-          <Config value={document.embedder_config} />
+          <Config
+            value={document.embedder_config}
+            current={current?.embedding.embedder_config}
+            compare={embedderDiff}
+          />
         </Fact>
       </dl>
     </aside>

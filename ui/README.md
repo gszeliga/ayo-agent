@@ -113,6 +113,24 @@ ids already gone are reported in the toast; if a later batch fails, the dialog s
 was deleted and keeps the rest selected. All writes go through `src/documents/mutations.ts`,
 which updates or invalidates the cached data they change.
 
+## Indexing settings and service status
+
+`/settings` (lazy-loaded): document counts (indexed, outdated by reason), the Chunking,
+Embeddings and Uploads settings with the environment variable behind each (the fake
+provider is flagged), copyable config strings, and a Services card. Read-only: the
+settings come from the API's environment.
+
+The header shows two dots, database and embeddings, from `GET /admin/health`, with the
+details and **Check now** (`refresh=true`) in a popover. One query (`settings/healthQuery.ts`)
+feeds the header, the Services card and the upload dialog's "provider is down" warning. It
+is asked on load and on Check now, never polled; a window regaining focus asks again once
+the answer is over a minute old (the API caches its provider check for 60 s).
+
+A document's facts note when its config differs from the current one ("Now differs:
+size 800 → 1000"): `settings/configDiff.ts` splits the backend's config strings into their
+parts; its test pins the format against `docs/openapi.json`, and an unreadable string falls
+back to "Differs from the current settings".
+
 ## Routes
 
 `/connect`, `/documents`, `/documents/:docId`, `/settings`; everything but `/connect` needs
@@ -170,7 +188,8 @@ the copied files keep that licence.
 
 Vitest with jsdom and Testing Library. [MSW](https://mswjs.io/) intercepts `fetch`: a request
 no handler answers fails the test (`onUnhandledFrame: 'error'`), so tests never reach a real
-API. Shared handlers go in `src/test/handlers.ts`; a test adds its own with `server.use()`.
+API. `src/test/handlers.ts` answers what every page asks for (`/admin/health`, `/admin/settings`:
+a healthy API, from `test/fixtures/services.ts`); a test adds or overrides with `server.use()`.
 
 **Tests that send a file run under happy-dom** (`// @vitest-environment happy-dom` at the top
 of `src/upload/UploadDialog.test.tsx`), the rest under jsdom. In Vitest's jsdom environment
@@ -208,15 +227,17 @@ src/
                       ChunksTab + ChunkCard, ViewToggle, NotFound, TabError, errors
   upload/             UploadDialog (+ LazyUploadDialog), FileDrop, Field, useUpload (mutation,
                       error placement), useExistingDocument (overwrite warning), validation
-  settings/queries.ts useIndexingSettings (GET /admin/settings)
+  settings/           SettingsPage, queries (useIndexingSettings), healthQuery (one shared
+                      query, Check now), ServiceDetails, configDiff ("now differs")
+  layout/StatusIndicator.tsx  the header's status dots and popover
   hooks/              useDebouncedValue
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping
-  pages/              ConnectPage, NotFoundPage, Placeholder (until U8)
+  pages/              ConnectPage, NotFoundPage
   components/ui/      shadcn/ui: button, input, label, card, alert, table, badge (+ success,
                       warning variants), tooltip, skeleton, tabs, dialog, sonner (toasts;
                       without next-themes), checkbox, collapsible, dropdown-menu,
-                      alert-dialog
+                      alert-dialog, popover
   lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes)
   test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
                       render.tsx (renderApp(path, {connected}): router, query client,

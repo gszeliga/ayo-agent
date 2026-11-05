@@ -7,13 +7,16 @@ import { DocumentsPage } from '@/documents/DocumentsPage'
 import { AppShell } from '@/layout/AppShell'
 import { ConnectPage } from '@/pages/ConnectPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { Placeholder } from '@/pages/Placeholder'
 import { ROUTES } from '@/paths'
 
 // The detail page (Markdown, tabs, the write actions and their dialogs) loads when a
 // document is first opened, keeping the main bundle to the shell and the list.
 const DocumentPage = lazy(() =>
   import('@/document/DocumentPage').then((module) => ({ default: module.DocumentPage })),
+)
+// Likewise the settings page: visited rarely.
+const SettingsPage = lazy(() =>
+  import('@/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
 
 export function AppRoutes() {
@@ -34,7 +37,11 @@ export function AppRoutes() {
           />
           <Route
             path={ROUTES.settings}
-            element={<Placeholder title="Indexing settings" step="U8" />}
+            element={
+              <Suspense fallback={<Skeleton aria-label="Loading settings" className="h-40" />}>
+                <SettingsPage />
+              </Suspense>
+            }
           />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
