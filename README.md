@@ -247,6 +247,13 @@ it. The setting is read when the app is built, so changing it needs a restart.
 The API key is sent by the browser, so anyone using the UI can see it: fine for internal
 or development use, not for a public UI (real authentication will replace the key).
 
+## Admin UI
+
+The browser UI lives in `ui/` (React + Vite + TypeScript, built step by step); see
+[`ui/README.md`](ui/README.md). In short: `cd ui && pnpm install && pnpm dev`, with the API
+started with `CORS_ALLOWED_ORIGINS=http://localhost:5173`. Its API types are generated
+from `docs/openapi.json`, so an API change also runs `pnpm gen:api` there.
+
 ## Tests
 
 ```sh

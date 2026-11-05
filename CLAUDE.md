@@ -58,6 +58,10 @@ scripts/dev_db.sh up|down                 # local dev DB: pgvector/pgvector:0.8.
 uv run alembic upgrade head               # migrations (uses MIGRATIONS_DATABASE_URL, else DATABASE_URL)
 uv run ayo-copilot                        # run the API on 127.0.0.1:8000
 uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
+# UI (in ui/, pnpm; details in ui/README.md)
+pnpm install && pnpm dev                  # http://localhost:5173 (API needs CORS_ALLOWED_ORIGINS=http://localhost:5173)
+pnpm check                                # gen:api:check + lint + format:check + typecheck + test
+pnpm gen:api                              # regenerate ui/src/api/schema.d.ts from docs/openapi.json
 ```
 
 Integration tests start a Postgres container (Docker daemon required; no Compose here)
@@ -96,6 +100,8 @@ migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW co
 scripts/               dev_db.sh, export_openapi.py
 docs/                  openapi.json (generated, committed), decisions/
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
+ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; layout in ui/README.md
+  src/api/schema.d.ts  generated from docs/openapi.json (never edit)
 ```
 
 ## Conventions
@@ -121,11 +127,17 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
   nullable fields gets examples per field only, and Swagger builds the sample from them.
   Every example must validate against its schema (tested, strictly). After any API change, re-export
   `docs/openapi.json` and commit it in the same commit (a snapshot test fails otherwise);
-  every documented status must be triggered for real in `tests/api/test_contract.py`. Tests build the app with
+  every documented status must be triggered for real in `tests/api/test_contract.py`.
+  Then run `pnpm gen:api` in `ui/` and commit `ui/src/api/schema.d.ts` too
+  (`pnpm gen:api:check` fails otherwise). Tests build the app with
   `create_app(docs_enabled=True)` so they never read `.env` (CORS is then off).
 - `{doc_id}` path parameters use `DOC_ID_PATTERN` (malformed -> 422, unknown -> 404
   `document_not_found`). Every `/admin` route needs the key: `tests/api/test_admin_auth.py`
   enumerates them from the OpenAPI document, so never hide an `/admin` route from it.
+- UI (`ui/`): TypeScript strict, ESLint type-aware + Prettier (width 100, no semicolons,
+  single quotes); `pnpm check` must pass. TypeScript stays on 5.x until typescript-eslint
+  and openapi-typescript support 7. Theme colours only through the tokens in
+  `src/index.css`. Tests use MSW; unhandled requests fail. English UI copy.
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)
   use the `db_pool` fixture (tables truncated before each test) or `scratch_database_url`
   (a throwaway database) for migration-level tests.

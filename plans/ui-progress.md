@@ -138,7 +138,17 @@ the first unchecked item under "Progress log".
   of real calls from `health.TrackedEmbedder`, which the lifespan wraps around the
   embedder (in memory). Nullable fields: examples per field only. Agreed: no minimum gap
   between refreshes.
-- [ ] U2. Scaffold `ui/`.
+- [x] U2. Scaffold `ui/` (2026-11-05). pnpm 11 (pinned via `packageManager`), Node 24+;
+  Vite 8 + React 19 + TypeScript 5.9 strict (TS 7 is out, but typescript-eslint supports
+  `<6.1` and openapi-typescript wants 5.x); ESLint 10 flat config, `strictTypeChecked`;
+  Prettier; Vitest 5 + jsdom + Testing Library + MSW 3 (`onUnhandledFrame: 'error'`, the
+  v3 name). Styling decided: **Tailwind v4 + shadcn/ui** (MIT; components copied in as
+  needed, none yet; `components.json`, `cn()`), fonts self-hosted via Fontsource. Prototype
+  tokens copied into `src/index.css` under shadcn's names (+ `success`, `warning`,
+  `danger-muted`, `link`); `dark` class set from the system preference in `index.html`
+  (toggle in U8). `openapi-typescript` -> committed `src/api/schema.d.ts`,
+  `pnpm gen:api:check` in `pnpm check`; `openapi-fetch` installed for U3. Agreed: `ui/`
+  has its own README (root README points to it). No routing or data fetching yet (U3/U4).
 - [ ] U3. API client and connection.
 - [ ] U4. Documents list.
 - [ ] U5. Detail.
@@ -147,9 +157,9 @@ the first unchecked item under "Progress log".
 - [ ] U8. Polish and manual run.
 
 ## Next (resume here)
-**U2** (scaffold `ui/`): write its brief (tooling choices, styling decision from the
-prototype, type generation and its staleness check) and wait for approval. The backend
-steps B1-B3 are done; the UI builds against `docs/openapi.json`.
+**U3** (API client and connection screen): write its brief and wait for approval. It
+brings routing, the `openapi-fetch` wrapper (base URL, key, the error type) and the first
+shadcn/ui components.
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing
