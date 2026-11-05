@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 
 import { RequireConnection } from '@/connection/RequireConnection'
+import { DocumentsPage } from '@/documents/DocumentsPage'
 import { AppShell } from '@/layout/AppShell'
 import { ConnectPage } from '@/pages/ConnectPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -14,7 +15,7 @@ export function AppRoutes() {
       <Route element={<RequireConnection />}>
         <Route element={<AppShell />}>
           <Route index element={<Navigate to={ROUTES.documents} replace />} />
-          <Route path={ROUTES.documents} element={<Placeholder title="Documents" step="U4" />} />
+          <Route path={ROUTES.documents} element={<DocumentsPage />} />
           <Route path={ROUTES.document} element={<Placeholder title="Document" step="U5" />} />
           <Route
             path={ROUTES.settings}

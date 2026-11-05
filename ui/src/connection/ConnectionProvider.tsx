@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
 import { createApiClient } from '@/api/client'
@@ -10,18 +11,28 @@ export const KEY_REJECTED = 'Your key was rejected. Connect again with a valid k
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<Connection | null>(() => loadConnection())
   const [notice, setNotice] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const connect = useCallback((next: Connection) => {
-    saveConnection(next)
-    setNotice(null)
-    setConnection(next)
-  }, [])
+  // Cached data belongs to one API and key: dropped whenever the connection changes.
+  const connect = useCallback(
+    (next: Connection) => {
+      queryClient.clear()
+      saveConnection(next)
+      setNotice(null)
+      setConnection(next)
+    },
+    [queryClient],
+  )
 
-  const disconnect = useCallback((reason?: string) => {
-    clearConnection()
-    setNotice(reason ?? null)
-    setConnection(null)
-  }, [])
+  const disconnect = useCallback(
+    (reason?: string) => {
+      queryClient.clear()
+      clearConnection()
+      setNotice(reason ?? null)
+      setConnection(null)
+    },
+    [queryClient],
+  )
 
   const client = useMemo(
     () =>

@@ -45,6 +45,22 @@ page's own origin, which is right when a proxy serves the UI and the API togethe
 `http://127.0.0.1:8000` for `pnpm dev`. For a build against an API on another host:
 `VITE_API_BASE_URL=https://api.example.com pnpm build`.
 
+## Documents list
+
+`/documents?tenant=…&q=…&sort=…&page=…`: the URL holds the whole view, so it can be
+reloaded, shared and stepped through with Back. Defaults are left out (`sort=-updated_at`,
+`page=1`) and invalid values fall back to them, the URL corrected in place, so a
+hand-edited URL never reaches the API as a `422` (`src/documents/listParams.ts`; its test
+checks the limits against `docs/openapi.json`). Tenant, sort and page changes add history
+entries; the search updates the URL 300 ms after typing pauses, without one. Changing a
+filter or the sort goes back to page 1; a page past the end moves to the last one. Page
+size is fixed at 25.
+
+Data comes through TanStack Query (`src/documents/queries.ts`, client in
+`src/api/queryClient.ts`): fresh for 30 s, refetched when the window regains focus, only
+network failures retried (once), and the cache cleared whenever the connection changes.
+While a page or filter loads, the current rows stay, dimmed.
+
 ## Routes
 
 `/connect`, `/documents`, `/documents/:docId`, `/settings`; everything but `/connect` needs
@@ -91,7 +107,9 @@ self-hosted (Inter, JetBrains Mono for ids, hashes and configs) via Fontsource.
 shadcn/ui components are added as needed with `pnpm dlx shadcn@latest add <component>`
 (config in `components.json`; it resolves `@/` through the root `tsconfig.json`, and wrote
 into a literal `@/` folder before that was set); they are copied into `src/components/ui/`
-and are ours to edit. If one imports `cn` from the `cn` package, point it at `@/lib/utils`. shadcn/ui is MIT-licensed (<https://github.com/shadcn-ui/ui>, copyright shadcn);
+and are ours to edit. The registry's components import `cn` from shadcn's `cn` package
+whatever the config says, and `add` installs it: after adding, point the import at
+`@/lib/utils` and `pnpm remove cn`. shadcn/ui is MIT-licensed (<https://github.com/shadcn-ui/ui>, copyright shadcn);
 the copied files keep that licence.
 
 ## Tests
@@ -116,9 +134,14 @@ src/
                       client.ts (createApiClient, unwrap), errors.ts (ApiError)
   connection/         storage, base URL rules, provider + useConnection/useApiClient, guard
   layout/AppShell.tsx header, nav, Disconnect, internal-use banner
-  pages/              ConnectPage, NotFoundPage, Placeholder (until U4+)
-  components/ui/      shadcn/ui components (button, input, label, card, alert)
-  lib/utils.ts        cn() for class names
+  documents/          the list: DocumentsPage, listParams (URL <-> state), queries,
+                      TenantFilter (sidebar + narrow select), DocumentsTable, StatusBadge,
+                      status (reasons in words), Pagination
+  pages/              ConnectPage, NotFoundPage, Placeholder (until U5+)
+  components/ui/      shadcn/ui: button, input, label, card, alert, table, badge (+ success,
+                      warning variants), tooltip, skeleton
+  lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes)
   test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
-                      render.tsx (renderApp(path, {connected}))
+                      render.tsx (renderApp(path, {connected}): router, query client,
+                      location probe and Back), fixtures/ (Spanish documents)
 ```

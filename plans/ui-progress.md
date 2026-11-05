@@ -210,7 +210,23 @@ the first unchecked item under "Progress log".
   CORS refusal from an unreachable API with one `no-cors` request to `/health` after a
   network failure (`connection/reachability.ts`): "answers, but refuses requests from this
   page; add <origin> to CORS_ALLOWED_ORIGINS" vs "can't reach".
-- [ ] U4. Documents list.
+- [x] U4. Documents list (2026-11-05). TanStack Query 5 (`api/queryClient.ts`: stale 30 s,
+  refetch on focus, retry network failures once, none for statuses; cache cleared on
+  connect/disconnect). URL is the state (`documents/listParams.ts`): defaults omitted,
+  invalid values fall back and the URL is corrected in place, limits checked against
+  `docs/openapi.json`; tenant/sort/page push history, search replaces after 300 ms; filter
+  or sort changes reset to page 1; past-the-end pages move to the last. Tenant sidebar
+  (links, `aria-current`, a selected empty tenant listed with 0) and a select below `lg`.
+  Native sort select with the prototype's eight options, Clear filters. Table: title link +
+  mono `source_key`, tenant chip, status badge (outdated reason in a tooltip and sr-only
+  text), chunks, size (`—` when not recorded), relative updated time (exact UTC in
+  `title`, "now" = fetch time so renders stay pure). States: skeleton, dimmed rows while
+  paging, no documents, no match + Clear filters, error + Retry. shadcn/ui: table, badge
+  (+ success/warning variants), tooltip, skeleton. Small deviations: relative times
+  hand-formatted ("3 h ago", as in the prototype) rather than `Intl.RelativeTimeFormat`;
+  the exact time is a native `title` tooltip. Found: shadcn's registry imports `cn` from its
+  `cn` package regardless of config (U3's note blamed the alias); imports rewritten again,
+  README says how. Lint: `!` allowed in tests only.
 - [ ] U5. Detail.
 - [ ] U6. Upload/replace.
 - [ ] U7. Rename, reprocess, delete.
@@ -219,9 +235,7 @@ the first unchecked item under "Progress log".
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-**U4** (documents list): write its brief (TanStack Query, filters in the URL, tenant
-sidebar, sort, pagination, states) and wait for approval. Multi-select and bulk delete
-are U7.
+**U5** (document detail: facts, content, chunks): write its brief and wait for approval.
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing
