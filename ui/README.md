@@ -81,6 +81,21 @@ links open in a new tab with `rel="noopener noreferrer"`, and **images are not l
 these rules when touching it; `Markdown.test.tsx` checks each. The renderer is loaded on
 demand (`React.lazy`), so the Markdown libraries stay out of the main bundle.
 
+## Upload and replace
+
+One dialog (`src/upload/`), loaded on first open: **Upload** on the list (tenant prefilled
+from the list's filter) and **Replace** on a document (tenant and `source_key` locked, the
+current title prefilled so a rename survives). It sends `POST /admin/documents` as
+multipart. Before sending it refuses a file that is not `.md`, is empty, or exceeds
+`max_upload_bytes` from `/admin/settings` (skipped when that call fails; the API's `413`
+still applies), and checks the tenant as typed. In Upload mode it **warns when the tenant
+and `source_key` match a stored document** (one debounced list query, exact `source_key`
+only), because the API replaces it silently. `201` and `200 up_to_date` end in a toast and
+a refresh of the list, tenants and document; Upload then opens the new document. Errors
+keep the dialog and its input: `422` next to its field, `413` on the file, `502` as "nothing
+was stored". While sending, Esc and clicks outside do nothing; Cancel aborts and says the
+API may still finish indexing.
+
 ## Routes
 
 `/connect`, `/documents`, `/documents/:docId`, `/settings`; everything but `/connect` needs
@@ -138,6 +153,14 @@ Vitest with jsdom and Testing Library. [MSW](https://mswjs.io/) intercepts `fetc
 no handler answers fails the test (`onUnhandledFrame: 'error'`), so tests never reach a real
 API. Shared handlers go in `src/test/handlers.ts`; a test adds its own with `server.use()`.
 
+**Tests that send a file run under happy-dom** (`// @vitest-environment happy-dom` at the top
+of `src/upload/UploadDialog.test.tsx`), the rest under jsdom. In Vitest's jsdom environment
+`fetch` cannot send a multipart body with a file: its typed arrays come from another realm,
+so Node miscounts the body (`RequestContentLengthMismatchError`). happy-dom runs in Node's
+own realm; the page is given the mocked API's origin (as behind the production proxy) so it
+sends no CORS preflights. Browsers are not affected. An MSW response is single use: build
+one per request (`() => HttpResponse.json(...)`), never share an instance.
+
 ## Layout
 
 ```
@@ -160,10 +183,15 @@ src/
   document/           the detail: DocumentPage, params (URL <-> state, back link), queries,
                       FactsPanel, ContentTab + Markdown (safe rendering) + LazyMarkdown,
                       ChunksTab + ChunkCard, ViewToggle, NotFound, TabError, errors
+  upload/             UploadDialog (+ LazyUploadDialog), FileDrop, Field, useUpload (mutation,
+                      error placement), useExistingDocument (overwrite warning), validation
+  settings/queries.ts useIndexingSettings (GET /admin/settings)
+  hooks/              useDebouncedValue
   components/CopyButton.tsx  copy with feedback, "Copy unavailable" outside secure contexts
   pages/              ConnectPage, NotFoundPage, Placeholder (until U8)
   components/ui/      shadcn/ui: button, input, label, card, alert, table, badge (+ success,
-                      warning variants), tooltip, skeleton, tabs
+                      warning variants), tooltip, skeleton, tabs, dialog, sonner (toasts;
+                      without next-themes), checkbox, collapsible
   lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes)
   test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
                       render.tsx (renderApp(path, {connected}): router, query client,

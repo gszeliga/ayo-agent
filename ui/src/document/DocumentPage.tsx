@@ -1,11 +1,13 @@
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router'
 
 import { CopyButton } from '@/components/CopyButton'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusBadge } from '@/documents/StatusBadge'
+import { LazyUploadDialog } from '@/upload/LazyUploadDialog'
 
 import { ChunksTab } from './ChunksTab'
 import { ContentTab } from './ContentTab'
@@ -39,6 +41,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
   const document = useDocument(docId)
   // A tab that finds the document gone (deleted meanwhile) says so for the whole page.
   const [gone, setGone] = useState(false)
+  const [replacing, setReplacing] = useState(false)
   const doc = document.data
   const title = doc ? (doc.title ?? doc.source_key) : null
 
@@ -82,7 +85,18 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
       ) : (
         <>
           <header className="space-y-2">
-            <h1 className="text-xl font-semibold break-words">{title}</h1>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <h1 className="min-w-0 text-xl font-semibold break-words">{title}</h1>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReplacing(true)
+                }}
+              >
+                <FileUp aria-hidden="true" />
+                Replace
+              </Button>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge document={doc} />
               <span className="bg-secondary text-muted-foreground rounded-sm px-2 py-0.5 text-xs font-medium">
@@ -144,6 +158,11 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
               </TabsContent>
             </Tabs>
           </div>
+          <LazyUploadDialog
+            mode={{ kind: 'replace', document: doc }}
+            open={replacing}
+            onOpenChange={setReplacing}
+          />
         </>
       )}
     </div>

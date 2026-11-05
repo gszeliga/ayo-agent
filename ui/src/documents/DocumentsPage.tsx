@@ -1,4 +1,4 @@
-import { Loader2, Search } from 'lucide-react'
+import { Loader2, Search, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useConnection } from '@/connection/context'
+import { LazyUploadDialog } from '@/upload/LazyUploadDialog'
 
 import { DocumentsTable, DocumentsTableSkeleton } from './DocumentsTable'
 import {
@@ -33,6 +34,17 @@ export function DocumentsPage() {
   const canonical = toSearchParams(params).toString()
   const documents = useDocuments(params)
   const tenants = useTenants()
+  const [uploading, setUploading] = useState(false)
+  const uploadButton = (
+    <Button
+      onClick={() => {
+        setUploading(true)
+      }}
+    >
+      <Upload aria-hidden="true" />
+      Upload
+    </Button>
+  )
 
   /** Filters and sort start again at page 1; `replace` keeps history entries for real steps. */
   function update(changes: Partial<ListParams>, { replace = false } = {}) {
@@ -77,13 +89,16 @@ export function DocumentsPage() {
     <div className="flex gap-8">
       <TenantSidebar tenants={tenants.data} params={params} />
       <section className="min-w-0 flex-1 space-y-4">
-        <div className="flex items-baseline justify-between gap-4">
-          <h1 className="text-xl font-semibold">Documents</h1>
-          {data && (
-            <p className="text-muted-foreground tabular-nums">
-              {data.total === 1 ? '1 document' : `${String(data.total)} documents`}
-            </p>
-          )}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-xl font-semibold">Documents</h1>
+            {data && (
+              <p className="text-muted-foreground tabular-nums">
+                {data.total === 1 ? '1 document' : `${String(data.total)} documents`}
+              </p>
+            )}
+          </div>
+          {uploadButton}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <TenantSelect tenants={tenants.data} params={params} />
@@ -178,9 +193,10 @@ export function DocumentsPage() {
             ) : (
               <>
                 <h2 className="font-semibold">No documents yet</h2>
-                <p className="text-muted-foreground mt-1">
-                  Uploaded Markdown documents will be listed here.
+                <p className="text-muted-foreground mt-1 mb-4">
+                  Upload a Markdown document to make it available to the copilot.
                 </p>
+                {uploadButton}
               </>
             )}
           </div>
@@ -204,6 +220,11 @@ export function DocumentsPage() {
           </>
         )}
       </section>
+      <LazyUploadDialog
+        mode={{ kind: 'upload', defaultTenant: params.tenant }}
+        open={uploading}
+        onOpenChange={setUploading}
+      />
     </div>
   )
 }

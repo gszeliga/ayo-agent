@@ -4,6 +4,19 @@ import { cleanup } from '@testing-library/react'
 
 import { server } from './server'
 
+// jsdom has no matchMedia; the toaster's system theme asks for it. Tests run light.
+if (typeof window.matchMedia !== 'function') {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList
+}
+
 // A request no handler answers fails the test: no test can reach a real API.
 beforeAll(() => {
   server.listen({ onUnhandledFrame: 'error' })

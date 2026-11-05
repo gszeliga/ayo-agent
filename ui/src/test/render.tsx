@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 
 import { createQueryClient } from '@/api/queryClient'
+import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionProvider } from '@/connection/ConnectionProvider'
 import { saveConnection, type Connection } from '@/connection/storage'
@@ -48,6 +49,7 @@ export function renderApp(
             {routes ?? <AppRoutes />}
             <LocationProbe />
           </ConnectionProvider>
+          <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
     </MemoryRouter>,

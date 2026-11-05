@@ -251,15 +251,30 @@ the first unchecked item under "Progress log".
   (separate from the content's `view`). Each chunk renders on its own through the same
   lazy safe renderer (`LazyMarkdown`), so a cut code block stays in its card. `ViewToggle`
   shared by both tabs.
-- [ ] U6. Upload/replace.
+- [x] U6. Upload/replace (2026-11-05). One dialog, two modes: Upload (list header and empty
+  state; tenant prefilled from the filter, pick-or-type with a `<datalist>` of tenants,
+  checked as typed) and Replace (detail header; tenant + `source_key` locked, title
+  prefilled). Drop zone or picker; client checks `.md` / empty / `max_upload_bytes` from
+  `/admin/settings` (new `useIndexingSettings`, reused in U8), skipped if unavailable.
+  Advanced: `source_key`, Force reindex. Multipart through openapi-fetch's
+  `bodySerializer`. Agreed addition: **overwrite warning** in Upload mode (debounced list
+  query, exact `source_key` match). Toasts (shadcn `sonner`, `next-themes` dropped):
+  "Indexed/Replaced ‹title›: N chunks" or "Already up to date". Errors stay in the dialog:
+  `422` per field (Advanced opens for a `source_key` error), `413` on the file, `502`
+  "nothing was stored". Busy: Esc/outside click blocked; Cancel aborts with a note.
+  Invalidates documents, tenants, settings and the document. Dialog lazy-loaded (main
+  bundle 151 KB gz). Deferred to U8 as agreed: the "embeddings down" warning. Found:
+  Vitest's jsdom environment cannot fetch a multipart body with a file (cross-realm typed
+  arrays -> `RequestContentLengthMismatchError`; plain Node + MSW is fine); upload tests run
+  under happy-dom (dev dependency) with the page on the mocked API's origin. jsdom also
+  lacks `matchMedia` (stubbed in the test setup for the toaster).
 - [ ] U7. Rename, reprocess, delete.
 - [ ] U8. Indexing settings page and service status.
 - [ ] U9. Polish and manual run.
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-**U6** (upload/replace dialog): write its brief and wait for approval. It adds the list's
-Upload button and the detail's Replace action (the first write calls from the UI).
+**U7** (rename, reprocess, delete, bulk delete): write its brief and wait for approval.
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing

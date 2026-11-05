@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { BrowserRouter } from 'react-router'
 
 import { createQueryClient } from '@/api/queryClient'
+import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionProvider } from '@/connection/ConnectionProvider'
 import { AppRoutes } from '@/routes'
@@ -16,6 +17,7 @@ export function App() {
           <ConnectionProvider>
             <AppRoutes />
           </ConnectionProvider>
+          <Toaster position="bottom-right" />
         </TooltipProvider>
       </QueryClientProvider>
     </BrowserRouter>
