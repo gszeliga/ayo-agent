@@ -227,7 +227,21 @@ the first unchecked item under "Progress log".
   the exact time is a native `title` tooltip. Found: shadcn's registry imports `cn` from its
   `cn` package regardless of config (U3's note blamed the alias); imports rewritten again,
   README says how. Lint: `!` allowed in tests only.
-- [ ] U5. Detail.
+- [x] U5. Detail (2026-11-05). `/documents/:docId`: back link to the list as left (location
+  state from the list), title (falls back to `source_key`) + status + tenant + copyable
+  `doc_id`, browser tab title; facts panel (prototype's order; hashes shortened to 12 with
+  copy; nulls "not recorded"); Radix tabs Content / Chunks in the URL (`tab`, `view`,
+  `cpage`), each fetched only when opened. Content: `react-markdown` + `remark-gfm` +
+  `@tailwindcss/typography` (prose mapped to our tokens), no raw HTML, `javascript:` links
+  dropped, links in a new tab with `noopener noreferrer`, images not loaded (alt shown);
+  Raw with Copy Markdown; the renderer lazy-loaded (main bundle 140 KB gz, Markdown chunk
+  49 KB). Chunks: cards (#, heading, chars, text), 20 per page, "Show vectors" (debug ·
+  heavy, local state) with a 12-value preview and copy of the full vector. Header from the
+  list's cache when present. Malformed id (pattern checked against `docs/openapi.json`) and
+  a 404 from any of the three calls -> "This document no longer exists"; other errors stay
+  in their tab with Retry. `CopyButton` says "Copy unavailable" without the clipboard API.
+  Shared `describeError()` now in `api/errors.ts` (list and detail). Found while testing: an
+  MSW `HttpResponse` reused across tests has its body consumed; tests build one per call.
 - [ ] U6. Upload/replace.
 - [ ] U7. Rename, reprocess, delete.
 - [ ] U8. Indexing settings page and service status.
@@ -235,7 +249,8 @@ the first unchecked item under "Progress log".
 - [ ] D1. Deployment, phase 1.
 
 ## Next (resume here)
-**U5** (document detail: facts, content, chunks): write its brief and wait for approval.
+**U6** (upload/replace dialog): write its brief and wait for approval. It adds the list's
+Upload button and the detail's Replace action (the first write calls from the UI).
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing

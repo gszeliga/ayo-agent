@@ -2,7 +2,7 @@ import { Loader2, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
-import { ApiError } from '@/api/errors'
+import { describeError } from '@/api/errors'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,13 +25,6 @@ import { useDocuments, useTenants } from './queries'
 import { TenantSelect, TenantSidebar } from './TenantFilter'
 
 export const SEARCH_DELAY_MS = 300
-
-function errorMessage(error: Error, baseUrl: string): string {
-  if (error instanceof ApiError && error.isNetworkError) {
-    return `Can't reach the API at ${baseUrl}. Check the URL and that the API is running.`
-  }
-  return error.message
-}
 
 export function DocumentsPage() {
   const { connection } = useConnection()
@@ -153,7 +146,7 @@ export function DocumentsPage() {
         {documents.isError && !data ? (
           <Alert variant="destructive" role="alert">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-              <span>{errorMessage(documents.error, connection?.baseUrl ?? '')}</span>
+              <span>{describeError(documents.error, connection?.baseUrl ?? '')}</span>
               <Button
                 variant="outline"
                 onClick={() => {

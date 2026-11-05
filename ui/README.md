@@ -61,6 +61,22 @@ Data comes through TanStack Query (`src/documents/queries.ts`, client in
 network failures retried (once), and the cache cleared whenever the connection changes.
 While a page or filter loads, the current rows stay, dimmed.
 
+## Document detail
+
+`/documents/:docId?tab=chunks&cpage=2` or `?view=raw`: header (title, status, tenant,
+copyable `doc_id`), a facts panel, and the Content and Chunks tabs, each fetched when first
+opened. The header shows at once from the list's cache when the document is there.
+"← Documents" returns to the list as it was left (the list passes its URL in the location
+state). A malformed id, or a `404` from any of the document's three calls, shows "This
+document no longer exists". "Show vectors" (debug, heavy) is local state, never in the URL.
+
+**Rendering documents safely** (`src/document/Markdown.tsx`; documents are customer
+content): raw HTML is never rendered (no `rehype-raw`), `javascript:` links are dropped,
+links open in a new tab with `rel="noopener noreferrer"`, and **images are not loaded**
+(their alt text shows): a remote image would tell its host who reads the document. Keep
+these rules when touching it; `Markdown.test.tsx` checks each. The renderer is loaded on
+demand (`React.lazy`), so the Markdown libraries stay out of the main bundle.
+
 ## Routes
 
 `/connect`, `/documents`, `/documents/:docId`, `/settings`; everything but `/connect` needs
@@ -137,11 +153,16 @@ src/
   documents/          the list: DocumentsPage, listParams (URL <-> state), queries,
                       TenantFilter (sidebar + narrow select), DocumentsTable, StatusBadge,
                       status (reasons in words), Pagination
-  pages/              ConnectPage, NotFoundPage, Placeholder (until U5+)
+  document/           the detail: DocumentPage, params (URL <-> state, back link), queries,
+                      FactsPanel, ContentTab + Markdown (safe rendering), ChunksTab +
+                      ChunkCard, NotFound, TabError, errors (isNotFound)
+  components/CopyButton.tsx  copy with feedback, "Copy unavailable" outside secure contexts
+  pages/              ConnectPage, NotFoundPage, Placeholder (until U8)
   components/ui/      shadcn/ui: button, input, label, card, alert, table, badge (+ success,
-                      warning variants), tooltip, skeleton
+                      warning variants), tooltip, skeleton, tabs
   lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes)
   test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
                       render.tsx (renderApp(path, {connected}): router, query client,
-                      location probe and Back), fixtures/ (Spanish documents)
+                      location probe and Back), fixtures/ (Spanish documents, a procedure
+                      in Markdown with a table, links, an image and raw HTML)
 ```

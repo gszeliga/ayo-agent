@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 
 import type { components } from '@/api/schema'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -78,6 +78,8 @@ export function DocumentsTable({
   now: number
 }) {
   const navigate = useNavigate()
+  // The detail's "← Documents" returns to the list as it is now.
+  const state = { listSearch: useLocation().search || '?' }
   return (
     <Table aria-busy={busy} aria-label="Documents" className={cn(busy && 'opacity-60')}>
       <Head />
@@ -91,12 +93,12 @@ export function DocumentsTable({
               // A convenience for the mouse; the title link is the keyboard and reader path.
               onClick={(event) => {
                 if (!(event.target as HTMLElement).closest('a, button, [tabindex]')) {
-                  void navigate(to)
+                  void navigate(to, { state })
                 }
               }}
             >
               <TableCell className="max-w-0 min-w-64">
-                <Link to={to} className="block truncate font-medium hover:underline">
+                <Link to={to} state={state} className="block truncate font-medium hover:underline">
                   {doc.title ?? doc.source_key}
                 </Link>
                 <div className="text-muted-foreground truncate font-mono text-[12px]">

@@ -66,3 +66,11 @@ export class ApiError extends Error {
     return fields
   }
 }
+
+/** What to tell the user about a failed call. */
+export function describeError(error: Error, baseUrl: string): string {
+  if (error instanceof ApiError && error.isNetworkError) {
+    return `Can't reach the API at ${baseUrl}. Check the URL and that the API is running.`
+  }
+  return error.message
+}
