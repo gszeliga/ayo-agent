@@ -133,6 +133,10 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
                   onPage={(chunkPage) => {
                     update({ chunkPage })
                   }}
+                  view={params.chunkView}
+                  onView={(chunkView) => {
+                    update({ chunkView })
+                  }}
                   onGone={() => {
                     setGone(true)
                   }}

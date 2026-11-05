@@ -12,6 +12,8 @@ export interface DetailParams {
   view: View
   /** 1-based page of chunks. */
   chunkPage: number
+  /** How chunks show; raw by default: exactly the text that was embedded. */
+  chunkView: View
 }
 
 /** The detail's state from the URL; invalid values fall back to the defaults. */
@@ -21,15 +23,17 @@ export function parseDetailParams(search: URLSearchParams): DetailParams {
     tab: search.get('tab') === 'chunks' ? 'chunks' : 'content',
     view: search.get('view') === 'raw' ? 'raw' : 'rendered',
     chunkPage: /^[1-9][0-9]{0,5}$/.test(cpage) ? Number(cpage) : 1,
+    chunkView: search.get('cview') === 'rendered' ? 'rendered' : 'raw',
   }
 }
 
-/** Defaults left out; the view only on the content tab, the chunk page only on chunks. */
+/** Defaults left out; `view` only on the content tab, `cpage` and `cview` only on chunks. */
 export function toDetailSearch(params: DetailParams): URLSearchParams {
   const search = new URLSearchParams()
   if (params.tab === 'chunks') {
     search.set('tab', 'chunks')
     if (params.chunkPage > 1) search.set('cpage', String(params.chunkPage))
+    if (params.chunkView === 'rendered') search.set('cview', 'rendered')
   } else if (params.view === 'raw') {
     search.set('view', 'raw')
   }

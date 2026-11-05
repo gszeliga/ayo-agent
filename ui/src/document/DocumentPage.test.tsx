@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
@@ -292,4 +292,22 @@ test('an error in a tab stays in the tab, with retry', async () => {
   await user.click(screen.getByRole('button', { name: 'Retry' }))
 
   expect(await screen.findByRole('heading', { name: 'Recuperado' })).toBeInTheDocument()
+})
+
+test('chunks show raw by default and can be rendered, kept in the URL', async () => {
+  serve()
+  const { user } = renderApp(`/documents/${DOC.doc_id}?tab=chunks`, { connected: true })
+  const first = await screen.findByRole('article', { name: 'Chunk 0' })
+  expect(
+    within(screen.getByRole('group', { name: 'Chunk view' })).getByRole('button', { name: 'Raw' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  expect(first.querySelector('p.whitespace-pre-wrap')).toHaveTextContent('Paso 1: comprobar')
+
+  await user.click(screen.getByRole('button', { name: 'Rendered' }))
+
+  expect(location()).toBe(`/documents/${DOC.doc_id}?tab=chunks&cview=rendered`)
+  const rendered = await screen.findByRole('article', { name: 'Chunk 0' })
+  await waitFor(() => {
+    expect(rendered.querySelector('.markdown')).not.toBeNull()
+  })
 })

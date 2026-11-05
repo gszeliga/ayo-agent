@@ -6,21 +6,26 @@ import { cn } from '@/lib/utils'
 
 import { ChunkCard } from './ChunkCard'
 import { isNotFound } from './errors'
-import { CHUNK_PAGE_SIZE } from './params'
+import { CHUNK_PAGE_SIZE, type View } from './params'
 import { useChunks } from './queries'
 import { TabError } from './TabError'
+import { ViewToggle } from './ViewToggle'
 
 export function ChunksTab({
   docId,
   onGone,
   page,
   onPage,
+  view,
+  onView,
 }: {
   docId: string
   /** The document was deleted meanwhile (a 404). */
   onGone: () => void
   page: number
   onPage: (page: number) => void
+  view: View
+  onView: (view: View) => void
 }) {
   // A debug aid, kept out of the URL so a shared link never loads vectors.
   const [vectors, setVectors] = useState(false)
@@ -35,19 +40,22 @@ export function ChunksTab({
 
   return (
     <div className="space-y-3">
-      <label className="flex w-fit items-center gap-2 text-[13px]">
-        <input
-          type="checkbox"
-          checked={vectors}
-          onChange={(event) => {
-            setVectors(event.target.checked)
-          }}
-        />
-        Show vectors
-        <span className="bg-warning-muted text-warning rounded-sm px-1.5 py-0.5 text-[11px] font-semibold">
-          debug · heavy
-        </span>
-      </label>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <ViewToggle view={view} onView={onView} label="Chunk view" order="raw-first" />
+        <label className="flex w-fit items-center gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            checked={vectors}
+            onChange={(event) => {
+              setVectors(event.target.checked)
+            }}
+          />
+          Show vectors
+          <span className="bg-warning-muted text-warning rounded-sm px-1.5 py-0.5 text-[11px] font-semibold">
+            debug · heavy
+          </span>
+        </label>
+      </div>
       {chunks.isError && !data ? (
         <TabError error={chunks.error} onRetry={() => void chunks.refetch()} />
       ) : !data ? (
@@ -65,7 +73,7 @@ export function ChunksTab({
             className={cn('space-y-3', chunks.isPlaceholderData && 'opacity-60')}
           >
             {data.items.map((chunk) => (
-              <ChunkCard key={chunk.chunk_index} chunk={chunk} />
+              <ChunkCard key={chunk.chunk_index} chunk={chunk} view={view} />
             ))}
           </div>
           <nav aria-label="Chunk pages" className="flex items-center justify-between gap-4">

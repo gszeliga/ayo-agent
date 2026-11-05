@@ -1,21 +1,14 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { useEffect } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/CopyButton'
-import { cn } from '@/lib/utils'
 
 import { isNotFound } from './errors'
+import { LazyMarkdown } from './LazyMarkdown'
 import type { View } from './params'
 import { useContent } from './queries'
 import { TabError } from './TabError'
-
-// The Markdown libraries are most of the bundle's weight and only this view needs them.
-const Markdown = lazy(() => import('./Markdown').then((module) => ({ default: module.Markdown })))
-
-const VIEWS: { value: View; label: string }[] = [
-  { value: 'rendered', label: 'Rendered' },
-  { value: 'raw', label: 'Raw' },
-]
+import { ViewToggle } from './ViewToggle'
 
 export function ContentTab({
   docId,
@@ -37,24 +30,7 @@ export function ContentTab({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div role="group" aria-label="View" className="bg-secondary inline-flex rounded-md p-0.5">
-          {VIEWS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={view === option.value}
-              className={cn(
-                'text-muted-foreground min-h-7 rounded-sm px-2.5 text-[13px] font-medium',
-                view === option.value && 'bg-card text-foreground shadow-xs',
-              )}
-              onClick={() => {
-                onView(option.value)
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <ViewToggle view={view} onView={onView} label="Content view" />
         {view === 'raw' && content.data !== undefined && (
           <CopyButton value={content.data} label="Copy Markdown" />
         )}
@@ -72,9 +48,7 @@ export function ContentTab({
           {content.data}
         </pre>
       ) : (
-        <Suspense fallback={<Skeleton aria-label="Loading content" className="h-24" />}>
-          <Markdown source={content.data} />
-        </Suspense>
+        <LazyMarkdown source={content.data} />
       )}
     </div>
   )

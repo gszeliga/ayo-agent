@@ -11,13 +11,40 @@ test("the id pattern is the API's", () => {
 })
 
 test.each([
-  ['', { tab: 'content', view: 'rendered', chunkPage: 1 }, ''],
-  ['view=raw', { tab: 'content', view: 'raw', chunkPage: 1 }, 'view=raw'],
-  ['tab=chunks&cpage=3', { tab: 'chunks', view: 'rendered', chunkPage: 3 }, 'tab=chunks&cpage=3'],
-  ['tab=chunks&cpage=1', { tab: 'chunks', view: 'rendered', chunkPage: 1 }, 'tab=chunks'],
-  ['tab=vectors&cpage=0&view=x', { tab: 'content', view: 'rendered', chunkPage: 1 }, ''],
+  ['', { tab: 'content', view: 'rendered', chunkPage: 1, chunkView: 'raw' }, ''],
+  ['view=raw', { tab: 'content', view: 'raw', chunkPage: 1, chunkView: 'raw' }, 'view=raw'],
+  [
+    'tab=chunks&cpage=3',
+    { tab: 'chunks', view: 'rendered', chunkPage: 3, chunkView: 'raw' },
+    'tab=chunks&cpage=3',
+  ],
+  [
+    'tab=chunks&cpage=1',
+    { tab: 'chunks', view: 'rendered', chunkPage: 1, chunkView: 'raw' },
+    'tab=chunks',
+  ],
+  [
+    'tab=vectors&cpage=0&view=x',
+    { tab: 'content', view: 'rendered', chunkPage: 1, chunkView: 'raw' },
+    '',
+  ],
+  [
+    'tab=chunks&cview=rendered',
+    { tab: 'chunks', view: 'rendered', chunkPage: 1, chunkView: 'rendered' },
+    'tab=chunks&cview=rendered',
+  ],
+  [
+    'tab=chunks&cview=raw',
+    { tab: 'chunks', view: 'rendered', chunkPage: 1, chunkView: 'raw' },
+    'tab=chunks',
+  ],
+  ['cview=rendered', { tab: 'content', view: 'rendered', chunkPage: 1, chunkView: 'rendered' }, ''],
   // Each value only where it applies.
-  ['tab=chunks&view=raw', { tab: 'chunks', view: 'raw', chunkPage: 1 }, 'tab=chunks'],
+  [
+    'tab=chunks&view=raw',
+    { tab: 'chunks', view: 'raw', chunkPage: 1, chunkView: 'raw' },
+    'tab=chunks',
+  ],
 ])('%j reads as %j and is written as %j', (search, params, written) => {
   expect(parse(search)).toEqual(params)
   expect(toDetailSearch(parse(search)).toString()).toBe(written)

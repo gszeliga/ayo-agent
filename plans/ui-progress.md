@@ -246,6 +246,11 @@ the first unchecked item under "Progress log".
   typography plugin draws literal backticks around it, bold, with no background. `.markdown`
   now drops the backticks and styles inline code as a mono chip (`secondary` background);
   fenced blocks unchanged. The test procedure gained inline code and a fenced block.
+  Follow-up (2026-11-05, agreed): chunks get a Raw / Rendered toggle, **raw by default**
+  (what was embedded; split tables and lists stay visible), `cview=rendered` in the URL
+  (separate from the content's `view`). Each chunk renders on its own through the same
+  lazy safe renderer (`LazyMarkdown`), so a cut code block stays in its card. `ViewToggle`
+  shared by both tabs.
 - [ ] U6. Upload/replace.
 - [ ] U7. Rename, reprocess, delete.
 - [ ] U8. Indexing settings page and service status.

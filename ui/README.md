@@ -63,12 +63,16 @@ While a page or filter loads, the current rows stay, dimmed.
 
 ## Document detail
 
-`/documents/:docId?tab=chunks&cpage=2` or `?view=raw`: header (title, status, tenant,
+`/documents/:docId?tab=chunks&cpage=2&cview=rendered` or `?view=raw`: header (title, status, tenant,
 copyable `doc_id`), a facts panel, and the Content and Chunks tabs, each fetched when first
 opened. The header shows at once from the list's cache when the document is there.
 "← Documents" returns to the list as it was left (the list passes its URL in the location
 state). A malformed id, or a `404` from any of the document's three calls, shows "This
 document no longer exists". "Show vectors" (debug, heavy) is local state, never in the URL.
+
+Chunks show **raw by default**: exactly the text that was embedded, so a table or list the
+splitter cut is visible as such. "Rendered" (`cview=rendered`) renders each chunk on its
+own with the same safe renderer, so a code block cut mid-way stays inside its card.
 
 **Rendering documents safely** (`src/document/Markdown.tsx`; documents are customer
 content): raw HTML is never rendered (no `rehype-raw`), `javascript:` links are dropped,
@@ -154,8 +158,8 @@ src/
                       TenantFilter (sidebar + narrow select), DocumentsTable, StatusBadge,
                       status (reasons in words), Pagination
   document/           the detail: DocumentPage, params (URL <-> state, back link), queries,
-                      FactsPanel, ContentTab + Markdown (safe rendering), ChunksTab +
-                      ChunkCard, NotFound, TabError, errors (isNotFound)
+                      FactsPanel, ContentTab + Markdown (safe rendering) + LazyMarkdown,
+                      ChunksTab + ChunkCard, ViewToggle, NotFound, TabError, errors
   components/CopyButton.tsx  copy with feedback, "Copy unavailable" outside secure contexts
   pages/              ConnectPage, NotFoundPage, Placeholder (until U8)
   components/ui/      shadcn/ui: button, input, label, card, alert, table, badge (+ success,
