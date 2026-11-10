@@ -1,9 +1,16 @@
 # Search and retrieval evaluation milestone: plan and progress
 
 `POST /admin/search` and an evaluation harness (golden set, `ayo-eval run|compare`,
-metrics, reports) over a synthetic Spanish corpus. The spec was pasted into the session on
-2026-11-10 (not committed); this file holds the agreed deviations, the plan and the
-progress log. Resume from the first unchecked step.
+metrics, reports) over a synthetic Spanish corpus. Spec: `plans/claude-code-prompt-search-eval.md`
+(untracked, like the earlier specs; pasted into the session on 2026-11-10). This file holds
+the agreed deviations, which win over the spec, the plan and the progress log.
+
+## Next (resume here)
+S1 and S2 are done and pushed. Next: the **S3 brief** (eval core, no I/O: golden-file
+loader reporting every problem at once, metric functions, `compare` classification, adds
+`pyyaml`), then wait for approval. The spec's Part 2 and its "Unit" and "Harness" tests
+are the requirements; decisions 1, 2 and 6 below already settle the embedder, `deleting`
+and HTTP-vs-in-process questions.
 
 ## Decisions (agreed 2026-11-10)
 1. **The embedder is Voyage, not BGE-M3 on Ollama** as the spec assumed. Queries go through

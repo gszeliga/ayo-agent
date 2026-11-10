@@ -9,10 +9,11 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active: search and retrieval evaluation**, in `plans/search-progress.md` (decisions,
-  steps S1-S5, log). **Read it first** and resume from the first unchecked step. The spec
-  was pasted into the session and is not in the repo; the progress file records what was
-  agreed. Exact vector search: `docs/decisions/0002-filtered-vector-search.md`.
+- **Active: search and retrieval evaluation.** Spec `plans/claude-code-prompt-search-eval.md`;
+  decisions (which override the spec where they differ), steps S1-S5 and log in
+  `plans/search-progress.md`. **Read both first.** S1 and S2 are done (`POST /admin/search`
+  is live); **next: write the S3 brief** (eval core) and wait for approval. Exact vector
+  search: `docs/decisions/0002-filtered-vector-search.md`.
 - Done (2026-11-10): status filter and bulk reprocess (B5, U10, U11; decision 7 in
   `plans/ui-progress.md`). Deployment (D1) is parked (decision 6 there).
 - Done (2026-11-05): admin UI (React + Vite + TS in `ui/`, details in `ui/README.md`).
@@ -23,7 +24,8 @@ working rules, update this file in that step's commit.
   `plans/crud-progress.md` (the reference for its decisions).
 - Done: the ingestion slice. Spec `plans/claude-code-prompt-markdown-ingestion.md`; its
   decisions and log in `plans/progress.md` (still the reference for earlier decisions).
-- Both spec files are intentionally **untracked**; never commit them.
+- The spec files (`plans/claude-code-prompt-*.md`) are intentionally **untracked**; never
+  commit them.
 - Decision records: `docs/decisions/`.
 
 ## How we work (user's rules)
