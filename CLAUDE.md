@@ -9,9 +9,12 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Next: to be decided with the user**, see "Next" in `plans/ui-progress.md`. **Read it
-  first.** Done there (2026-11-10): status filter and bulk reprocess (B5, U10, U11; decision
-  7). Deployment (D1) is parked (decision 6).
+- **Active: search and retrieval evaluation**, in `plans/search-progress.md` (decisions,
+  steps S1-S5, log). **Read it first** and resume from the first unchecked step. The spec
+  was pasted into the session and is not in the repo; the progress file records what was
+  agreed. Exact vector search: `docs/decisions/0002-filtered-vector-search.md`.
+- Done (2026-11-10): status filter and bulk reprocess (B5, U10, U11; decision 7 in
+  `plans/ui-progress.md`). Deployment (D1) is parked (decision 6 there).
 - Done (2026-11-05): admin UI (React + Vite + TS in `ui/`, details in `ui/README.md`).
   Decisions (deployment: decision 5), progress log, final report and "Open items" in
   `plans/ui-progress.md`.
@@ -30,7 +33,7 @@ working rules, update this file in that step's commit.
 - Keep `README.md` current: any step that adds or changes an endpoint, a setting or a
   command updates it in the same commit.
 - After the step: update the active milestone's progress file (now
-  `plans/ui-progress.md`), make **exactly one commit** (code + tests + log together),
+  `plans/search-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.
@@ -89,13 +92,14 @@ src/ayo_copilot/
   routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, tenants, settings, health (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
+  search.py            search(): embed_query, then exact vector search in one read-only transaction
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS) < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
-  db/repository.py     hand-written SQL: upsert_document, replace_chunks, similar_chunks, ...
+  db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
   ingestion/signatures.py  content/chunk/embed signatures, make_doc_id, CHUNKER_VERSION
-  ingestion/embedding.py   Embedder protocol, VoyageEmbedder (httpx2), FakeEmbedder
+  ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2), FakeEmbedder
   ingestion/storage.py     tenant and source_key validation (name is historical)
   ingestion/service.py     the pipeline: ingest_document, reprocess_document and their stages
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
@@ -115,6 +119,8 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
   there because Alembic needs it).
 - Repository functions take a connection and never commit; the service owns transactions.
   The embedding provider is called outside any transaction.
+- Vector search is exact (ADR 0002): never rely on the HNSW index for filtered queries.
+  Search queries are as sensitive as documents: never log the query or the chunks found.
 - HTTP client is `httpx2` (pydantic's fork), not `httpx`; tests mock it with `MockTransport`.
 - Changing chunking behaviour or the embedded text format: bump `CHUNKER_VERSION`.
   Changing the vector size needs a new migration (startup checks it).

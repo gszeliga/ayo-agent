@@ -125,11 +125,20 @@ class StatusCounts:
 
 
 @dataclass(frozen=True)
-class SimilarChunk:
-    doc_id: str
+class SearchHit:
+    """A chunk found by `search_chunks`, with what the search results show of its document."""
+
+    chunk_id: UUID
     chunk_index: int
     heading: str | None
     chunk_text: str
+    char_count: int
+    doc_id: str
+    title: str | None
+    source_key: str
+    tenant: str
+    # The document's vectors come from another embedder config (or an unknown one).
+    embedder_outdated: bool
     distance: float
 
 
@@ -459,28 +468,94 @@ def document_status_counts(
     return row
 
 
-def similar_chunks(
-    conn: Connection, *, tenant: str, embedding: Sequence[float], limit: int = 5
-) -> list[SimilarChunk]:
-    """The tenant's chunks closest to `embedding` by cosine distance, nearest first.
+def _search_filters(
+    *, tenants: Sequence[str] | None, doc_ids: Sequence[str] | None
+) -> list[sql.Composable]:
+    filters: list[sql.Composable] = []
+    if tenants is not None:
+        filters.append(sql.SQL("d.tenant = any(%(tenants)s)"))
+    if doc_ids is not None:
+        filters.append(sql.SQL("d.doc_id = any(%(doc_ids)s)"))
+    return filters
 
-    No HTTP endpoint uses this yet; it shows that the stored vectors can be queried. With
-    the HNSW index and many tenants, the tenant filter is applied after the index scan, so
-    a real search endpoint should enable pgvector's iterative index scans.
+
+def _where(filters: Sequence[sql.Composable]) -> sql.Composable:
+    if not filters:
+        return sql.SQL("")
+    return sql.SQL(" where ") + sql.SQL(" and ").join(filters)
+
+
+def search_chunks(
+    conn: Connection,
+    *,
+    embedding: Sequence[float],
+    embedder_config: str,
+    limit: int,
+    tenants: Sequence[str] | None = None,
+    doc_ids: Sequence[str] | None = None,
+    include_outdated: bool = False,
+) -> list[SearchHit]:
+    """The `limit` chunks nearest to `embedding` by cosine distance, nearest first, ties
+    broken by chunk id. `tenants` and `doc_ids` (None: no filter) restrict the documents.
+
+    Documents embedded with another `embedder_config`, or an unknown (null) one, live in
+    another vector space: they are left out unless `include_outdated`, and then flagged.
+
+    Exact search (ADR 0002): the materialized CTE computes the distance of every chunk that
+    passes the filters, so the HNSW index is never used. An index scan applies the filters
+    after finding its nearest candidates and can return fewer rows than `limit`, or miss
+    the nearest ones, even with pgvector's iterative scans.
     """
-    rows = conn.execute(
-        """
-        select d.doc_id, c.chunk_index, c.heading, c.chunk_text,
-               c.embedding <=> %(query)s as distance
-        from chunks c
-        join documents d on d.id = c.document_id
-        where d.tenant = %(tenant)s
-        order by c.embedding <=> %(query)s
-        limit %(limit)s
-        """,
-        {"query": Vector(list(embedding)), "tenant": tenant, "limit": limit},
-    ).fetchall()
-    return [SimilarChunk(*row) for row in rows]
+    filters = _search_filters(tenants=tenants, doc_ids=doc_ids)
+    if not include_outdated:
+        filters.append(sql.SQL("d.embedder_config = %(embedder)s"))
+    query = sql.SQL(
+        "with scored as materialized ("
+        " select c.id, c.embedding <=> %(query)s as distance"
+        " from chunks c join documents d on d.id = c.document_id{}"
+        "), nearest as ("
+        " select id, distance from scored order by distance, id limit %(limit)s"
+        ")"
+        " select c.id as chunk_id, c.chunk_index, c.heading, c.chunk_text,"
+        " char_length(c.chunk_text) as char_count, d.doc_id, d.title, d.source_key, d.tenant,"
+        " d.embedder_config is distinct from %(embedder)s as embedder_outdated, n.distance"
+        " from nearest n join chunks c on c.id = n.id join documents d on d.id = c.document_id"
+        " order by n.distance, n.id"
+    ).format(_where(filters))
+    params = {
+        "query": Vector(list(embedding)),
+        "embedder": embedder_config,
+        "tenants": list(tenants) if tenants is not None else None,
+        "doc_ids": list(doc_ids) if doc_ids is not None else None,
+        "limit": limit,
+    }
+    with conn.cursor(row_factory=class_row(SearchHit)) as cur:
+        return cur.execute(query, params).fetchall()
+
+
+def count_embedder_mismatches(
+    conn: Connection,
+    *,
+    embedder_config: str,
+    tenants: Sequence[str] | None = None,
+    doc_ids: Sequence[str] | None = None,
+) -> int:
+    """Documents matching the search filters whose vectors `search_chunks` leaves out by
+    default: embedded with another `embedder_config`, or an unknown one."""
+    filters = [
+        *_search_filters(tenants=tenants, doc_ids=doc_ids),
+        sql.SQL("d.embedder_config is distinct from %(embedder)s"),
+    ]
+    row = conn.execute(
+        sql.SQL("select count(*)::int from documents d{}").format(_where(filters)),
+        {
+            "embedder": embedder_config,
+            "tenants": list(tenants) if tenants is not None else None,
+            "doc_ids": list(doc_ids) if doc_ids is not None else None,
+        },
+    ).fetchone()
+    assert row is not None  # an aggregate without group by always returns one row
+    return row[0]
 
 
 def embedding_dimensions(conn: Connection) -> int | None:

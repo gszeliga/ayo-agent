@@ -146,6 +146,9 @@ class FailingEmbedder:
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         raise EmbeddingError("Embedding provider returned HTTP 503")
 
+    def embed_query(self, text: str) -> list[float]:
+        raise EmbeddingError("Embedding provider returned HTTP 502")
+
 
 def test_tracker_records_successes_and_failures() -> None:
     clock = Clock()
@@ -161,6 +164,22 @@ def test_tracker_records_successes_and_failures() -> None:
     assert (failing.last_error_at, failing.last_error) == (
         T0,
         "Embedding provider returned HTTP 503",
+    )
+
+
+def test_tracker_records_queries_too() -> None:
+    clock = Clock()
+    ok = TrackedEmbedder(FakeEmbedder(dimensions=4), now=clock.now)
+    failing = TrackedEmbedder(FailingEmbedder(), now=clock.now)
+
+    assert len(ok.embed_query("a")) == 4
+    with pytest.raises(EmbeddingError):
+        failing.embed_query("a")
+
+    assert (ok.last_success_at, ok.last_error_at) == (T0, None)
+    assert (failing.last_error_at, failing.last_error) == (
+        T0,
+        "Embedding provider returned HTTP 502",
     )
 
 

@@ -24,6 +24,11 @@ class EmbeddingError(Exception):
 class Embedder(Protocol):
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]: ...
 
+    def embed_query(self, text: str) -> list[float]:
+        """One search query, embedded for comparison with the documents' vectors. Providers
+        with asymmetric models embed it differently from a document (Voyage: `input_type`)."""
+        ...
+
 
 class FakeEmbedder:
     """Deterministic unit vectors derived from a hash of each text. No network; for tests."""
@@ -31,6 +36,7 @@ class FakeEmbedder:
     def __init__(self, *, dimensions: int) -> None:
         self.dimensions = dimensions
         self.calls: list[list[str]] = []
+        self.query_calls: list[str] = []
 
     def probe(self, *, timeout_seconds: float) -> None:
         """Always answers: there is no provider to reach."""
@@ -40,6 +46,12 @@ class FakeEmbedder:
             return []
         self.calls.append(list(texts))
         return [self._vector(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        """The same vector as the text embedded as a document, so a test can find a chunk by
+        its own text; recorded in `query_calls`, not `calls`."""
+        self.query_calls.append(text)
+        return self._vector(text)
 
     def _vector(self, text: str) -> list[float]:
         # Expand the text's hash into enough bytes, two per component, mapped to [-1, 1].
@@ -90,6 +102,14 @@ class VoyageEmbedder:
             vectors.extend(self._embed_batch(texts[start : start + self.batch_size]))
         return vectors
 
+    def embed_query(self, text: str) -> list[float]:
+        """Sent with `input_type: "query"`: Voyage prepends its own retrieval prompt, so there
+        is no prefix to configure here. Same retries and errors as `embed_documents`."""
+        payload = self._payload([text], input_type="query")
+        response = self._post_with_retries(payload, max_retries=self.max_retries)
+        (vector,) = self._parse(response, expected=1)
+        return vector
+
     def probe(self, *, timeout_seconds: float) -> None:
         """Whether the provider embeds right now: one request for one short word, with its
         own timeout and no retries. Raises EmbeddingError, as `embed_documents` does."""
@@ -101,11 +121,11 @@ class VoyageEmbedder:
         response = self._post_with_retries(self._payload(texts), max_retries=self.max_retries)
         return self._parse(response, expected=len(texts))
 
-    def _payload(self, texts: Sequence[str]) -> dict[str, object]:
+    def _payload(self, texts: Sequence[str], *, input_type: str = "document") -> dict[str, object]:
         return {
             "input": list(texts),
             "model": self.model,
-            "input_type": "document",
+            "input_type": input_type,
             "output_dimension": self.dimensions,
             "output_dtype": "float",
             # A chunk longer than the context is a chunker bug; fail instead of embedding a prefix.

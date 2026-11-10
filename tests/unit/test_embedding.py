@@ -87,6 +87,14 @@ def test_fake_returns_empty_list_without_recording_a_call() -> None:
     assert fake.calls == []
 
 
+def test_fake_query_matches_the_same_text_as_a_document_and_is_recorded_apart() -> None:
+    fake = FakeEmbedder(dimensions=8)
+    (as_document,) = FakeEmbedder(dimensions=8).embed_documents(["¿Cómo se sella?"])
+
+    assert fake.embed_query("¿Cómo se sella?") == as_document
+    assert (fake.query_calls, fake.calls) == (["¿Cómo se sella?"], [])
+
+
 def test_both_implementations_satisfy_the_protocol() -> None:
     assert isinstance(FakeEmbedder(dimensions=8), Embedder)
     assert isinstance(make_voyage(vectors_response), Embedder)
@@ -145,6 +153,53 @@ def test_empty_input_makes_no_request() -> None:
         raise AssertionError("no request expected")
 
     assert make_voyage(handler).embed_documents([]) == []
+
+
+def test_query_is_sent_as_one_input_of_type_query() -> None:
+    requests: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return vectors_response(request)
+
+    vector = make_voyage(handler).embed_query("¿Qué hago si el sellado falla?")
+
+    (request,) = requests
+    assert vector == [0.0] * 4
+    assert json.loads(request.content) == {
+        "input": ["¿Qué hago si el sellado falla?"],
+        "model": "voyage-4",
+        "input_type": "query",
+        "output_dimension": 4,
+        "output_dtype": "float",
+        "truncation": False,
+    }
+
+
+def test_query_retries_like_documents_and_maps_failures() -> None:
+    responses = iter([httpx2.Response(503)])
+    sleeps: list[float] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return next(responses, None) or vectors_response(request)
+
+    assert make_voyage(handler, sleeps=sleeps).embed_query("a") == [0.0] * 4
+    assert len(sleeps) == 1
+
+    def failing(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(401, json={"detail": SECRET_TEXT})
+
+    with pytest.raises(EmbeddingError, match="HTTP 401") as raised:
+        make_voyage(failing).embed_query(SECRET_TEXT)
+    assert SECRET_TEXT not in str(raised.value)
+
+
+def test_query_rejects_a_malformed_answer() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"data": []})
+
+    with pytest.raises(EmbeddingError, match="malformed"):
+        make_voyage(handler).embed_query("a")
 
 
 # --- VoyageEmbedder: retries ---------------------------------------------------

@@ -9,10 +9,10 @@ from psycopg_pool import ConnectionPool
 
 from ayo_copilot.app import create_app
 from ayo_copilot.config import Settings
-from ayo_copilot.db.repository import similar_chunks
+from ayo_copilot.db.repository import search_chunks
 from ayo_copilot.dependencies import get_embedder
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
-from ayo_copilot.ingestion.signatures import make_doc_id
+from ayo_copilot.ingestion.signatures import embedder_descriptor, make_doc_id
 
 pytestmark = pytest.mark.integration
 
@@ -157,8 +157,13 @@ def test_an_uploaded_section_can_be_found_by_similarity(
     [query] = FakeEmbedder(dimensions=1024).embed_documents([target])
 
     with db_pool.connection() as conn:
-        best, *_ = similar_chunks(conn, tenant="acme", embedding=query, limit=3)
-        other_tenant = similar_chunks(conn, tenant="other", embedding=query, limit=3)
+        config = embedder_descriptor(model="voyage-4", dimensions=1024)
+        best, *_ = search_chunks(
+            conn, embedding=query, embedder_config=config, tenants=["acme"], limit=3
+        )
+        other_tenant = search_chunks(
+            conn, embedding=query, embedder_config=config, tenants=["other"], limit=3
+        )
 
     assert best.doc_id == doc_id
     assert best.heading == "PRO-014 Control de sellado > 3. Pasos > 3.2 Medición"

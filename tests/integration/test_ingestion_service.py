@@ -5,10 +5,15 @@ import pytest
 from psycopg_pool import ConnectionPool
 
 from ayo_copilot.config import Settings
-from ayo_copilot.db.repository import similar_chunks
+from ayo_copilot.db.repository import search_chunks
 from ayo_copilot.ingestion import service
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
-from ayo_copilot.ingestion.service import IngestResult, chunk_document, embedding_text
+from ayo_copilot.ingestion.service import (
+    IngestResult,
+    chunk_document,
+    current_configs,
+    embedding_text,
+)
 from ayo_copilot.ingestion.signatures import chunker_descriptor, make_doc_id
 from ayo_copilot.ingestion.storage import InvalidInputError
 
@@ -302,7 +307,13 @@ def test_an_uploaded_section_can_be_found_by_similarity(db_pool: ConnectionPool,
     (query,) = embedder.embed_documents([embedding_text(target)])
 
     with db_pool.connection() as conn:
-        (best, *_) = similar_chunks(conn, tenant="acme", embedding=query, limit=3)
+        (best, *_) = search_chunks(
+            conn,
+            embedding=query,
+            embedder_config=current_configs(make_settings())[1],
+            tenants=["acme"],
+            limit=3,
+        )
 
     assert best.chunk_index == target.index
     assert best.chunk_text == target.text

@@ -99,7 +99,7 @@ class Prober(Protocol):
 
 class TrackedEmbedder:
     """Wraps the app's embedder and remembers how its last real calls (uploads,
-    reprocesses) went. In memory only, so empty after a restart."""
+    reprocesses, searches) went. In memory only, so empty after a restart."""
 
     def __init__(self, inner: Embedder, *, now: Callable[[], datetime] = _utc_now) -> None:
         self.inner = inner
@@ -110,8 +110,14 @@ class TrackedEmbedder:
         self.last_error: str | None = None
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        return self._track(self.inner.embed_documents, texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._track(self.inner.embed_query, text)
+
+    def _track[I, O](self, call: Callable[[I], O], value: I) -> O:
         try:
-            vectors = self.inner.embed_documents(texts)
+            result = call(value)
         except EmbeddingError as exc:
             with self._lock:
                 self.last_error_at = self._now()
@@ -119,7 +125,7 @@ class TrackedEmbedder:
             raise
         with self._lock:
             self.last_success_at = self._now()
-        return vectors
+        return result
 
     def close(self) -> None:
         close = getattr(self.inner, "close", None)

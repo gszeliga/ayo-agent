@@ -19,7 +19,6 @@ from ayo_copilot.db.repository import (
     list_chunks,
     record_configs,
     replace_chunks,
-    similar_chunks,
     tenant_summaries,
     update_indexed_document,
     upsert_document,
@@ -179,35 +178,6 @@ def test_a_failure_midway_keeps_the_previous_document_and_chunks(db_pool: Connec
 
     assert chunk_texts(db_pool) == ["uno", "dos"]
     assert document_row(db_pool) == before
-
-
-def test_similar_chunks_returns_the_matching_chunk_first(db_pool: ConnectionPool) -> None:
-    texts = [
-        "Verificar la temperatura de la mordaza antes de sellar.",
-        "Registrar el lote en la hoja de control.",
-        "¿Qué hacer si el sellado falla? Avisar al responsable de línea.",
-    ]
-    store(db_pool, make_document(), make_chunks(*texts))
-    (query,) = embedder.embed_documents([texts[1]])
-
-    with db_pool.connection() as conn:
-        results = similar_chunks(conn, tenant="acme", embedding=query, limit=3)
-
-    assert results[0].chunk_text == texts[1]
-    assert results[0].distance == pytest.approx(0.0, abs=1e-6)
-    assert results[0].doc_id == make_doc_id("acme", "pro-014.md")
-    assert [r.distance for r in results] == sorted(r.distance for r in results)
-
-
-def test_similar_chunks_never_returns_another_tenants_chunks(db_pool: ConnectionPool) -> None:
-    store(db_pool, make_document(tenant="acme"), make_chunks("Texto de acme"))
-    store(db_pool, make_document(tenant="globex"), make_chunks("Texto de globex"))
-    (query,) = embedder.embed_documents(["Texto de globex"])
-
-    with db_pool.connection() as conn:
-        results = similar_chunks(conn, tenant="acme", embedding=query, limit=10)
-
-    assert [r.chunk_text for r in results] == ["Texto de acme"]
 
 
 def test_concurrent_replacements_of_one_document_do_not_interleave(
