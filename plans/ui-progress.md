@@ -441,9 +441,36 @@ the first unchecked item under "Progress log".
     everything skipped, nothing reached the minimum, with "Clear the minimum and search
     again"). `422` under the question; `401` to the connect screen.
 
+- [x] U13. Test search page (2026-11-10), as in the U12 prototype (details in
+  `ui/README.md`, "Test search"). Route `/search` (lazy), nav entry "Search". Options in the
+  URL (`tenant` repeated, `k`, `min`, `outdated=1`), written when a search runs; the
+  question only in component state and the cache. `useSearch` is a mutation; the last
+  search sits in the query cache under `['search', 'last']` (`skipToken`, `gcTime:
+  Infinity`; set to null on an error, so coming back never shows stale results), so a
+  result's link to `chunkLink(doc_id, chunk_index)` and **← Search** return to it. The
+  detail page reads `backLink(state)` (search or list) and `highlightedChunk(state)`
+  from the location state; `ChunkCard` outlines and scrolls to that chunk. Agreed
+  deviation from the prototype: the empty states are worded from what the API returns
+  (it does not say how many chunks it searched): with a minimum, "nothing reached it";
+  without, nothing was searchable. Also: the form's errors and a failed search's message
+  clear on the next edit; the popovers are named for screen readers (axe found the
+  tenant one unnamed).
+  - Tests: `searchParams.test.ts` (round trip, defaults, every fallback, top k and minimum
+    parsing, the request, code points, the clamp rule, limits against `openapi.json`);
+    `SearchPage.test.tsx` (exact body on Enter and the question never in the URL,
+    Shift+Enter, the form's checks and an over-long question, result cards and links with
+    `cpage`, summary and Details, the tenant picker, the skipped banner and Include them,
+    clear the minimum, three empty states, `422` placement and clearing, `502` and Retry,
+    network, `401`, the button while pending, the provider warning, result -> chunk outlined
+    -> ← Search with the results and question kept and no new request); `params.test.ts`
+    (back link, outlined chunk, chunk link); axe on the page before a search, with results,
+    failed, and with the tenant picker open; the nav test updated. 359 UI tests,
+    `pnpm check` clean; backend untouched. Not tried in a browser against the real API.
+
 ## Next (resume here)
-D1 is parked (decision 6). U12 (the test search prototype) is approved: next, the **U13
-brief** (decision 8), then wait for approval.
+D1 is parked (decision 6). U12 and U13 (the test search screen, decision 8) are done.
+Nothing is planned next: ask the user (candidates in "Open items", resume D1, or resume
+the paused evaluation harness in `plans/search-progress.md`).
 
 ## Final report (2026-11-05)
 
@@ -472,6 +499,8 @@ the connect screen (U3 follow-up), the error boundary, tab titles and axe check 
 `POST` for bulk delete (B2).
 
 ## Open items
+- The test search page has only been exercised through its tests (MSW); worth a try in a
+  browser against the local API (fake embedder) and then the Neon dev branch with Voyage.
 - From the CRUD report, for the UI: replacing content answers `201` for an existing
   document; delete leaves only a log line;
   `include_embedding` is heavy; the key in a browser is for internal/dev use only.

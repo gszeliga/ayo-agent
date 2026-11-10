@@ -7,4 +7,5 @@ export const ROUTES = {
   documents: '/documents',
   document: '/documents/:docId',
   settings: '/settings',
+  search: '/search',
 } as const

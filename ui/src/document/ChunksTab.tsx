@@ -18,8 +18,11 @@ export function ChunksTab({
   onPage,
   view,
   onView,
+  highlight = null,
 }: {
   docId: string
+  /** The chunk a search result linked to: outlined and scrolled to. */
+  highlight?: number | null
   /** The document was deleted meanwhile (a 404). */
   onGone: () => void
   page: number
@@ -73,7 +76,12 @@ export function ChunksTab({
             className={cn('space-y-3', chunks.isPlaceholderData && 'opacity-60')}
           >
             {data.items.map((chunk) => (
-              <ChunkCard key={chunk.chunk_index} chunk={chunk} view={view} />
+              <ChunkCard
+                key={chunk.chunk_index}
+                chunk={chunk}
+                view={view}
+                highlighted={chunk.chunk_index === highlight}
+              />
             ))}
           </div>
           <nav aria-label="Chunk pages" className="flex items-center justify-between gap-4">

@@ -45,3 +45,42 @@ export function backToList(state: unknown): string {
   const from = (state as { listSearch?: unknown } | null)?.listSearch
   return typeof from === 'string' && from.startsWith('?') ? `/documents${from}` : '/documents'
 }
+
+/** What the test search passes to a document it links to (location state, never the URL). */
+export interface FromSearch {
+  /** The search page's URL query (its options), `?` when none. */
+  searchFrom: string
+  /** The chunk the result was, outlined on the Chunks tab. */
+  chunkIndex: number
+}
+
+export interface BackLink {
+  to: string
+  label: string
+}
+
+/** Back to the search when the document was opened from it, else to the list. */
+export function backLink(state: unknown): BackLink {
+  const from = (state as Partial<FromSearch> | null)?.searchFrom
+  if (typeof from === 'string' && from.startsWith('?')) {
+    return { to: from === '?' ? '/search' : `/search${from}`, label: 'Search' }
+  }
+  return { to: backToList(state), label: 'Documents' }
+}
+
+/** The chunk to outline: the one a search result linked to, if any. */
+export function highlightedChunk(state: unknown): number | null {
+  const index = (state as Partial<FromSearch> | null)?.chunkIndex
+  return typeof index === 'number' && Number.isInteger(index) && index >= 0 ? index : null
+}
+
+/** The detail URL that shows a chunk: the Chunks tab on the chunk's page. */
+export function chunkLink(docId: string, chunkIndex: number): string {
+  const search = toDetailSearch({
+    tab: 'chunks',
+    view: 'rendered',
+    chunkPage: Math.floor(chunkIndex / CHUNK_PAGE_SIZE) + 1,
+    chunkView: 'raw',
+  }).toString()
+  return `/documents/${docId}?${search}`
+}

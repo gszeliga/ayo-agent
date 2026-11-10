@@ -34,6 +34,10 @@ afterAll(() => {
 for (const method of ['setPointerCapture', 'releasePointerCapture'] as const) {
   if (typeof Element.prototype[method] !== 'function') Element.prototype[method] = () => undefined
 }
+// jsdom has no scrollIntoView; a chunk opened from a search result scrolls to itself.
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => undefined
+}
 if (typeof Element.prototype.hasPointerCapture !== 'function') {
   Element.prototype.hasPointerCapture = () => false
 }

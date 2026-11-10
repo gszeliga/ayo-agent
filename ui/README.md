@@ -1,7 +1,8 @@
 # AYO admin UI
 
 Browser UI for the documents API (`/admin`): list, inspect, upload, replace, reprocess and
-delete knowledge documents, and see the indexing settings and service status. React +
+delete knowledge documents, try questions against them (test search), and see the indexing
+settings and service status. React +
 Vite + TypeScript, Tailwind CSS v4 and shadcn/ui components. **Internal use only:** it
 sends the shared admin key from the browser.
 
@@ -137,6 +138,41 @@ meanwhile) or `409` (replaced meanwhile) is counted and the run goes on; any oth
 outcome; settled documents (reprocessed, up to date, gone) leave the selection, the rest
 stay. The list, tenants and settings are invalidated once, at the end.
 
+## Test search
+
+`/search?tenant=…&k=…&min=…&outdated=1` (`src/search/`, lazy-loaded): a question, the tenants
+to search (a popover with their counts; none ticked = all), Top k (1–50, default 5) and,
+under Options, a minimum similarity (0–1, a decimal comma is fine) and "include documents
+embedded with another model". It sends `POST /admin/search`, always with `debug: true`.
+
+**The question never goes in the URL** (it would reach the browser's history and, behind
+the proxy, its access log; the API treats queries as sensitive as documents). The URL holds
+only the options of the last search, written when it runs (`replace`, no history entry);
+invalid values fall back to their defaults (`searchParams.ts`; its test checks the limits
+against `docs/openapi.json`). A search runs only on Enter (Shift+Enter adds a line) or the
+button, never while typing: each one is a paid provider call, so it is a mutation, never
+refetched or retried, and the button waits while one runs. The form checks the API's
+limits itself (the question's length in code points, as the API counts it).
+
+The last search (question, options, response) is kept in the query cache under
+`['search', 'last']`, set by hand, never fetched: memory only, cleared with the connection.
+So a result's title, which opens the document on its Chunks tab at the chunk's page with
+the chunk outlined ("From the search"), comes back to the same results with **← Search**.
+The search's URL and the chunk travel in the link's location state, not in the URL.
+
+Shown: a summary (count, scope, the embed/search/total timings) with **Details** (the
+embedded query, configs, skipped count); result cards (rank, similarity bar and value,
+title, tenant, "Other model" for `embedder_outdated`, heading or "Before the first heading",
+`source_key · chunk N`, raw text clamped to three lines with Show more when it has more than
+three lines or 260 characters: a rule, not a measurement, so tests need no layout). An
+amber banner when `skipped.embedder_mismatch` > 0, with **Include them** (searches again
+with `include_outdated`) and **Review outdated documents** (`/documents?status=outdated`).
+Empty results: "Nothing reached the minimum similarity" (with "Clear the minimum and search
+again") when a minimum was set; otherwise nothing was searchable, so "No searchable
+documents" (everything skipped) or "Nothing to search". `422` goes next to its field, `502`
+says nothing was searched (Retry), a network failure says the API is unreachable. The
+header's health query adds a "provider is down" warning, as in the upload dialog.
+
 ## Indexing settings and service status
 
 `/settings` (lazy-loaded): document counts (indexed, outdated by reason, with a link to
@@ -158,7 +194,7 @@ back to "Differs from the current settings".
 
 ## Routes
 
-`/connect`, `/documents`, `/documents/:docId`, `/settings`; everything but `/connect` needs
+`/connect`, `/documents`, `/documents/:docId`, `/settings`, `/search`; everything but `/connect` needs
 a connection. They are listed in `src/paths.ts`. **No UI route may start with an API path**
 (`/admin`, `/health`, `/docs`, `/redoc`, `/openapi.json`): on a shared origin the proxy
 sends those to the API. `src/paths.test.ts` reads the API's paths from `docs/openapi.json`
@@ -222,7 +258,8 @@ of `src/upload/UploadDialog.test.tsx`), the rest under jsdom. In Vitest's jsdom 
 so Node miscounts the body (`RequestContentLengthMismatchError`). happy-dom runs in Node's
 own realm; the page is given the mocked API's origin (as behind the production proxy) so it
 sends no CORS preflights. Browsers are not affected. The setup also stubs what jsdom lacks
-and the UI calls: `matchMedia` and pointer capture (the toaster). An MSW response is single use: build
+and the UI calls: `matchMedia` and pointer capture (the toaster), `scrollIntoView` (a chunk
+opened from a search). An MSW response is single use: build
 one per request (`() => HttpResponse.json(...)`), never share an instance.
 
 ## Layout
@@ -251,11 +288,16 @@ src/
   document/           the detail (lazy-loaded route): DocumentPage, params (URL <-> state, back
                       link), queries, TitleEditor, ReprocessButton, DeleteDialog,
                       FactsPanel, ContentTab + Markdown (safe rendering) + LazyMarkdown,
-                      ChunksTab + ChunkCard, ViewToggle, NotFound, TabError, errors
+                      ChunksTab + ChunkCard (outlines a search's chunk), ViewToggle, NotFound,
+                      TabError, errors
   upload/             UploadDialog (+ LazyUploadDialog), FileDrop, Field, useUpload (mutation,
                       error placement), useExistingDocument (overwrite warning), validation
   settings/           SettingsPage, queries (useIndexingSettings), healthQuery (one shared
                       query, Check now), ServiceDetails, configDiff ("now differs")
+  search/             the test search (lazy-loaded route): SearchPage (form, banners, empty
+                      states), searchParams (URL <-> options, request, limits), useSearch
+                      (the mutation, the last search in the cache), TenantPicker,
+                      SearchOptionsPopover, SearchSummary, ResultCard, format
   hooks/              useDebouncedValue, useDocumentTitle
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping

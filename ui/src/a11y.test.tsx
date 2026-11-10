@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { a11yViolations } from '@/test/axe'
 import { DOCUMENTS, TENANTS } from '@/test/fixtures/documents'
 import { PROCEDURE_MD } from '@/test/fixtures/markdown'
+import { makeSearchResponse, QUESTION } from '@/test/fixtures/search'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
@@ -62,6 +63,53 @@ test('delete dialog', async () => {
   const { user } = renderApp(`/documents/${DOC.doc_id}`, { connected: true })
   await user.click(await screen.findByRole('button', { name: 'Delete' }))
   await screen.findByRole('alertdialog')
+
+  expect(await a11yViolations()).toEqual([])
+})
+
+test('search, before a search', async () => {
+  renderApp('/search', { connected: true })
+  await screen.findByText('Results appear here')
+
+  expect(await a11yViolations()).toEqual([])
+})
+
+test('search, with results and the skipped banner', async () => {
+  server.use(
+    http.post(`${API}/admin/search`, () =>
+      HttpResponse.json(makeSearchResponse({ skipped: { embedder_mismatch: 2 } })),
+    ),
+  )
+  const { user } = renderApp('/search', { connected: true })
+  await user.type(await screen.findByLabelText('Question'), QUESTION)
+  await user.keyboard('{Enter}')
+  await screen.findByRole('list', { name: 'Results' })
+  await user.click(screen.getByRole('button', { name: 'Details' }))
+
+  expect(await a11yViolations()).toEqual([])
+})
+
+test('search, failed', async () => {
+  server.use(
+    http.post(`${API}/admin/search`, () =>
+      HttpResponse.json(
+        { detail: [{ type: 'embedding_failed', loc: [], msg: 'embedding provider failed' }] },
+        { status: 502 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/search', { connected: true })
+  await user.type(await screen.findByLabelText('Question'), QUESTION)
+  await user.keyboard('{Enter}')
+  await screen.findByRole('alert')
+
+  expect(await a11yViolations()).toEqual([])
+})
+
+test('search, tenant picker open', async () => {
+  const { user } = renderApp('/search', { connected: true })
+  await user.click(await screen.findByRole('button', { name: /Tenants/ }))
+  await screen.findByRole('checkbox', { name: /planta-norte/ })
 
   expect(await a11yViolations()).toEqual([])
 })

@@ -14,6 +14,7 @@ import { ThemeToggle } from './ThemeToggle'
 
 const NAV = [
   { to: ROUTES.documents, label: 'Documents' },
+  { to: ROUTES.search, label: 'Search' },
   { to: ROUTES.settings, label: 'Indexing settings' },
 ]
 

@@ -18,10 +18,12 @@ import { FactsPanel } from './FactsPanel'
 import { isNotFound } from './errors'
 import { DocumentNotFound } from './NotFound'
 import {
-  backToList,
+  backLink,
   DOC_ID_PATTERN,
+  highlightedChunk,
   parseDetailParams,
   toDetailSearch,
+  type BackLink,
   type DetailParams,
   type Tab,
 } from './params'
@@ -32,13 +34,13 @@ import { TitleEditor } from './TitleEditor'
 export function DocumentPage() {
   const { docId = '' } = useParams()
   const location = useLocation()
-  const back = backToList(location.state)
+  const back = backLink(location.state)
   if (!DOC_ID_PATTERN.test(docId)) return <DocumentNotFound back={back} />
   // Keyed by id: another document starts with fresh state.
   return <DocumentDetail key={docId} docId={docId} back={back} />
 }
 
-function DocumentDetail({ docId, back }: { docId: string; back: string }) {
+function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
   const state: unknown = useLocation().state
   const [searchParams, setSearchParams] = useSearchParams()
   const params = parseDetailParams(searchParams)
@@ -53,7 +55,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
 
   function update(changes: Partial<DetailParams>) {
     // `replace`: switching views is not a step worth a history entry; the location state
-    // (the list's filters, for "← Documents") is kept.
+    // (the list's filters or the search's, for the back link) is kept.
     setSearchParams(toDetailSearch({ ...params, ...changes }), {
       replace: true,
       state,
@@ -65,11 +67,11 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
   return (
     <div className="space-y-5">
       <Link
-        to={back}
+        to={back.to}
         className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[13px]"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />
-        Documents
+        {back.label}
       </Link>
 
       {document.isError && !doc ? (
@@ -105,7 +107,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
                     setGone(true)
                   }}
                 />
-                <DeleteDialog doc={doc} back={back} />
+                <DeleteDialog doc={doc} back={back.to} />
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -154,6 +156,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: string }) {
               <TabsContent value="chunks" className="pt-3">
                 <ChunksTab
                   docId={docId}
+                  highlight={highlightedChunk(state)}
                   page={params.chunkPage}
                   onPage={(chunkPage) => {
                     update({ chunkPage })

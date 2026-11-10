@@ -34,7 +34,7 @@ test('connected, the shell shows the host, the nav and the page', () => {
   expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument()
   expect(screen.getByText('api.test')).toBeInTheDocument()
   const nav = screen.getByRole('navigation', { name: 'Main' })
-  expect(nav).toHaveTextContent('DocumentsIndexing settings')
+  expect(nav).toHaveTextContent('DocumentsSearchIndexing settings')
   expect(screen.getByRole('link', { name: 'Documents' })).toHaveAttribute('aria-current', 'page')
 })
 

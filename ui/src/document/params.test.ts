@@ -1,6 +1,14 @@
 import openapi from '../../../docs/openapi.json'
 
-import { backToList, DOC_ID_PATTERN, parseDetailParams, toDetailSearch } from './params'
+import {
+  backLink,
+  backToList,
+  chunkLink,
+  DOC_ID_PATTERN,
+  highlightedChunk,
+  parseDetailParams,
+  toDetailSearch,
+} from './params'
 
 const parse = (search: string) => parseDetailParams(new URLSearchParams(search))
 
@@ -58,4 +66,39 @@ test.each([
   [{ listSearch: 42 }, '/documents'],
 ])('back from state %j goes to %j', (state, expected) => {
   expect(backToList(state)).toBe(expected)
+})
+
+test.each([
+  [
+    { searchFrom: '?tenant=ayo&k=10', chunkIndex: 3 },
+    { to: '/search?tenant=ayo&k=10', label: 'Search' },
+  ],
+  [
+    { searchFrom: '?', chunkIndex: 0 },
+    { to: '/search', label: 'Search' },
+  ],
+  [{ searchFrom: 'https://evil.example' }, { to: '/documents', label: 'Documents' }],
+  [{ listSearch: '?tenant=ayo' }, { to: '/documents?tenant=ayo', label: 'Documents' }],
+  [null, { to: '/documents', label: 'Documents' }],
+])('back from %j goes to %j', (state, expected) => {
+  expect(backLink(state)).toEqual(expected)
+})
+
+test.each([
+  [{ searchFrom: '?', chunkIndex: 3 }, 3],
+  [{ searchFrom: '?', chunkIndex: 0 }, 0],
+  [{ chunkIndex: -1 }, null],
+  [{ chunkIndex: 1.5 }, null],
+  [{ chunkIndex: '2' }, null],
+  [null, null],
+])('the chunk outlined for %j is %j', (state, expected) => {
+  expect(highlightedChunk(state)).toBe(expected)
+})
+
+test('a chunk links to its page of the Chunks tab', () => {
+  expect(chunkLink('upload-3f9a1c2b7d4e', 0)).toBe('/documents/upload-3f9a1c2b7d4e?tab=chunks')
+  expect(chunkLink('upload-3f9a1c2b7d4e', 19)).toBe('/documents/upload-3f9a1c2b7d4e?tab=chunks')
+  expect(chunkLink('upload-3f9a1c2b7d4e', 20)).toBe(
+    '/documents/upload-3f9a1c2b7d4e?tab=chunks&cpage=2',
+  )
 })

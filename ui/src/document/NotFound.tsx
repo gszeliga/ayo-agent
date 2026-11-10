@@ -4,7 +4,9 @@ import { EmptyState } from '@/components/StateMessage'
 import { Button } from '@/components/ui/button'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
-export function DocumentNotFound({ back }: { back: string }) {
+import type { BackLink } from './params'
+
+export function DocumentNotFound({ back }: { back: BackLink }) {
   useDocumentTitle('Document not found')
   return (
     <EmptyState
@@ -14,7 +16,7 @@ export function DocumentNotFound({ back }: { back: string }) {
       className="mx-auto mt-8 max-w-xl"
       action={
         <Button asChild>
-          <Link to={back}>Back to documents</Link>
+          <Link to={back.to}>Back to {back.label.toLowerCase()}</Link>
         </Button>
       }
     />

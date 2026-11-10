@@ -18,6 +18,10 @@ const DocumentPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
+// And the test search page: a diagnosis tool.
+const SearchPage = lazy(() =>
+  import('@/search/SearchPage').then((module) => ({ default: module.SearchPage })),
+)
 
 export function AppRoutes() {
   return (
@@ -40,6 +44,14 @@ export function AppRoutes() {
             element={
               <Suspense fallback={<Skeleton aria-label="Loading settings" className="h-40" />}>
                 <SettingsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path={ROUTES.search}
+            element={
+              <Suspense fallback={<Skeleton aria-label="Loading search" className="h-40" />}>
+                <SearchPage />
               </Suspense>
             }
           />
