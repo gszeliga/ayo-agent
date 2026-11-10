@@ -87,9 +87,9 @@ src/ayo_copilot/
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        CORS middleware, lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
-  schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, errors
+  schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, Search*, errors
   dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor (request.state)
-  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, tenants, settings, health (provisional X-API-Key auth, size limits)
+  routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, search, tenants, settings, health (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
   search.py            search(): embed_query, then exact vector search in one read-only transaction

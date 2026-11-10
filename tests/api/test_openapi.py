@@ -77,6 +77,9 @@ def documented_examples(spec: dict[str, Any]) -> Iterator[tuple[str, Any, dict[s
         for parameter in operation.get("parameters", []):
             for value in parameter["schema"].get("examples", []):
                 yield f"{where} parameter {parameter['name']}", value, parameter["schema"]
+        for media_type, content in operation.get("requestBody", {}).get("content", {}).items():
+            for name, example in content.get("examples", {}).items():
+                yield f"{where} request {media_type} {name}", example["value"], content["schema"]
         for status, response in operation["responses"].items():
             for media_type, content in response.get("content", {}).items():
                 for name, example in content.get("examples", {}).items():
@@ -95,7 +98,7 @@ def test_info_comes_from_the_package(spec: dict[str, Any]) -> None:
     assert spec["info"]["title"] == "AYO Plant Copilot API"
     assert spec["info"]["version"] == version("ayo-copilot")
     assert "X-API-Key" in spec["info"]["description"]
-    assert {tag["name"] for tag in spec["tags"]} == {"documents", "settings", "health"}
+    assert {tag["name"] for tag in spec["tags"]} == {"documents", "search", "settings", "health"}
 
 
 def test_docs_pages_are_served() -> None:
@@ -406,3 +409,66 @@ def test_tenants_operation_returns_a_plain_array(spec: dict[str, Any]) -> None:
     assert content["schema"]["type"] == "array"
     assert content["schema"]["items"] == {"$ref": "#/components/schemas/TenantSummary"}
     assert set(content["examples"]) == {"tenants", "none"}
+
+
+def test_search_operation_documents_its_contract(spec: dict[str, Any]) -> None:
+    operation = spec["paths"]["/admin/search"]["post"]
+
+    assert operation["operationId"] == "search_documents"
+    assert operation["security"] == [{"AdminApiKey": []}]
+    assert "search" in operation["tags"]
+    assert set(operation["responses"]) == {"200", "401", "422", "502"}
+    ok = operation["responses"]["200"]["content"]["application/json"]
+    assert ok["schema"] == {"$ref": "#/components/schemas/SearchResponse"}
+    assert "examples" not in ok  # field examples only: the response has nullable fields
+    (failure,) = operation["responses"]["502"]["content"]["application/json"]["examples"].values()
+    assert failure["value"]["detail"][0]["type"] == "embedding_failed"
+    body = operation["requestBody"]
+    assert body["required"] is True
+    content = body["content"]["application/json"]
+    assert content["schema"] == {"$ref": "#/components/schemas/SearchRequest"}
+    assert set(content["examples"]) == {"customer", "one_document", "everything"}
+
+
+def array_branch(schema: dict[str, Any]) -> dict[str, Any]:
+    (branch,) = [b for b in schema["anyOf"] if b.get("type") == "array"]
+    assert {"type": "null"} in schema["anyOf"]
+    return branch
+
+
+def test_search_request_declares_its_bounds(spec: dict[str, Any]) -> None:
+    schema = spec["components"]["schemas"]["SearchRequest"]
+    properties = schema["properties"]
+
+    assert schema["required"] == ["query"]
+    assert schema["additionalProperties"] is False
+    query = properties["query"]
+    assert (query["minLength"], query["maxLength"]) == (1, 2000)
+    top_k = properties["top_k"]
+    assert (top_k["minimum"], top_k["maximum"], top_k["default"]) == (1, 50, 5)
+    (number,) = [b for b in properties["min_similarity"]["anyOf"] if b.get("type") == "number"]
+    assert (number["minimum"], number["maximum"]) == (0, 1)
+    for name, pattern in (("tenants", TENANT_PATTERN), ("doc_ids", DOC_ID_PATTERN)):
+        branch = array_branch(properties[name])
+        assert branch["items"]["pattern"] == pattern
+        assert (branch["minItems"], branch["maxItems"]) == (1, 50)
+        assert properties[name]["uniqueItems"] is True
+    for flag in ("include_outdated", "debug"):
+        assert (properties[flag]["type"], properties[flag]["default"]) == ("boolean", False)
+
+
+def test_search_response_declares_its_nullable_fields(spec: dict[str, Any]) -> None:
+    schemas = spec["components"]["schemas"]
+    result = schemas["SearchHitResult"]["properties"]
+    nullable = {
+        name for name, schema in result.items() if {"type": "null"} in schema.get("anyOf", [])
+    }
+
+    assert nullable == {"heading", "document_title"}
+    response = schemas["SearchResponse"]
+    assert {"type": "null"} in response["properties"]["debug"]["anyOf"]
+    # Always present, null unless requested.
+    assert set(response["required"]) == {"query", "results", "skipped", "debug"}
+    assert result["chunk_id"]["format"] == "uuid"
+    for name in ("SearchResponse", "SearchHitResult"):
+        assert "examples" not in schemas[name], f"{name} must rely on field examples"

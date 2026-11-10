@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic_core import PydanticCustomError
@@ -11,6 +12,8 @@ from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusC
 from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
 from ayo_copilot.ingestion.signatures import DOC_ID_PATTERN
+from ayo_copilot.ingestion.storage import TENANT_PATTERN
+from ayo_copilot.search import SearchOutcome, SearchResult
 
 # The sort keys of `db.repository.SORT_KEYS`, each also with `-` for descending.
 DocumentSort = Literal[
@@ -576,13 +579,13 @@ class EmbeddingHealth(BaseModel):
         examples=[True],
     )
     last_success_at: datetime | None = Field(
-        description="Last successful embedding call by an upload or a reprocess (UTC); null"
-        " if none since the service started.",
+        description="Last successful embedding call by an upload, a reprocess or a search"
+        " (UTC); null if none since the service started.",
         examples=["2026-11-05T09:58:41Z"],
     )
     last_error_at: datetime | None = Field(
-        description="Last failed embedding call by an upload or a reprocess (UTC); null if"
-        " none since the service started.",
+        description="Last failed embedding call by an upload, a reprocess or a search"
+        " (UTC); null if none since the service started.",
         examples=["2026-11-05T10:12:10Z"],
     )
     last_error: str | None = Field(
@@ -599,3 +602,255 @@ class ServiceHealth(BaseModel):
     )
     database: DatabaseHealth = Field(description="The database.")
     embeddings: EmbeddingHealth = Field(description="The embedding provider.")
+
+
+MAX_QUERY_CHARS = 2000
+MAX_SEARCH_TOP_K = 50
+MAX_SEARCH_TENANTS = 50
+MAX_SEARCH_DOC_IDS = 50
+
+
+def _no_repeats(values: list[str] | None, field: str) -> list[str] | None:
+    if values is not None and len(set(values)) != len(values):
+        raise PydanticCustomError(f"duplicate_{field}", f"{field} must not repeat a value")
+    return values
+
+
+class SearchRequest(BaseModel):
+    """A question to find the nearest chunks for, and where to look."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_QUERY_CHARS)
+    ] = Field(
+        description="The question, in the plant team's words. Surrounding whitespace is"
+        f" removed; 1 to {MAX_QUERY_CHARS} characters remain. Never logged.",
+        examples=["¿Qué herramienta uso si tengo muchos tipos de defecto?"],
+    )
+    tenants: list[Annotated[str, StringConstraints(pattern=TENANT_PATTERN)]] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_SEARCH_TENANTS,
+        json_schema_extra={"uniqueItems": True},
+        description="Tenants to search, 1 to"
+        f" {MAX_SEARCH_TENANTS}, no repeats; null searches every tenant. A tenant without"
+        " documents is not an error, it just adds no results. The production agent will"
+        " always search one customer's tenant plus the shared `ayo` tenant, never across"
+        " customers; searching every tenant is for administrators.",
+        examples=[["cliente-acme", "ayo"]],
+    )
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        le=MAX_SEARCH_TOP_K,
+        description=f"How many chunks to return at most, 1 to {MAX_SEARCH_TOP_K}.",
+        examples=[5],
+    )
+    min_similarity: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Drop results whose `similarity` is below this, 0 to 1; null keeps them"
+        " all. Not calibrated yet: the evaluation harness reports the similarities of"
+        " answerable and unanswerable questions to choose it.",
+        examples=[0.5],
+    )
+    doc_ids: list[Annotated[str, StringConstraints(pattern=DOC_ID_PATTERN)]] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_SEARCH_DOC_IDS,
+        json_schema_extra={"uniqueItems": True},
+        description=f"Search only these documents, 1 to {MAX_SEARCH_DOC_IDS} ids, no repeats;"
+        " null searches every document. Useful to debug one document. Unknown ids add no"
+        " results.",
+        examples=[["upload-1890b5dc5335"]],
+    )
+    include_outdated: bool = Field(
+        default=False,
+        description="Also search documents embedded with another embedding model (or an"
+        " unknown one), flagged with `embedder_outdated`. Their vectors live in another"
+        " space, so their similarities are not comparable; by default they are skipped and"
+        " counted in `skipped`. A chunking change alone never skips a document.",
+        examples=[False],
+    )
+    debug: bool = Field(
+        default=False,
+        description="Add `debug` to the answer: the text embedded, the configs and timings.",
+        examples=[False],
+    )
+
+    @field_validator("tenants")
+    @classmethod
+    def _unique_tenants(cls, tenants: list[str] | None) -> list[str] | None:
+        return _no_repeats(tenants, "tenants")
+
+    @field_validator("doc_ids")
+    @classmethod
+    def _unique_doc_ids(cls, doc_ids: list[str] | None) -> list[str] | None:
+        return _no_repeats(doc_ids, "doc_ids")
+
+
+class SearchHitResult(BaseModel):
+    """One chunk found, with what a result list shows of its document."""
+
+    rank: int = Field(description="Position in the results, from 1.", examples=[1])
+    similarity: float = Field(
+        description="Cosine similarity between the query and the chunk, rounded to 4"
+        " decimals: 1 for the same direction, 0 for unrelated, negative for opposite."
+        " Results are ordered by it, highest first; ties by `chunk_id`.",
+        examples=[0.8734],
+    )
+    chunk_id: UUID = Field(
+        description="Stable id of the chunk until its document is reprocessed or replaced.",
+        examples=["0b9f6c1e-3d2a-4f5b-8c7d-9e0a1b2c3d4e"],
+    )
+    chunk_index: int = Field(
+        description="Position of the chunk in its document, from 0 (as in the chunks listing).",
+        examples=[3],
+    )
+    heading: str | None = Field(
+        description="Path of the Markdown headings the chunk sits under, joined with ` > `;"
+        " null before the first heading.",
+        examples=["Método Pareto > Cuándo aplicarlo"],
+    )
+    chunk_text: str = Field(
+        description="The chunk's text (without the heading path that was embedded with it).",
+        examples=[
+            "Usa el diagrama de Pareto cuando tengas muchos tipos de defecto y necesites"
+            " decidir cuáles atacar primero: el 20% de las causas suele explicar el 80%."
+        ],
+    )
+    char_count: int = Field(
+        description="Length of `chunk_text` in characters (not bytes).", examples=[148]
+    )
+    doc_id: str = Field(
+        description="The document the chunk belongs to (link to its detail).",
+        examples=["upload-3f9a1c2b7d4e"],
+    )
+    document_title: str | None = Field(
+        description="The document's display title.", examples=["Método Pareto"]
+    )
+    source_key: str = Field(
+        description="Name that identifies the document within its tenant.",
+        examples=["pareto.md"],
+    )
+    tenant: str = Field(description="Tenant the document belongs to.", examples=["ayo"])
+    embedder_outdated: bool = Field(
+        description="The document was embedded with another (or an unknown) embedding model:"
+        " its similarity is not comparable. Only true with `include_outdated`; reprocess the"
+        " document to fix it.",
+        examples=[False],
+    )
+
+    @classmethod
+    def from_result(cls, result: SearchResult) -> "SearchHitResult":
+        hit = result.hit
+        return cls(
+            rank=result.rank,
+            similarity=result.similarity,
+            chunk_id=hit.chunk_id,
+            chunk_index=hit.chunk_index,
+            heading=hit.heading,
+            chunk_text=hit.chunk_text,
+            char_count=hit.char_count,
+            doc_id=hit.doc_id,
+            document_title=hit.title,
+            source_key=hit.source_key,
+            tenant=hit.tenant,
+            embedder_outdated=hit.embedder_outdated,
+        )
+
+
+class SearchSkipped(BaseModel):
+    """Documents matching the filters that were not searched."""
+
+    embedder_mismatch: int = Field(
+        description="Documents embedded with another embedding model, or an unknown one,"
+        " and so skipped (0 with `include_outdated`). Reprocess them to make them"
+        " searchable again.",
+        examples=[2],
+    )
+
+
+class SearchTimings(BaseModel):
+    """Where the time went, in milliseconds rounded to 0.1."""
+
+    embed: float = Field(description="Embedding the query (the provider call).", examples=[41.2])
+    search: float = Field(description="The database search.", examples=[6.3])
+    total: float = Field(description="Both, as measured around them.", examples=[47.5])
+
+
+class SearchDebug(BaseModel):
+    """How the search ran, for diagnosis."""
+
+    embedded_query: str = Field(
+        description="The text sent to the embedding provider: the trimmed query. The"
+        " provider adds its own retrieval prompt for `input_type`.",
+        examples=["¿Qué herramienta uso si tengo muchos tipos de defecto?"],
+    )
+    input_type: Literal["query"] = Field(
+        description="How the query was embedded (documents are embedded as `document`).",
+        examples=["query"],
+    )
+    embedder_config: str = Field(
+        description="Embedding model and dimensions searched with; documents with another"
+        " value are skipped unless `include_outdated`.",
+        examples=["voyage-4/document/1024"],
+    )
+    chunker_config: str = Field(
+        description="Current chunking settings (documents chunked otherwise are still searched).",
+        examples=[CHUNKER_CONFIG_EXAMPLE],
+    )
+    timings_ms: SearchTimings = Field(description="Durations of the stages.")
+
+
+def _ms(value: float) -> float:
+    return round(value, 1)
+
+
+class SearchResponse(BaseModel):
+    """The nearest chunks, what was skipped and, on request, how the search ran."""
+
+    query: str = Field(
+        description="The query as searched (trimmed).",
+        examples=["¿Qué herramienta uso si tengo muchos tipos de defecto?"],
+    )
+    results: list[SearchHitResult] = Field(
+        description="The nearest chunks, best first; empty when nothing matches the filters"
+        " or passes `min_similarity`."
+    )
+    skipped: SearchSkipped = Field(description="Documents left out of the search.")
+    debug: SearchDebug | None = Field(
+        description="Present (not null) only with `debug=true`.",
+        examples=[
+            {
+                "embedded_query": "¿Qué herramienta uso si tengo muchos tipos de defecto?",
+                "input_type": "query",
+                "embedder_config": "voyage-4/document/1024",
+                "chunker_config": CHUNKER_CONFIG_EXAMPLE,
+                "timings_ms": {"embed": 41.2, "search": 6.3, "total": 47.5},
+            }
+        ],
+    )
+
+    @classmethod
+    def from_outcome(cls, outcome: SearchOutcome, *, debug: bool) -> "SearchResponse":
+        return cls(
+            query=outcome.embedded_query,
+            results=[SearchHitResult.from_result(result) for result in outcome.results],
+            skipped=SearchSkipped(embedder_mismatch=outcome.embedder_mismatch),
+            debug=SearchDebug(
+                embedded_query=outcome.embedded_query,
+                input_type="query",
+                embedder_config=outcome.embedder_config,
+                chunker_config=outcome.chunker_config,
+                timings_ms=SearchTimings(
+                    embed=_ms(outcome.embed_ms),
+                    search=_ms(outcome.search_ms),
+                    total=_ms(outcome.total_ms),
+                ),
+            )
+            if debug
+            else None,
+        )

@@ -23,12 +23,23 @@ progress log. Resume from the first unchecked step.
    UI will use. Its search function is injected, so the harness tests run on scripted
    rankings.
 
+7. **`debug` is always in the response**, `null` unless requested (the spec said "present
+   only when requested"). Leaving it out would need `exclude_none`/`exclude_unset`, which
+   would also drop the nullable `heading` and `document_title`; a nullable field keeps the
+   OpenAPI and the generated UI types simple.
+8. **Empty `tenants` / `doc_ids` lists are a 422 (`too_short`)**: `null` means no filter, and
+   an empty list is almost always a client bug. Lists are capped at 50 and must not repeat a
+   value (`duplicate_tenants`, `duplicate_doc_ids`); the 50-tenant cap is ours (the spec only
+   capped `doc_ids`). Unknown tenants and ids are not errors: they add no results.
+9. Debug timings are milliseconds rounded to 0.1 (the spec's example showed integers; most
+   searches here take under 1 ms).
+
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **S1** `embed_query` (Voyage, fake, health tracker); `repository.search_chunks`
   (exact, filters, outdated flag) and `count_embedder_mismatches`; `search.search` (own
   read-only transaction, timings, logs without query or chunk text); ADR 0002. Replaces
   `similar_chunks`.
-- [ ] **S2** `POST /admin/search`: schemas and validation, 502 mapping, OpenAPI examples,
+- [x] **S2** `POST /admin/search`: schemas and validation, 502 mapping, OpenAPI examples,
   contract tests, `docs/openapi.json`, `ui/src/api/schema.d.ts`, README.
 - [ ] **S3** Eval core without I/O: golden-file loader (every problem reported at once),
   metrics (hit@k for documents and chunks, MRR, calibration, latency percentiles), `compare`
@@ -38,6 +49,11 @@ progress log. Resume from the first unchecked step.
 - [ ] **S5** Synthetic corpus (`eval/corpus/`), `eval/golden.example.yaml`, `eval/README.md`,
   `live` test; manual run (upload, Swagger searches, eval, chunker change, reprocess,
   compare) and the final report.
+
+## Open items
+- `/admin/search` (like `/admin/settings` and `/admin/health`) is listed under both its own
+  tag and `documents` in Swagger, because the router's default tag is merged with the
+  route's. Fixing it means moving the default tag to the document routes; not done here.
 
 ## Progress log
 - **S1 (2026-11-10).** `Embedder.embed_query` on the protocol; Voyage shares the payload
@@ -67,3 +83,24 @@ progress log. Resume from the first unchecked step.
   comes from and what one search covers, the measurement caveats, and a "When to
   revisit" section (threshold in chunks and documents, three options in order of effort).
   Docs only.
+- **S2 (2026-11-10).** `POST /admin/search` (`search_documents`, tag `search`):
+  `SearchRequest` (trimmed `query` 1-2000, `tenants`/`doc_ids` null or 1-50 unique valid ids,
+  `top_k` 1-50 default 5, `min_similarity` 0-1, `include_outdated`, `debug`; extra fields
+  forbidden) and `SearchResponse` (`query`, `results` of `SearchHitResult`,
+  `skipped.embedder_mismatch`, `debug` with `embedded_query`, `input_type`, configs and
+  `timings_ms`). `EmbeddingError` -> `502 embedding_failed`, logged without the query.
+  OpenAPI: description with status table, three request examples, 422 examples, field
+  examples only for the response (nullable fields); `docs/openapi.json` and
+  `ui/src/api/schema.d.ts` regenerated. README "Searching" section and endpoint row. The
+  `/admin/health` field descriptions now say searches count as embedding calls too.
+  - Tests: unit (`tests/unit/test_schemas.py`: defaults, trimming, inclusive bounds, 17
+    invalid bodies with type and loc, response mapping with `debug` null and timings
+    rounding); API (`tests/api/test_search.py`, real pgvector: a chunk found by its own
+    text at similarity 1.0 with every field, tenant filter, outdated skipped and flagged,
+    debug, `min_similarity` and `doc_ids`, empty base, unknown tenant or id, 502 with no
+    detail and no query in logs, 422 through HTTP, logs without query or chunks);
+    contract (200 x3, 401, 422 x2, 502); OpenAPI (operation, request bounds, nullable
+    fields, request examples now validated against their schema too); auth picks the
+    route up by itself. 716 backend tests; `pnpm check` green (287 UI tests).
+  - Smoke run of the real app against the local dev database with the fake embedder:
+    filters, `skipped` (2 documents without recorded configs), debug timings, 401, `/docs`.

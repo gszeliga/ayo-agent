@@ -1,4 +1,5 @@
-"""Admin endpoints: upload, list and inspect knowledge documents; the indexing settings.
+"""Admin endpoints: upload, list and inspect knowledge documents; search them; the indexing
+settings.
 
 Authentication is **provisional**: one shared key in `ADMIN_API_KEY`, sent as `X-API-Key`.
 It will be replaced by real identity and per-tenant authorization.
@@ -9,7 +10,18 @@ import secrets
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, Security, UploadFile
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    Query,
+    Request,
+    Response,
+    Security,
+    UploadFile,
+)
 from fastapi import Path as PathParam
 from fastapi.routing import APIRoute
 from fastapi.security import APIKeyHeader
@@ -49,6 +61,8 @@ from ayo_copilot.schemas import (
     CHUNKER_CONFIG_EXAMPLE,
     EMBED_SIGNATURE_EXAMPLE,
     MAX_BULK_DELETE,
+    MAX_QUERY_CHARS,
+    MAX_SEARCH_TOP_K,
     Chunk,
     ChunkPage,
     DatabaseHealth,
@@ -64,9 +78,12 @@ from ayo_copilot.schemas import (
     ErrorResponse,
     IndexingSettings,
     IngestResponse,
+    SearchRequest,
+    SearchResponse,
     ServiceHealth,
     TenantSummary,
 )
+from ayo_copilot.search import search
 
 logger = logging.getLogger(__name__)
 
@@ -1020,6 +1037,166 @@ def bulk_delete(
         deleted=[DeletedDocument.from_row(row) for row in rows],
         not_found=[doc_id for doc_id in request.doc_ids if doc_id not in deleted],
     )
+
+
+SEARCH_DESCRIPTION = """Find the chunks nearest to a question: what the copilot would
+retrieve for it. For trying questions against the knowledge base and evaluating
+retrieval; the answer has everything a result list needs, without further calls.
+
+The query is embedded as a search query, then compared by cosine similarity with every
+chunk that passes the filters (exact search, no approximate index; see ADR 0002).
+Results are ordered by similarity, highest first, ties by chunk id, so the same request
+on the same data gives the same answer.
+
+**Embedding models.** Vectors from different embedding models are not comparable.
+Documents embedded with another model than the current one (or an unknown one) are
+skipped and counted in `skipped.embedder_mismatch`; reprocess them to search them again.
+With `include_outdated=true` they are searched and flagged with `embedder_outdated`. A
+change of the chunking settings alone never skips a document.
+
+**Tenants.** The production agent will always search one customer's tenant plus the
+shared `ayo` tenant, never across customers. `tenants=null` searches every tenant, for
+administrators only.
+
+The results hold customer content, and queries can be sensitive too: neither is logged.
+
+| Status | Meaning |
+|---|---|
+| `200` | The results, possibly none (empty knowledge base, filters matching nothing). |
+| `401` | `X-API-Key` missing or wrong. |
+| `422` | An invalid field: see the codes below. |
+| `502` | The embedding provider failed after retries. Nothing was searched. |
+"""
+
+SEARCH_EXAMPLE_QUERY = "¿Qué herramienta uso si tengo muchos tipos de defecto?"
+
+
+@router.post(
+    "/search",
+    operation_id="search_documents",
+    summary="Search the knowledge base",
+    description=SEARCH_DESCRIPTION,
+    tags=["search"],
+    responses={
+        200: {
+            # Field examples only: `heading`, `document_title` and `debug` are nullable.
+            "description": "The nearest chunks, the documents skipped and, with `debug`,"
+            " how the search ran.",
+        },
+        422: {
+            "model": ErrorResponse,
+            "description": "The body is not acceptable. `type` is a FastAPI validation code"
+            " such as `string_too_short` (blank `query`), `string_too_long` (over"
+            f" {MAX_QUERY_CHARS} characters), `greater_than_equal` / `less_than_equal`"
+            " (`top_k`, `min_similarity`), `string_pattern_mismatch` (a tenant or doc id;"
+            " `loc` ends with its index), `too_short` (an empty list: send null instead),"
+            " `too_long`, `duplicate_tenants`, `duplicate_doc_ids`, `missing`,"
+            " `extra_forbidden` or `json_invalid`.",
+            "content": _examples(
+                string_too_short=(
+                    "Blank query",
+                    _error(
+                        "string_too_short",
+                        ["body", "query"],
+                        "String should have at least 1 character",
+                        input="  ",
+                        ctx={"min_length": 1},
+                    ),
+                ),
+                less_than_equal=(
+                    "top_k too large",
+                    _error(
+                        "less_than_equal",
+                        ["body", "top_k"],
+                        f"Input should be less than or equal to {MAX_SEARCH_TOP_K}",
+                        input=100,
+                        ctx={"le": MAX_SEARCH_TOP_K},
+                    ),
+                ),
+                string_pattern_mismatch=(
+                    "Malformed tenant",
+                    _error(
+                        "string_pattern_mismatch",
+                        ["body", "tenants", 0],
+                        f"String should match pattern '{TENANT_PATTERN}'",
+                        input="Cliente ACME",
+                        ctx={"pattern": TENANT_PATTERN},
+                    ),
+                ),
+                too_short=(
+                    "Empty tenant list",
+                    _error(
+                        "too_short",
+                        ["body", "tenants"],
+                        "List should have at least 1 item after validation, not 0",
+                        input=[],
+                        ctx={"field_type": "List", "min_length": 1, "actual_length": 0},
+                    ),
+                ),
+            ),
+        },
+        502: {
+            **EMBEDDING_FAILED_RESPONSE,
+            "description": "The embedding provider failed after retries. Nothing was"
+            " searched; retrying later is safe.",
+        },
+    },
+)
+def search_documents(
+    request: Annotated[
+        SearchRequest,
+        Body(
+            openapi_examples={
+                "customer": {
+                    "summary": "One customer plus the shared tenant",
+                    "value": {
+                        "query": SEARCH_EXAMPLE_QUERY,
+                        "tenants": ["cliente-acme", "ayo"],
+                        "top_k": 5,
+                    },
+                },
+                "one_document": {
+                    "summary": "One document, with debug details",
+                    "value": {
+                        "query": SEARCH_EXAMPLE_QUERY,
+                        "doc_ids": ["upload-3f9a1c2b7d4e"],
+                        "top_k": 10,
+                        "debug": True,
+                    },
+                },
+                "everything": {
+                    "summary": "Every tenant, outdated documents included",
+                    "value": {
+                        "query": SEARCH_EXAMPLE_QUERY,
+                        "top_k": 20,
+                        "min_similarity": 0.3,
+                        "include_outdated": True,
+                    },
+                },
+            }
+        ),
+    ],
+    settings: Annotated[Settings, Depends(get_settings)],
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> SearchResponse:
+    try:
+        outcome = search(
+            pool,
+            embedder,
+            settings,
+            query=request.query,
+            top_k=request.top_k,
+            tenants=request.tenants,
+            doc_ids=request.doc_ids,
+            min_similarity=request.min_similarity,
+            include_outdated=request.include_outdated,
+        )
+    except EmbeddingError as exc:
+        # Provider messages carry neither the query nor the key.
+        logger.warning("embedding failed for a search: %s", exc)
+        raise ApiError(502, "embedding_failed", "embedding provider failed") from None
+    return SearchResponse.from_outcome(outcome, debug=request.debug)
 
 
 TENANTS_DESCRIPTION = """Every tenant that has stored documents, in alphabetical order, with

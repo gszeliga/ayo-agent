@@ -813,7 +813,7 @@
                 "type": "null"
               }
             ],
-            "description": "Last failed embedding call by an upload or a reprocess (UTC); null if none since the service started.",
+            "description": "Last failed embedding call by an upload, a reprocess or a search (UTC); null if none since the service started.",
             "examples": [
               "2026-11-05T10:12:10Z"
             ],
@@ -829,7 +829,7 @@
                 "type": "null"
               }
             ],
-            "description": "Last successful embedding call by an upload or a reprocess (UTC); null if none since the service started.",
+            "description": "Last successful embedding call by an upload, a reprocess or a search (UTC); null if none since the service started.",
             "examples": [
               "2026-11-05T09:58:41Z"
             ],
@@ -1207,6 +1207,416 @@
         "title": "OutdatedCounts",
         "type": "object"
       },
+      "SearchDebug": {
+        "description": "How the search ran, for diagnosis.",
+        "properties": {
+          "chunker_config": {
+            "description": "Current chunking settings (documents chunked otherwise are still searched).",
+            "examples": [
+              "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1"
+            ],
+            "title": "Chunker Config",
+            "type": "string"
+          },
+          "embedded_query": {
+            "description": "The text sent to the embedding provider: the trimmed query. The provider adds its own retrieval prompt for `input_type`.",
+            "examples": [
+              "¿Qué herramienta uso si tengo muchos tipos de defecto?"
+            ],
+            "title": "Embedded Query",
+            "type": "string"
+          },
+          "embedder_config": {
+            "description": "Embedding model and dimensions searched with; documents with another value are skipped unless `include_outdated`.",
+            "examples": [
+              "voyage-4/document/1024"
+            ],
+            "title": "Embedder Config",
+            "type": "string"
+          },
+          "input_type": {
+            "const": "query",
+            "description": "How the query was embedded (documents are embedded as `document`).",
+            "examples": [
+              "query"
+            ],
+            "title": "Input Type",
+            "type": "string"
+          },
+          "timings_ms": {
+            "$ref": "#/components/schemas/SearchTimings",
+            "description": "Durations of the stages."
+          }
+        },
+        "required": [
+          "embedded_query",
+          "input_type",
+          "embedder_config",
+          "chunker_config",
+          "timings_ms"
+        ],
+        "title": "SearchDebug",
+        "type": "object"
+      },
+      "SearchHitResult": {
+        "description": "One chunk found, with what a result list shows of its document.",
+        "properties": {
+          "char_count": {
+            "description": "Length of `chunk_text` in characters (not bytes).",
+            "examples": [
+              148
+            ],
+            "title": "Char Count",
+            "type": "integer"
+          },
+          "chunk_id": {
+            "description": "Stable id of the chunk until its document is reprocessed or replaced.",
+            "examples": [
+              "0b9f6c1e-3d2a-4f5b-8c7d-9e0a1b2c3d4e"
+            ],
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "chunk_index": {
+            "description": "Position of the chunk in its document, from 0 (as in the chunks listing).",
+            "examples": [
+              3
+            ],
+            "title": "Chunk Index",
+            "type": "integer"
+          },
+          "chunk_text": {
+            "description": "The chunk's text (without the heading path that was embedded with it).",
+            "examples": [
+              "Usa el diagrama de Pareto cuando tengas muchos tipos de defecto y necesites decidir cuáles atacar primero: el 20% de las causas suele explicar el 80%."
+            ],
+            "title": "Chunk Text",
+            "type": "string"
+          },
+          "doc_id": {
+            "description": "The document the chunk belongs to (link to its detail).",
+            "examples": [
+              "upload-3f9a1c2b7d4e"
+            ],
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "document_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The document's display title.",
+            "examples": [
+              "Método Pareto"
+            ],
+            "title": "Document Title"
+          },
+          "embedder_outdated": {
+            "description": "The document was embedded with another (or an unknown) embedding model: its similarity is not comparable. Only true with `include_outdated`; reprocess the document to fix it.",
+            "examples": [
+              false
+            ],
+            "title": "Embedder Outdated",
+            "type": "boolean"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Path of the Markdown headings the chunk sits under, joined with ` > `; null before the first heading.",
+            "examples": [
+              "Método Pareto > Cuándo aplicarlo"
+            ],
+            "title": "Heading"
+          },
+          "rank": {
+            "description": "Position in the results, from 1.",
+            "examples": [
+              1
+            ],
+            "title": "Rank",
+            "type": "integer"
+          },
+          "similarity": {
+            "description": "Cosine similarity between the query and the chunk, rounded to 4 decimals: 1 for the same direction, 0 for unrelated, negative for opposite. Results are ordered by it, highest first; ties by `chunk_id`.",
+            "examples": [
+              0.8734
+            ],
+            "title": "Similarity",
+            "type": "number"
+          },
+          "source_key": {
+            "description": "Name that identifies the document within its tenant.",
+            "examples": [
+              "pareto.md"
+            ],
+            "title": "Source Key",
+            "type": "string"
+          },
+          "tenant": {
+            "description": "Tenant the document belongs to.",
+            "examples": [
+              "ayo"
+            ],
+            "title": "Tenant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "similarity",
+          "chunk_id",
+          "chunk_index",
+          "heading",
+          "chunk_text",
+          "char_count",
+          "doc_id",
+          "document_title",
+          "source_key",
+          "tenant",
+          "embedder_outdated"
+        ],
+        "title": "SearchHitResult",
+        "type": "object"
+      },
+      "SearchRequest": {
+        "additionalProperties": false,
+        "description": "A question to find the nearest chunks for, and where to look.",
+        "properties": {
+          "debug": {
+            "default": false,
+            "description": "Add `debug` to the answer: the text embedded, the configs and timings.",
+            "examples": [
+              false
+            ],
+            "title": "Debug",
+            "type": "boolean"
+          },
+          "doc_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[a-z]+-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Search only these documents, 1 to 50 ids, no repeats; null searches every document. Useful to debug one document. Unknown ids add no results.",
+            "examples": [
+              [
+                "upload-1890b5dc5335"
+              ]
+            ],
+            "title": "Doc Ids",
+            "uniqueItems": true
+          },
+          "include_outdated": {
+            "default": false,
+            "description": "Also search documents embedded with another embedding model (or an unknown one), flagged with `embedder_outdated`. Their vectors live in another space, so their similarities are not comparable; by default they are skipped and counted in `skipped`. A chunking change alone never skips a document.",
+            "examples": [
+              false
+            ],
+            "title": "Include Outdated",
+            "type": "boolean"
+          },
+          "min_similarity": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop results whose `similarity` is below this, 0 to 1; null keeps them all. Not calibrated yet: the evaluation harness reports the similarities of answerable and unanswerable questions to choose it.",
+            "examples": [
+              0.5
+            ],
+            "title": "Min Similarity"
+          },
+          "query": {
+            "description": "The question, in the plant team's words. Surrounding whitespace is removed; 1 to 2000 characters remain. Never logged.",
+            "examples": [
+              "¿Qué herramienta uso si tengo muchos tipos de defecto?"
+            ],
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "tenants": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tenants to search, 1 to 50, no repeats; null searches every tenant. A tenant without documents is not an error, it just adds no results. The production agent will always search one customer's tenant plus the shared `ayo` tenant, never across customers; searching every tenant is for administrators.",
+            "examples": [
+              [
+                "cliente-acme",
+                "ayo"
+              ]
+            ],
+            "title": "Tenants",
+            "uniqueItems": true
+          },
+          "top_k": {
+            "default": 5,
+            "description": "How many chunks to return at most, 1 to 50.",
+            "examples": [
+              5
+            ],
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "SearchRequest",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "description": "The nearest chunks, what was skipped and, on request, how the search ran.",
+        "properties": {
+          "debug": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchDebug"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present (not null) only with `debug=true`.",
+            "examples": [
+              {
+                "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
+                "embedded_query": "¿Qué herramienta uso si tengo muchos tipos de defecto?",
+                "embedder_config": "voyage-4/document/1024",
+                "input_type": "query",
+                "timings_ms": {
+                  "embed": 41.2,
+                  "search": 6.3,
+                  "total": 47.5
+                }
+              }
+            ]
+          },
+          "query": {
+            "description": "The query as searched (trimmed).",
+            "examples": [
+              "¿Qué herramienta uso si tengo muchos tipos de defecto?"
+            ],
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "description": "The nearest chunks, best first; empty when nothing matches the filters or passes `min_similarity`.",
+            "items": {
+              "$ref": "#/components/schemas/SearchHitResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "skipped": {
+            "$ref": "#/components/schemas/SearchSkipped",
+            "description": "Documents left out of the search."
+          }
+        },
+        "required": [
+          "query",
+          "results",
+          "skipped",
+          "debug"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SearchSkipped": {
+        "description": "Documents matching the filters that were not searched.",
+        "properties": {
+          "embedder_mismatch": {
+            "description": "Documents embedded with another embedding model, or an unknown one, and so skipped (0 with `include_outdated`). Reprocess them to make them searchable again.",
+            "examples": [
+              2
+            ],
+            "title": "Embedder Mismatch",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "embedder_mismatch"
+        ],
+        "title": "SearchSkipped",
+        "type": "object"
+      },
+      "SearchTimings": {
+        "description": "Where the time went, in milliseconds rounded to 0.1.",
+        "properties": {
+          "embed": {
+            "description": "Embedding the query (the provider call).",
+            "examples": [
+              41.2
+            ],
+            "title": "Embed",
+            "type": "number"
+          },
+          "search": {
+            "description": "The database search.",
+            "examples": [
+              6.3
+            ],
+            "title": "Search",
+            "type": "number"
+          },
+          "total": {
+            "description": "Both, as measured around them.",
+            "examples": [
+              47.5
+            ],
+            "title": "Total",
+            "type": "number"
+          }
+        },
+        "required": [
+          "embed",
+          "search",
+          "total"
+        ],
+        "title": "SearchTimings",
+        "type": "object"
+      },
       "ServiceHealth": {
         "description": "Whether the services the API depends on work.",
         "properties": {
@@ -1304,7 +1714,7 @@
     }
   },
   "info": {
-    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from.\n\n## Authentication\n\nThe `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and\npaste the key, then use **Try it out**. The key is **provisional**: one shared key, to be\nreplaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |\n| `document_not_found` | 404 | `[\"path\", \"doc_id\"]` |\n| `document_changed` | 409 | `[]` |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
+    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from, and searches it the way the copilot will.\n\n## Authentication\n\nThe `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and\npaste the key, then use **Try it out**. The key is **provisional**: one shared key, to be\nreplaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |\n| `document_not_found` | 404 | `[\"path\", \"doc_id\"]` |\n| `document_changed` | 409 | `[]` |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
     "title": "AYO Plant Copilot API",
     "version": "0.1.0"
   },
@@ -2991,6 +3401,219 @@
         ]
       }
     },
+    "/admin/search": {
+      "post": {
+        "description": "Find the chunks nearest to a question: what the copilot would\nretrieve for it. For trying questions against the knowledge base and evaluating\nretrieval; the answer has everything a result list needs, without further calls.\n\nThe query is embedded as a search query, then compared by cosine similarity with every\nchunk that passes the filters (exact search, no approximate index; see ADR 0002).\nResults are ordered by similarity, highest first, ties by chunk id, so the same request\non the same data gives the same answer.\n\n**Embedding models.** Vectors from different embedding models are not comparable.\nDocuments embedded with another model than the current one (or an unknown one) are\nskipped and counted in `skipped.embedder_mismatch`; reprocess them to search them again.\nWith `include_outdated=true` they are searched and flagged with `embedder_outdated`. A\nchange of the chunking settings alone never skips a document.\n\n**Tenants.** The production agent will always search one customer's tenant plus the\nshared `ayo` tenant, never across customers. `tenants=null` searches every tenant, for\nadministrators only.\n\nThe results hold customer content, and queries can be sensitive too: neither is logged.\n\n| Status | Meaning |\n|---|---|\n| `200` | The results, possibly none (empty knowledge base, filters matching nothing). |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | An invalid field: see the codes below. |\n| `502` | The embedding provider failed after retries. Nothing was searched. |",
+        "operationId": "search_documents",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "customer": {
+                  "summary": "One customer plus the shared tenant",
+                  "value": {
+                    "query": "¿Qué herramienta uso si tengo muchos tipos de defecto?",
+                    "tenants": [
+                      "cliente-acme",
+                      "ayo"
+                    ],
+                    "top_k": 5
+                  }
+                },
+                "everything": {
+                  "summary": "Every tenant, outdated documents included",
+                  "value": {
+                    "include_outdated": true,
+                    "min_similarity": 0.3,
+                    "query": "¿Qué herramienta uso si tengo muchos tipos de defecto?",
+                    "top_k": 20
+                  }
+                },
+                "one_document": {
+                  "summary": "One document, with debug details",
+                  "value": {
+                    "debug": true,
+                    "doc_ids": [
+                      "upload-3f9a1c2b7d4e"
+                    ],
+                    "query": "¿Qué herramienta uso si tengo muchos tipos de defecto?",
+                    "top_k": 10
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "The nearest chunks, the documents skipped and, with `debug`, how the search ran."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "less_than_equal": {
+                    "summary": "top_k too large",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "le": 50
+                          },
+                          "input": 100,
+                          "loc": [
+                            "body",
+                            "top_k"
+                          ],
+                          "msg": "Input should be less than or equal to 50",
+                          "type": "less_than_equal"
+                        }
+                      ]
+                    }
+                  },
+                  "string_pattern_mismatch": {
+                    "summary": "Malformed tenant",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+                          },
+                          "input": "Cliente ACME",
+                          "loc": [
+                            "body",
+                            "tenants",
+                            0
+                          ],
+                          "msg": "String should match pattern '^[a-z0-9][a-z0-9-]{1,62}$'",
+                          "type": "string_pattern_mismatch"
+                        }
+                      ]
+                    }
+                  },
+                  "string_too_short": {
+                    "summary": "Blank query",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "min_length": 1
+                          },
+                          "input": "  ",
+                          "loc": [
+                            "body",
+                            "query"
+                          ],
+                          "msg": "String should have at least 1 character",
+                          "type": "string_too_short"
+                        }
+                      ]
+                    }
+                  },
+                  "too_short": {
+                    "summary": "Empty tenant list",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "actual_length": 0,
+                            "field_type": "List",
+                            "min_length": 1
+                          },
+                          "input": [],
+                          "loc": [
+                            "body",
+                            "tenants"
+                          ],
+                          "msg": "List should have at least 1 item after validation, not 0",
+                          "type": "too_short"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The body is not acceptable. `type` is a FastAPI validation code such as `string_too_short` (blank `query`), `string_too_long` (over 2000 characters), `greater_than_equal` / `less_than_equal` (`top_k`, `min_similarity`), `string_pattern_mismatch` (a tenant or doc id; `loc` ends with its index), `too_short` (an empty list: send null instead), `too_long`, `duplicate_tenants`, `duplicate_doc_ids`, `missing`, `extra_forbidden` or `json_invalid`."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "embedding_failed": {
+                    "summary": "Provider failure",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "embedding provider failed",
+                          "type": "embedding_failed"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The embedding provider failed after retries. Nothing was searched; retrying later is safe."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Search the knowledge base",
+        "tags": [
+          "documents",
+          "search"
+        ]
+      }
+    },
     "/admin/settings": {
       "get": {
         "description": "The chunking, embedding and upload settings that new uploads and\nreprocesses use, and how many stored documents, across all tenants, are `indexed` with\nthem or `outdated` (by reason, as each document's `outdated_reason`). Read-only: the\nsettings come from the environment and change with a restart. No keys, URLs or database\nsettings are included.\n\nThe `chunker_config` and `embedder_config` strings are the ones each document is compared\nwith, so a client can show which part of a document's configs differs.\n\n| Status | Meaning |\n|---|---|\n| `200` | The settings and the counts. |\n| `401` | `X-API-Key` missing or wrong. |",
@@ -3185,6 +3808,10 @@
     {
       "description": "Upload, list and inspect the Markdown documents the copilot retrieves from.",
       "name": "documents"
+    },
+    {
+      "description": "Try questions against the knowledge base: the chunks the copilot would retrieve, with their similarity.",
+      "name": "search"
     },
     {
       "description": "The current indexing settings and how the stored documents compare with them. Read-only; no secrets.",

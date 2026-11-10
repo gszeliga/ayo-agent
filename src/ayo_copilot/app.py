@@ -29,7 +29,7 @@ POOL_OPEN_TIMEOUT_SECONDS = 30.0
 API_DESCRIPTION = """\
 Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through
 structured problem solving. This API loads the plant knowledge (procedures, manuals) the
-copilot retrieves from.
+copilot retrieves from, and searches it the way the copilot will.
 
 ## Authentication
 
@@ -69,6 +69,11 @@ OPENAPI_TAGS = [
         "name": "documents",
         "description": "Upload, list and inspect the Markdown documents the copilot"
         " retrieves from.",
+    },
+    {
+        "name": "search",
+        "description": "Try questions against the knowledge base: the chunks the copilot"
+        " would retrieve, with their similarity.",
     },
     {
         "name": "settings",
@@ -118,7 +123,7 @@ def _make_lifespan(
             logger.info("database ready at %r, vector(%d)", host, resolved.embedding_dimensions)
             embedder = build_embedder(resolved)
             _log_embedder(embedder, resolved)
-            # Uploads and reprocesses go through the tracker, so /admin/health can report
+            # Uploads, reprocesses and searches go through the tracker, so /admin/health can report
             # their last outcome; the monitor checks the provider itself, on demand.
             tracked = TrackedEmbedder(embedder)
             try:

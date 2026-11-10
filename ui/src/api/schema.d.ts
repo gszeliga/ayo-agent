@@ -297,6 +297,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search the knowledge base
+         * @description Find the chunks nearest to a question: what the copilot would
+         *     retrieve for it. For trying questions against the knowledge base and evaluating
+         *     retrieval; the answer has everything a result list needs, without further calls.
+         *
+         *     The query is embedded as a search query, then compared by cosine similarity with every
+         *     chunk that passes the filters (exact search, no approximate index; see ADR 0002).
+         *     Results are ordered by similarity, highest first, ties by chunk id, so the same request
+         *     on the same data gives the same answer.
+         *
+         *     **Embedding models.** Vectors from different embedding models are not comparable.
+         *     Documents embedded with another model than the current one (or an unknown one) are
+         *     skipped and counted in `skipped.embedder_mismatch`; reprocess them to search them again.
+         *     With `include_outdated=true` they are searched and flagged with `embedder_outdated`. A
+         *     change of the chunking settings alone never skips a document.
+         *
+         *     **Tenants.** The production agent will always search one customer's tenant plus the
+         *     shared `ayo` tenant, never across customers. `tenants=null` searches every tenant, for
+         *     administrators only.
+         *
+         *     The results hold customer content, and queries can be sensitive too: neither is logged.
+         *
+         *     | Status | Meaning |
+         *     |---|---|
+         *     | `200` | The results, possibly none (empty knowledge base, filters matching nothing). |
+         *     | `401` | `X-API-Key` missing or wrong. |
+         *     | `422` | An invalid field: see the codes below. |
+         *     | `502` | The embedding provider failed after retries. Nothing was searched. |
+         */
+        post: operations["search_documents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/settings": {
         parameters: {
             query?: never;
@@ -829,13 +875,13 @@ export interface components {
             last_error: string | null;
             /**
              * Last Error At
-             * @description Last failed embedding call by an upload or a reprocess (UTC); null if none since the service started.
+             * @description Last failed embedding call by an upload, a reprocess or a search (UTC); null if none since the service started.
              * @example 2026-11-05T10:12:10Z
              */
             last_error_at: string | null;
             /**
              * Last Success At
-             * @description Last successful embedding call by an upload or a reprocess (UTC); null if none since the service started.
+             * @description Last successful embedding call by an upload, a reprocess or a search (UTC); null if none since the service started.
              * @example 2026-11-05T09:58:41Z
              */
             last_success_at: string | null;
@@ -1053,6 +1099,244 @@ export interface components {
              * @example 0
              */
             unknown: number;
+        };
+        /**
+         * SearchDebug
+         * @description How the search ran, for diagnosis.
+         */
+        SearchDebug: {
+            /**
+             * Chunker Config
+             * @description Current chunking settings (documents chunked otherwise are still searched).
+             * @example md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1
+             */
+            chunker_config: string;
+            /**
+             * Embedded Query
+             * @description The text sent to the embedding provider: the trimmed query. The provider adds its own retrieval prompt for `input_type`.
+             * @example ¿Qué herramienta uso si tengo muchos tipos de defecto?
+             */
+            embedded_query: string;
+            /**
+             * Embedder Config
+             * @description Embedding model and dimensions searched with; documents with another value are skipped unless `include_outdated`.
+             * @example voyage-4/document/1024
+             */
+            embedder_config: string;
+            /**
+             * Input Type
+             * @description How the query was embedded (documents are embedded as `document`).
+             * @example query
+             * @constant
+             */
+            input_type: "query";
+            /** @description Durations of the stages. */
+            timings_ms: components["schemas"]["SearchTimings"];
+        };
+        /**
+         * SearchHitResult
+         * @description One chunk found, with what a result list shows of its document.
+         */
+        SearchHitResult: {
+            /**
+             * Char Count
+             * @description Length of `chunk_text` in characters (not bytes).
+             * @example 148
+             */
+            char_count: number;
+            /**
+             * Chunk Id
+             * Format: uuid
+             * @description Stable id of the chunk until its document is reprocessed or replaced.
+             * @example 0b9f6c1e-3d2a-4f5b-8c7d-9e0a1b2c3d4e
+             */
+            chunk_id: string;
+            /**
+             * Chunk Index
+             * @description Position of the chunk in its document, from 0 (as in the chunks listing).
+             * @example 3
+             */
+            chunk_index: number;
+            /**
+             * Chunk Text
+             * @description The chunk's text (without the heading path that was embedded with it).
+             * @example Usa el diagrama de Pareto cuando tengas muchos tipos de defecto y necesites decidir cuáles atacar primero: el 20% de las causas suele explicar el 80%.
+             */
+            chunk_text: string;
+            /**
+             * Doc Id
+             * @description The document the chunk belongs to (link to its detail).
+             * @example upload-3f9a1c2b7d4e
+             */
+            doc_id: string;
+            /**
+             * Document Title
+             * @description The document's display title.
+             * @example Método Pareto
+             */
+            document_title: string | null;
+            /**
+             * Embedder Outdated
+             * @description The document was embedded with another (or an unknown) embedding model: its similarity is not comparable. Only true with `include_outdated`; reprocess the document to fix it.
+             * @example false
+             */
+            embedder_outdated: boolean;
+            /**
+             * Heading
+             * @description Path of the Markdown headings the chunk sits under, joined with ` > `; null before the first heading.
+             * @example Método Pareto > Cuándo aplicarlo
+             */
+            heading: string | null;
+            /**
+             * Rank
+             * @description Position in the results, from 1.
+             * @example 1
+             */
+            rank: number;
+            /**
+             * Similarity
+             * @description Cosine similarity between the query and the chunk, rounded to 4 decimals: 1 for the same direction, 0 for unrelated, negative for opposite. Results are ordered by it, highest first; ties by `chunk_id`.
+             * @example 0.8734
+             */
+            similarity: number;
+            /**
+             * Source Key
+             * @description Name that identifies the document within its tenant.
+             * @example pareto.md
+             */
+            source_key: string;
+            /**
+             * Tenant
+             * @description Tenant the document belongs to.
+             * @example ayo
+             */
+            tenant: string;
+        };
+        /**
+         * SearchRequest
+         * @description A question to find the nearest chunks for, and where to look.
+         */
+        SearchRequest: {
+            /**
+             * Debug
+             * @description Add `debug` to the answer: the text embedded, the configs and timings.
+             * @default false
+             * @example false
+             */
+            debug: boolean;
+            /**
+             * Doc Ids
+             * @description Search only these documents, 1 to 50 ids, no repeats; null searches every document. Useful to debug one document. Unknown ids add no results.
+             * @example [
+             *       "upload-1890b5dc5335"
+             *     ]
+             */
+            doc_ids?: string[] | null;
+            /**
+             * Include Outdated
+             * @description Also search documents embedded with another embedding model (or an unknown one), flagged with `embedder_outdated`. Their vectors live in another space, so their similarities are not comparable; by default they are skipped and counted in `skipped`. A chunking change alone never skips a document.
+             * @default false
+             * @example false
+             */
+            include_outdated: boolean;
+            /**
+             * Min Similarity
+             * @description Drop results whose `similarity` is below this, 0 to 1; null keeps them all. Not calibrated yet: the evaluation harness reports the similarities of answerable and unanswerable questions to choose it.
+             * @example 0.5
+             */
+            min_similarity?: number | null;
+            /**
+             * Query
+             * @description The question, in the plant team's words. Surrounding whitespace is removed; 1 to 2000 characters remain. Never logged.
+             * @example ¿Qué herramienta uso si tengo muchos tipos de defecto?
+             */
+            query: string;
+            /**
+             * Tenants
+             * @description Tenants to search, 1 to 50, no repeats; null searches every tenant. A tenant without documents is not an error, it just adds no results. The production agent will always search one customer's tenant plus the shared `ayo` tenant, never across customers; searching every tenant is for administrators.
+             * @example [
+             *       "cliente-acme",
+             *       "ayo"
+             *     ]
+             */
+            tenants?: string[] | null;
+            /**
+             * Top K
+             * @description How many chunks to return at most, 1 to 50.
+             * @default 5
+             * @example 5
+             */
+            top_k: number;
+        };
+        /**
+         * SearchResponse
+         * @description The nearest chunks, what was skipped and, on request, how the search ran.
+         */
+        SearchResponse: {
+            /**
+             * @description Present (not null) only with `debug=true`.
+             * @example {
+             *       "chunker_config": "md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1",
+             *       "embedded_query": "¿Qué herramienta uso si tengo muchos tipos de defecto?",
+             *       "embedder_config": "voyage-4/document/1024",
+             *       "input_type": "query",
+             *       "timings_ms": {
+             *         "embed": 41.2,
+             *         "search": 6.3,
+             *         "total": 47.5
+             *       }
+             *     }
+             */
+            debug: components["schemas"]["SearchDebug"] | null;
+            /**
+             * Query
+             * @description The query as searched (trimmed).
+             * @example ¿Qué herramienta uso si tengo muchos tipos de defecto?
+             */
+            query: string;
+            /**
+             * Results
+             * @description The nearest chunks, best first; empty when nothing matches the filters or passes `min_similarity`.
+             */
+            results: components["schemas"]["SearchHitResult"][];
+            /** @description Documents left out of the search. */
+            skipped: components["schemas"]["SearchSkipped"];
+        };
+        /**
+         * SearchSkipped
+         * @description Documents matching the filters that were not searched.
+         */
+        SearchSkipped: {
+            /**
+             * Embedder Mismatch
+             * @description Documents embedded with another embedding model, or an unknown one, and so skipped (0 with `include_outdated`). Reprocess them to make them searchable again.
+             * @example 2
+             */
+            embedder_mismatch: number;
+        };
+        /**
+         * SearchTimings
+         * @description Where the time went, in milliseconds rounded to 0.1.
+         */
+        SearchTimings: {
+            /**
+             * Embed
+             * @description Embedding the query (the provider call).
+             * @example 41.2
+             */
+            embed: number;
+            /**
+             * Search
+             * @description The database search.
+             * @example 6.3
+             */
+            search: number;
+            /**
+             * Total
+             * @description Both, as measured around them.
+             * @example 47.5
+             */
+            total: number;
         };
         /**
          * ServiceHealth
@@ -1640,6 +1924,57 @@ export interface operations {
             };
             /** @description `refresh` is not a boolean (`bool_parsing`). */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    search_documents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchRequest"];
+            };
+        };
+        responses: {
+            /** @description The nearest chunks, the documents skipped and, with `debug`, how the search ran. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            /** @description `X-API-Key` is missing or wrong. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The body is not acceptable. `type` is a FastAPI validation code such as `string_too_short` (blank `query`), `string_too_long` (over 2000 characters), `greater_than_equal` / `less_than_equal` (`top_k`, `min_similarity`), `string_pattern_mismatch` (a tenant or doc id; `loc` ends with its index), `too_short` (an empty list: send null instead), `too_long`, `duplicate_tenants`, `duplicate_doc_ids`, `missing`, `extra_forbidden` or `json_invalid`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The embedding provider failed after retries. Nothing was searched; retrying later is safe. */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

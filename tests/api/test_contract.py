@@ -31,6 +31,9 @@ class FailingEmbedder:
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         raise EmbeddingError("provider returned HTTP 503")
 
+    def embed_query(self, text: str) -> list[float]:
+        raise EmbeddingError("provider returned HTTP 503")
+
 
 @pytest.fixture
 def client(db_pool: ConnectionPool, migrated_database_url: str):
@@ -69,6 +72,7 @@ TENANTS = ("get", "/admin/tenants")
 SETTINGS = ("get", "/admin/settings")
 BULK_DELETE = ("post", "/admin/documents/delete")
 SERVICE_HEALTH = ("get", "/admin/health")
+SEARCH = ("post", "/admin/search")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -82,6 +86,7 @@ OPERATIONS = [
     TENANTS,
     SETTINGS,
     SERVICE_HEALTH,
+    SEARCH,
 ]
 
 
@@ -168,6 +173,17 @@ def bulk_delete(client: TestClient, body: Any, headers: dict[str, str] | None = 
 def bulk_delete_uploaded(client: TestClient):
     doc_id = post(client, SMALL_DOC).json()["doc_id"]
     return bulk_delete(client, {"doc_ids": [doc_id, "upload-000000000000"]})
+
+
+def search(client: TestClient, body: Any, headers: dict[str, str] | None = None):
+    return client.post(
+        "/admin/search", json=body, headers={"X-API-Key": API_KEY} if headers is None else headers
+    )
+
+
+def search_uploaded(client: TestClient, **body: Any):
+    post(client, SMALL_DOC)
+    return search(client, {"query": "presión de la junta", **body})
 
 
 # name -> (operation, expected status, how to trigger it)
@@ -302,9 +318,15 @@ CASES = {
         lambda c: (post(c, SMALL_DOC), get(c, "/admin/settings"))[1],
     ),
     "settings 401 no key": (SETTINGS, 401, lambda c: get(c, "/admin/settings", headers={})),
+    "search 200 results": (SEARCH, 200, search_uploaded),
+    "search 200 debug": (SEARCH, 200, lambda c: search_uploaded(c, debug=True)),
+    "search 200 empty": (SEARCH, 200, lambda c: search(c, {"query": "¿Qué es OEE?"})),
+    "search 401 no key": (SEARCH, 401, lambda c: search(c, {"query": "q"}, headers={})),
+    "search 422 blank query": (SEARCH, 422, lambda c: search(c, {"query": " "})),
+    "search 422 empty tenants": (SEARCH, 422, lambda c: search(c, {"query": "q", "tenants": []})),
 }
 # Triggered by dedicated tests below.
-EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}}
+EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}, SEARCH: {502}}
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -400,6 +422,17 @@ def test_reprocess_conflict_matches_its_documented_schema(
 
     assert response.status_code == 409, response.text
     OAS31Validator(documented_schema(strict_spec, 409, REPROCESS)).validate(response.json())
+
+
+def test_search_provider_failure_matches_its_documented_schema(
+    client: TestClient, strict_spec: dict[str, Any]
+) -> None:
+    client.app.dependency_overrides[get_embedder] = FailingEmbedder
+
+    response = search(client, {"query": "presión de la junta"})
+
+    assert response.status_code == 502
+    OAS31Validator(documented_schema(strict_spec, 502, SEARCH)).validate(response.json())
 
 
 def test_fake_embedder_is_used(client: TestClient) -> None:
