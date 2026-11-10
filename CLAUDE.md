@@ -9,11 +9,13 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active: search and retrieval evaluation.** Spec `plans/claude-code-prompt-search-eval.md`;
-  decisions (which override the spec where they differ), steps S1-S5 and log in
-  `plans/search-progress.md`. **Read both first.** S1 and S2 are done (`POST /admin/search`
-  is live); **next: write the S3 brief** (eval core) and wait for approval. Exact vector
-  search: `docs/decisions/0002-filtered-vector-search.md`.
+- **Paused (2026-11-10): search and retrieval evaluation.** Spec
+  `plans/claude-code-prompt-search-eval.md`; decisions (which override the spec where they
+  differ), steps S1-S5 and log in `plans/search-progress.md`. **Read both first.** S1 and S2
+  are done (`POST /admin/search` is live). The evaluation harness (S3-S5) is parked until
+  the user has agreed the case format with ayo (decision 10 there); do not resume it
+  without the user saying so. Exact vector search:
+  `docs/decisions/0002-filtered-vector-search.md`.
 - Done (2026-11-10): status filter and bulk reprocess (B5, U10, U11; decision 7 in
   `plans/ui-progress.md`). Deployment (D1) is parked (decision 6 there).
 - Done (2026-11-05): admin UI (React + Vite + TS in `ui/`, details in `ui/README.md`).

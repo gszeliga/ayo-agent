@@ -6,9 +6,10 @@ metrics, reports) over a synthetic Spanish corpus. Spec: `plans/claude-code-prom
 the agreed deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
-S1 and S2 are done and pushed. Next: the **S3 brief** (eval core, no I/O: golden-file
-loader reporting every problem at once, metric functions, `compare` classification, adds
-`pyyaml`), then wait for approval. The spec's Part 2 and its "Unit" and "Harness" tests
+**Paused (2026-11-10).** S1 and S2 are done and pushed: `POST /admin/search` is live. The
+evaluation harness (S3-S5) is parked until the user has agreed the golden-set (case)
+format with ayo (decision 10). Resume only when the user says so, starting with a fresh
+S3 brief that uses the agreed format. The spec's Part 2 and its "Unit" and "Harness" tests
 are the requirements; decisions 1, 2 and 6 below already settle the embedder, `deleting`
 and HTTP-vs-in-process questions.
 
@@ -40,6 +41,13 @@ and HTTP-vs-in-process questions.
    capped `doc_ids`). Unknown tenants and ids are not errors: they add no results.
 9. Debug timings are milliseconds rounded to 0.1 (the spec's example showed integers; most
    searches here take under 1 ms).
+10. **The evaluation harness is parked (2026-11-10)**, at the user's request: the golden-set
+   format is to be agreed with ayo first, and the metrics, report and `compare` (S3), the
+   CLI (S4) and the corpus and example set (S5) wait for it. A draft S3 brief was discussed
+   but not implemented; its proposed interpretations, to revisit when resuming: `tenants`
+   required per case; `must_contain` needs every string, matched in `chunk_text` only (NFC +
+   casefold, accents kept); chunk-level metrics only for cases with `must_contain`; negative
+   cases not classified by `compare` (top-similarity delta shown instead).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **S1** `embed_query` (Voyage, fake, health tracker); `repository.search_chunks`
@@ -48,6 +56,7 @@ and HTTP-vs-in-process questions.
   `similar_chunks`.
 - [x] **S2** `POST /admin/search`: schemas and validation, 502 mapping, OpenAPI examples,
   contract tests, `docs/openapi.json`, `ui/src/api/schema.d.ts`, README.
+Parked (decision 10): S3, S4 and S5.
 - [ ] **S3** Eval core without I/O: golden-file loader (every problem reported at once),
   metrics (hit@k for documents and chunks, MRR, calibration, latency percentiles), `compare`
   classification. Adds `pyyaml`.
@@ -58,6 +67,8 @@ and HTTP-vs-in-process questions.
   compare) and the final report.
 
 ## Open items
+- The evaluation harness (S3-S5): parked until the case format is agreed with ayo
+  (decision 10).
 - `/admin/search` (like `/admin/settings` and `/admin/health`) is listed under both its own
   tag and `documents` in Swagger, because the router's default tag is merged with the
   route's. Fixing it means moving the default tag to the document routes; not done here.
@@ -111,3 +122,6 @@ and HTTP-vs-in-process questions.
     route up by itself. 716 backend tests; `pnpm check` green (287 UI tests).
   - Smoke run of the real app against the local dev database with the fake embedder:
     filters, `skipped` (2 documents without recorded configs), debug timings, 401, `/docs`.
+- **Pause (2026-11-10).** S3 brief discussed; the user parked the golden file, then the
+  whole harness (S3-S5), to agree the case format with ayo first. Recorded as decision 10.
+  Docs only.
