@@ -51,7 +51,7 @@ and example.
 | Method and path | Purpose |
 |---|---|
 | `POST /admin/documents` | Upload a Markdown file; the same `tenant` + `source_key` replaces it |
-| `GET /admin/documents` | List documents (filter, sort, paginate) |
+| `GET /admin/documents` | List documents (filter by tenant, text or status; sort, paginate) |
 | `GET /admin/documents/{doc_id}` | One document, with its `status` |
 | `GET /admin/documents/{doc_id}/content` | Its stored Markdown |
 | `GET /admin/documents/{doc_id}/chunks` | Its chunks, optionally with vectors |
@@ -101,13 +101,16 @@ H="X-API-Key: $ADMIN_API_KEY"
 API=http://127.0.0.1:8000/admin/documents
 
 curl -H "$H" "$API?tenant=acme&q=sellado&sort=-updated_at&limit=25&offset=0"  # list
+curl -H "$H" "$API?status=outdated"                                         # outdated ones
 curl -H "$H" "$API/upload-1890b5dc5335"                                      # one document
 curl -H "$H" "$API/upload-1890b5dc5335/content"                              # its Markdown
 curl -H "$H" "$API/upload-1890b5dc5335/chunks?limit=50&offset=0"             # its chunks
 ```
 
 - **List**: a page `{"items": [...], "total": N, "limit": N, "offset": N}`. Filters:
-  `tenant`, `q` (case-insensitive substring of the title or the source key). `sort` is
+  `tenant`, `q` (case-insensitive substring of the title or the source key), `status`
+  (`indexed` or `outdated` against the current settings: the documents
+  `GET /admin/settings` counts as outdated, whatever the reason). `sort` is
   one of `updated_at`, `created_at`, `title`, `chunk_count`, with `-` for descending
   (default `-updated_at`). `limit` is 1 to 100 (default 25).
 - **One document**: the same object as a list item. `status` is `indexed`, or `outdated`
@@ -151,8 +154,8 @@ file name), so send `title` to keep a rename.
 ## Reprocessing a document
 
 After changing the chunking or embedding settings (`CHUNK_SIZE`, `EMBEDDING_MODEL`, ...),
-documents indexed before show `"status": "outdated"`. Reprocess one from its stored
-Markdown, without uploading it again:
+documents indexed before show `"status": "outdated"`; `GET /admin/documents?status=outdated`
+lists them. Reprocess one from its stored Markdown, without uploading it again:
 
 ```sh
 curl -X POST -H "$H" "$API/upload-1890b5dc5335/reprocess"

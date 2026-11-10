@@ -225,12 +225,14 @@ def test_content_operation_documents_markdown_and_json_errors(spec: dict[str, An
 def test_list_parameters_are_described_with_their_bounds(spec: dict[str, Any]) -> None:
     parameters = {p["name"]: p for p in spec["paths"]["/admin/documents"]["get"]["parameters"]}
 
-    assert set(parameters) == {"tenant", "q", "sort", "limit", "offset"}
+    assert set(parameters) == {"tenant", "q", "status", "sort", "limit", "offset"}
     assert all(p["description"] and p["in"] == "query" for p in parameters.values())
     assert set(parameters["sort"]["schema"]["enum"]) == {
         f"{prefix}{key}" for key in SORT_KEYS for prefix in ("", "-")
     }
     assert parameters["sort"]["schema"]["default"] == "-updated_at"
+    status = parameters["status"]["schema"]["anyOf"][0]
+    assert (status["enum"], parameters["status"]["required"]) == (["indexed", "outdated"], False)
     assert (parameters["limit"]["schema"]["minimum"], parameters["limit"]["schema"]["maximum"]) == (
         1,
         100,

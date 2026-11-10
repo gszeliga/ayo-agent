@@ -193,6 +193,7 @@ CASES = {
     "list 401 no key": (LIST, 401, lambda c: get(c, "/admin/documents", headers={})),
     "list 422 sort": (LIST, 422, lambda c: get(c, "/admin/documents", sort="size")),
     "list 422 limit": (LIST, 422, lambda c: get(c, "/admin/documents", limit=500)),
+    "list 422 status": (LIST, 422, lambda c: get(c, "/admin/documents", status="stale")),
     "get 200": (GET, 200, get_uploaded),
     "get 401 no key": (
         GET,

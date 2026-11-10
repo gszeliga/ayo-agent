@@ -17,22 +17,34 @@ from ayo_copilot.ingestion.service import current_configs
 
 def read_document_page(
     pool: ConnectionPool,
+    settings: Settings,
     *,
     tenant: str | None = None,
     q: str | None = None,
+    status: str | None = None,
     sort: str = repository.DEFAULT_SORT,
     limit: int,
     offset: int,
 ) -> tuple[list[DocumentRow], int]:
-    """One page of documents and the total matching the filters.
+    """One page of documents and the total matching the filters; `status` is judged
+    against the configs the current settings index with.
 
     Repeatable read: the page and the count are two statements, and under read committed
     an upload between them could make `total` disagree with the items.
     """
     with pool.connection() as conn, conn.transaction():
         conn.execute("set transaction isolation level repeatable read, read only")
+        chunker_config, embedder_config = current_configs(settings)
         return repository.list_documents(
-            conn, tenant=tenant, q=q, sort=sort, limit=limit, offset=offset
+            conn,
+            tenant=tenant,
+            q=q,
+            status=status,
+            chunker_config=chunker_config,
+            embedder_config=embedder_config,
+            sort=sort,
+            limit=limit,
+            offset=offset,
         )
 
 

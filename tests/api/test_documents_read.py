@@ -155,6 +155,29 @@ def test_changed_settings_make_documents_outdated(
     assert (detail["status"], detail["outdated_reason"]) == ("outdated", "chunker_changed")
 
 
+def test_status_filter_follows_the_current_settings(
+    client: TestClient, db_pool: ConnectionPool, migrated_database_url: str
+) -> None:
+    upload(client, "a.md", doc("A"))
+    unknown = upload(client, "b.md", doc("B"))
+    with db_pool.connection() as conn:
+        conn.execute("update documents set chunker_config = null where doc_id = %s", (unknown,))
+
+    assert (keys(listing(client, status="indexed")), keys(listing(client, status="outdated"))) == (
+        ["a.md"],
+        ["b.md"],
+    )
+    changed = create_app(make_settings(migrated_database_url, chunk_size=300))
+    with make_client(changed) as other:
+        outdated = listing(other, status="outdated")
+        counts = indexing_settings(other)["documents"]
+        assert listing(other, status="indexed")["total"] == 0
+
+    assert sorted(keys(outdated)) == ["a.md", "b.md"]
+    assert {item["status"] for item in outdated["items"]} == {"outdated"}
+    assert outdated["total"] == sum(counts["outdated"].values()) == 2
+
+
 def test_documents_without_recorded_configs_are_outdated_unknown(
     client: TestClient, db_pool: ConnectionPool
 ) -> None:

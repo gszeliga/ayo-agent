@@ -8,6 +8,7 @@ from ayo_copilot.db.repository import (
     SORT_KEYS,
     DocumentRecord,
     DocumentRow,
+    document_status_counts,
     get_document,
     get_markdown,
     list_documents,
@@ -29,6 +30,8 @@ def add_document(
     title: str | None = None,
     chunk_count: int = 1,
     minutes: int = 0,
+    chunker_config: str | None = "chunker-1",
+    embedder_config: str | None = "embedder-1",
 ) -> str:
     """Insert a document whose created_at and updated_at are BASE_TIME + `minutes`."""
     doc_id = make_doc_id(tenant, source_key)
@@ -42,8 +45,8 @@ def add_document(
         chunk_signature="chunk-1",
         embed_signature="embed-1",
         chunk_count=chunk_count,
-        chunker_config="chunker-1",
-        embedder_config="embedder-1",
+        chunker_config=chunker_config,
+        embedder_config=embedder_config,
     )
     stamp = BASE_TIME + timedelta(minutes=minutes)
     with pool.connection() as conn, conn.transaction():
@@ -105,6 +108,93 @@ def test_filters_combine_and_total_counts_all_matches(db_pool: ConnectionPool) -
     add_document(db_pool, "tolvas.md")
 
     assert page(db_pool, limit=1, tenant="acme", q="sellado") == (["sellado-2.md"], 3)
+
+
+CURRENT = {"chunker_config": "chunker-1", "embedder_config": "embedder-1"}
+
+
+def add_documents_in_every_status(pool: ConnectionPool) -> None:
+    """Newest first: two indexed, then one per outdated reason (`both` is chunker_changed)."""
+    configs = {
+        "indexed-1.md": ("chunker-1", "embedder-1"),
+        "indexed-2.md": ("chunker-1", "embedder-1"),
+        "chunker.md": ("chunker-0", "embedder-1"),
+        "embedder.md": ("chunker-1", "embedder-0"),
+        "both.md": ("chunker-0", "embedder-0"),
+        "no-chunker.md": (None, "embedder-1"),
+        "no-embedder.md": ("chunker-1", None),
+        "none.md": (None, None),
+    }
+    for minutes, (source_key, (chunker, embedder)) in enumerate(reversed(configs.items())):
+        add_document(
+            pool, source_key, minutes=minutes, chunker_config=chunker, embedder_config=embedder
+        )
+
+
+def test_status_filter_splits_indexed_from_every_kind_of_outdated(
+    db_pool: ConnectionPool,
+) -> None:
+    add_documents_in_every_status(db_pool)
+
+    assert page(db_pool, status="indexed", **CURRENT) == (["indexed-1.md", "indexed-2.md"], 2)
+    assert page(db_pool, status="outdated", **CURRENT) == (
+        ["chunker.md", "embedder.md", "both.md", "no-chunker.md", "no-embedder.md", "none.md"],
+        6,
+    )
+    assert page(db_pool, **CURRENT)[1] == page(db_pool)[1] == 8
+
+
+def test_status_filter_totals_match_the_status_counts(db_pool: ConnectionPool) -> None:
+    add_documents_in_every_status(db_pool)
+
+    with db_pool.connection() as conn:
+        counts = document_status_counts(
+            conn, chunker_config="chunker-1", embedder_config="embedder-1"
+        )
+
+    outdated = counts.unknown + counts.chunker_changed + counts.embedder_changed
+    assert page(db_pool, status="indexed", **CURRENT)[1] == counts.indexed
+    assert (
+        page(db_pool, status="outdated", **CURRENT)[1] == outdated == counts.total - counts.indexed
+    )
+
+
+def test_status_filter_is_judged_against_the_given_configs(db_pool: ConnectionPool) -> None:
+    add_document(db_pool, "a.md")
+
+    other = {"chunker_config": "chunker-2", "embedder_config": "embedder-1"}
+    assert page(db_pool, status="indexed", **other) == ([], 0)
+    assert page(db_pool, status="outdated", **other) == (["a.md"], 1)
+
+
+def test_status_filter_combines_with_tenant_q_and_paging(db_pool: ConnectionPool) -> None:
+    for i in range(3):
+        add_document(db_pool, f"sellado-{i}.md", minutes=i, chunker_config="chunker-0")
+    add_document(db_pool, "sellado-ok.md", minutes=5)
+    add_document(db_pool, "sellado-beta.md", tenant="beta", chunker_config="chunker-0")
+    add_document(db_pool, "tolvas.md", chunker_config="chunker-0")
+
+    assert page(
+        db_pool, limit=1, offset=1, tenant="acme", q="sellado", status="outdated", **CURRENT
+    ) == (
+        ["sellado-1.md"],
+        3,
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "configs", "message"),
+    [
+        ("stale", CURRENT, "unknown status"),
+        ("outdated", {}, "needs the current chunker and embedder configs"),
+        ("indexed", {"chunker_config": "chunker-1"}, "needs the current"),
+    ],
+)
+def test_status_filter_rejects_bad_input(
+    db_pool: ConnectionPool, status: str, configs: dict[str, str], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        page(db_pool, status=status, **configs)
 
 
 @pytest.mark.parametrize("key", SORT_KEYS)

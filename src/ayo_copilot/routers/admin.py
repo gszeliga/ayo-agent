@@ -58,6 +58,7 @@ from ayo_copilot.schemas import (
     DocumentDeleteResult,
     DocumentPage,
     DocumentSort,
+    DocumentStatus,
     DocumentUpdate,
     EmbeddingHealth,
     ErrorResponse,
@@ -381,12 +382,15 @@ def _not_found() -> ApiError:
 
 LIST_DESCRIPTION = """List the stored documents, one page at a time, newest change first.
 
-Filter by `tenant` and by `q`, a case-insensitive substring of the title or the source key
-(`%` and `_` match themselves). `total` counts every match, so a client can page with
-`offset` until it has `total` items; the order is stable across pages, even on ties.
+Filter by `tenant`, by `q`, a case-insensitive substring of the title or the source key
+(`%` and `_` match themselves), and by `status`. `total` counts every match, so a client
+can page with `offset` until it has `total` items; the order is stable across pages, even
+on ties.
 
 Each item carries a `status` computed now against the current settings: `outdated` means
-the chunking or embedding settings changed since the document was indexed.
+the chunking or embedding settings changed since the document was indexed (or were never
+recorded). `status=outdated` lists exactly the documents that `GET /admin/settings` counts
+as outdated, whatever their `outdated_reason`.
 
 | Status | Meaning |
 |---|---|
@@ -407,7 +411,7 @@ the chunking or embedding settings changed since the document was indexed.
         422: {
             "model": ErrorResponse,
             "description": "A query parameter is not acceptable. `type` is a FastAPI validation"
-            " code such as `literal_error` (unknown `sort`), `greater_than_equal` or"
+            " code such as `literal_error` (unknown `sort` or `status`), `greater_than_equal` or"
             " `less_than_equal` (`limit`, `offset`) or `string_pattern_mismatch` (`tenant`).",
             "content": _examples(
                 literal_error=(
@@ -423,6 +427,16 @@ the chunking or embedding settings changed since the document was indexed.
                             " '-created_at', 'title', '-title', 'chunk_count' or"
                             " '-chunk_count'"
                         },
+                    ),
+                ),
+                literal_error_status=(
+                    "Unknown status",
+                    _error(
+                        "literal_error",
+                        ["query", "status"],
+                        "Input should be 'indexed' or 'outdated'",
+                        input="stale",
+                        ctx={"expected": "'indexed' or 'outdated'"},
                     ),
                 ),
                 less_than_equal=(
@@ -458,6 +472,13 @@ def list_documents(
             examples=["sellado"],
         ),
     ] = None,
+    status: Annotated[
+        DocumentStatus | None,
+        Query(
+            description="Only documents with this `status` against the current settings.",
+            examples=["outdated"],
+        ),
+    ] = None,
     sort: Annotated[
         DocumentSort,
         Query(
@@ -474,7 +495,14 @@ def list_documents(
     ] = 0,
 ) -> DocumentPage:
     rows, total = read_document_page(
-        pool, tenant=tenant, q=q or None, sort=sort, limit=limit, offset=offset
+        pool,
+        settings,
+        tenant=tenant,
+        q=q or None,
+        status=status,
+        sort=sort,
+        limit=limit,
+        offset=offset,
     )
     return DocumentPage(
         items=[Document.from_row(row, settings) for row in rows],

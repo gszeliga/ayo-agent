@@ -18,6 +18,16 @@ from psycopg.types.json import Jsonb
 # column name; only these ever reach the SQL text.
 SORT_KEYS = ("updated_at", "created_at", "title", "chunk_count")
 DEFAULT_SORT = "-updated_at"
+# Status filters of the documents list (the statuses of `service.document_status`).
+DOCUMENT_STATUSES = ("indexed", "outdated")
+
+# A document is `indexed` when both its stored configs equal the current ones; anything
+# else, a missing config included, is `outdated`. `coalesce` turns the null of a missing
+# config into false, so `not` of it is a plain boolean. The one definition the status
+# filter and the status counts share; it needs the `chunker` and `embedder` parameters.
+INDEXED_CONDITION = (
+    "coalesce(chunker_config = %(chunker)s and embedder_config = %(embedder)s, false)"
+)
 
 
 @dataclass(frozen=True)
@@ -280,13 +290,18 @@ def list_documents(
     *,
     tenant: str | None = None,
     q: str | None = None,
+    status: str | None = None,
+    chunker_config: str | None = None,
+    embedder_config: str | None = None,
     sort: str = DEFAULT_SORT,
     limit: int,
     offset: int,
 ) -> tuple[list[DocumentRow], int]:
     """One page of documents and the total number matching the filters.
 
-    `q` is a case-insensitive substring of the title or the source key. Ordering always
+    `q` is a case-insensitive substring of the title or the source key. `status` keeps the
+    documents `indexed` or `outdated` against the given configs (the current ones), which
+    it then requires. Ordering always
     ends with `id`, so rows never repeat or vanish across pages. The page and the count are
     two statements: run them in a repeatable-read transaction for a consistent pair.
     """
@@ -303,6 +318,15 @@ def list_documents(
             )
         )
         params["pattern"] = f"%{escape_like(q)}%"
+    if status is not None:
+        if status not in DOCUMENT_STATUSES:
+            raise ValueError(f"unknown status: {status!r}")
+        if chunker_config is None or embedder_config is None:
+            raise ValueError("a status filter needs the current chunker and embedder configs")
+        indexed = sql.SQL(INDEXED_CONDITION)
+        conditions.append(indexed if status == "indexed" else sql.SQL("not ") + indexed)
+        params["chunker"] = chunker_config
+        params["embedder"] = embedder_config
     where = sql.SQL(" where ") + sql.SQL(" and ").join(conditions) if conditions else sql.SQL("")
     order = sql.SQL("{} {}, id").format(
         sql.Identifier(column), sql.SQL("desc" if descending else "asc")
@@ -421,8 +445,7 @@ def document_status_counts(
     with conn.cursor(row_factory=class_row(StatusCounts)) as cur:
         row = cur.execute(
             "select count(*)::int as total,"
-            " count(*) filter (where chunker_config = %(chunker)s"
-            "  and embedder_config = %(embedder)s)::int as indexed,"
+            f" count(*) filter (where {INDEXED_CONDITION})::int as indexed,"
             " count(*) filter (where chunker_config is null"
             "  or embedder_config is null)::int as unknown,"
             " count(*) filter (where embedder_config is not null"

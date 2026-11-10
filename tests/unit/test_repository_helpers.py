@@ -1,6 +1,15 @@
+from typing import get_args
+
 import pytest
 
-from ayo_copilot.db.repository import DEFAULT_SORT, SORT_KEYS, escape_like, parse_sort
+from ayo_copilot.db.repository import (
+    DEFAULT_SORT,
+    DOCUMENT_STATUSES,
+    SORT_KEYS,
+    escape_like,
+    parse_sort,
+)
+from ayo_copilot.schemas import DocumentStatus
 
 
 @pytest.mark.parametrize("key", SORT_KEYS)
@@ -33,3 +42,7 @@ def test_parse_sort_rejects_anything_else(sort: str) -> None:
 )
 def test_escape_like(text: str, escaped: str) -> None:
     assert escape_like(text) == escaped
+
+
+def test_the_api_status_filter_offers_exactly_the_repository_statuses() -> None:
+    assert get_args(DocumentStatus) == DOCUMENT_STATUSES

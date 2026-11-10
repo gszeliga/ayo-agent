@@ -38,6 +38,19 @@ the first unchecked item under "Progress log".
      limited to the internal network by the proxy), and network-level access control,
      since the shared key in a browser is for internal use only.
 
+## Decisions (agreed 2026-11-10)
+6. **Deployment (D1) is parked** at the user's request; decision 5 still holds when it
+   resumes. Its brief proposed a D1a (Caddyfile, systemd unit, env example; `main()`
+   unchanged, since uvicorn already trusts proxy headers from `127.0.0.1` only) and a D1b
+   (a Docker-based smoke run, README section and release checklist), with three open
+   questions: one commit or two, access control (IP allowlist in Caddy, network only, or
+   basic auth) and the target host.
+7. **Outdated documents: filter, then bulk reprocess**, in three steps (B5, U10, U11).
+   Bulk reprocess is driven by the UI, one call to the existing
+   `POST /admin/documents/{doc_id}/reprocess` at a time, with progress and a stop; no
+   server-side bulk endpoint or jobs table (a request for many Voyage calls would hit
+   proxy timeouts and report no progress). No `outdated_reason` filter for now.
+
 ## Order of work (one commit per step, brief first, stop after each)
 - **U0** This file; `CLAUDE.md` points at it.
 - **U1** Clickable prototype as a private Artifact (not committed code). Mock data shaped
@@ -113,6 +126,13 @@ the first unchecked item under "Progress log".
   and a "Deployment" section in the README. Settles `/docs` exposure and access control.
   Tried end to end on a local machine or VM; no real server is touched without the
   user's OK.
+- **B5** Backend: `status=indexed|outdated` filter on `GET /admin/documents` (decision 7),
+  judged against the current configs with the same condition as the settings counts.
+- **U10** UI: a status filter in the list toolbar (in the URL), and the settings page's
+  outdated count linking to the list filtered to `status=outdated`.
+- **U11** UI: bulk reprocess, from the selection bar and as "Reprocess all outdated" on
+  the filtered list (every match, not only the page); progress, stop, a summary by
+  outcome, then the list and the settings counts refreshed.
 
 ## Progress log (update after every step; resume from the first unchecked item)
 - [x] U0. Plan agreed with the user (2026-11-02) and written here.
@@ -326,11 +346,31 @@ the first unchecked item under "Progress log".
   look-alikes such as `neon.tech.example.com`), version parsing and nulls with stub pools,
   the real testcontainer's versions, the host never in the body. Checked against the local
   dev DB: `local`, 18.6, 0.8.7.
-- [ ] D1. Deployment, phase 1.
+- [ ] D1. Deployment, phase 1. **Parked** (2026-11-10, decision 6).
+- [x] B5. Status filter on the documents list (2026-11-10). `GET /admin/documents` takes
+  `status=indexed|outdated` (optional; `DocumentStatus` in `schemas.py`, also the type of
+  the item's `status`), combined with `tenant`, `q`, sort and paging; `total` counts the
+  matches. `repository.INDEXED_CONDITION` is the one definition of "indexed" (both stored
+  configs equal the current ones, `coalesce` making a missing config false), shared by
+  the filter and `document_status_counts`; `outdated` is its negation, so it covers
+  `unknown` too. `list_documents` requires the current configs with a status and rejects
+  an unknown one; `documents.read_document_page` now takes the settings and passes
+  `current_configs`. OpenAPI: parameter description, a `literal_error` example for
+  `status` (checked against pydantic's real message), `docs/openapi.json` and
+  `ui/src/api/schema.d.ts` regenerated. Tests: every status bucket under each filter
+  (including null configs and both changed), totals equal to the status counts, judged
+  against the given configs, combined with tenant, `q` and paging, bad input; through
+  HTTP before and after a settings change, `total` equal to the settings page's outdated
+  sum; contract `422`; the parameter in the OpenAPI test; the literal matching
+  `DOCUMENT_STATUSES`. 645 backend tests pass; `pnpm check` passes (260 UI tests; the UI
+  does not use the filter yet). README: the filter in the list section and the reprocess
+  section.
+- [ ] U10. Status filter in the UI.
+- [ ] U11. Bulk reprocess in the UI.
 
 ## Next (resume here)
-The UI milestone and B4 are done. Next: **D1** (deployment, phase 1; decision 5): write
-its brief and wait for approval.
+D1 is parked (decision 6). B5 is done. Next: **U10** (status filter in the UI; decision 7):
+write its brief and wait for approval.
 
 ## Final report (2026-11-05)
 
@@ -360,7 +400,7 @@ the connect screen (U3 follow-up), the error boundary, tab titles and axe check 
 
 ## Open items
 - From the CRUD report, for the UI: replacing content answers `201` for an existing
-  document; no `status` filter or bulk reprocess yet; delete leaves only a log line;
+  document; delete leaves only a log line;
   `include_embedding` is heavy; the key in a browser is for internal/dev use only.
 - Health state per process: with several uvicorn workers, `/admin/health`'s probe
   cache and last-call tracking would differ by worker. Fine with one worker (decision 5);
@@ -368,8 +408,8 @@ the connect screen (U3 follow-up), the error boundary, tab titles and axe check 
 - The manual browser run of U9 was skipped: the UI has only been exercised through its
   tests (MSW) and the user's own manual tries. Worth a click-through before relying on it,
   ideally against the Neon dev branch with the real embedder.
-- No status filter in `GET /admin/documents` and no bulk reprocess: the settings page can
-  count outdated documents but not list or fix them in one go.
+- Outdated documents: the API can list them (`status=outdated`, B5), but the UI cannot
+  yet, and there is no bulk reprocess (U10, U11).
 - The UI's test environment needs workarounds: upload tests run under happy-dom (Vitest's
   jsdom cannot fetch a multipart body with a file), and jsdom's missing `matchMedia` and
   pointer capture are stubbed. Re-check when Vitest or jsdom are upgraded.

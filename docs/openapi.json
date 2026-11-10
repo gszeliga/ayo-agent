@@ -1312,7 +1312,7 @@
   "paths": {
     "/admin/documents": {
       "get": {
-        "description": "List the stored documents, one page at a time, newest change first.\n\nFilter by `tenant` and by `q`, a case-insensitive substring of the title or the source key\n(`%` and `_` match themselves). `total` counts every match, so a client can page with\n`offset` until it has `total` items; the order is stable across pages, even on ties.\n\nEach item carries a `status` computed now against the current settings: `outdated` means\nthe chunking or embedding settings changed since the document was indexed.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page, possibly empty. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | A query parameter is out of range or not allowed (FastAPI validation). |",
+        "description": "List the stored documents, one page at a time, newest change first.\n\nFilter by `tenant`, by `q`, a case-insensitive substring of the title or the source key\n(`%` and `_` match themselves), and by `status`. `total` counts every match, so a client\ncan page with `offset` until it has `total` items; the order is stable across pages, even\non ties.\n\nEach item carries a `status` computed now against the current settings: `outdated` means\nthe chunking or embedding settings changed since the document was indexed (or were never\nrecorded). `status=outdated` lists exactly the documents that `GET /admin/settings` counts\nas outdated, whatever their `outdated_reason`.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page, possibly empty. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | A query parameter is out of range or not allowed (FastAPI validation). |",
         "operationId": "list_documents",
         "parameters": [
           {
@@ -1357,6 +1357,31 @@
                 "sellado"
               ],
               "title": "Q"
+            }
+          },
+          {
+            "description": "Only documents with this `status` against the current settings.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "indexed",
+                    "outdated"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only documents with this `status` against the current settings.",
+              "examples": [
+                "outdated"
+              ],
+              "title": "Status"
             }
           },
           {
@@ -1497,6 +1522,25 @@
                         }
                       ]
                     }
+                  },
+                  "literal_error_status": {
+                    "summary": "Unknown status",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "expected": "'indexed' or 'outdated'"
+                          },
+                          "input": "stale",
+                          "loc": [
+                            "query",
+                            "status"
+                          ],
+                          "msg": "Input should be 'indexed' or 'outdated'",
+                          "type": "literal_error"
+                        }
+                      ]
+                    }
                   }
                 },
                 "schema": {
@@ -1504,7 +1548,7 @@
                 }
               }
             },
-            "description": "A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `sort`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`) or `string_pattern_mismatch` (`tenant`)."
+            "description": "A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `sort` or `status`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`) or `string_pattern_mismatch` (`tenant`)."
           }
         },
         "security": [

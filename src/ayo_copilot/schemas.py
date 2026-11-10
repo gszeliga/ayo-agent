@@ -24,6 +24,9 @@ DocumentSort = Literal[
     "-chunk_count",
 ]
 
+# The `status` filter of the documents list: `db.repository.DOCUMENT_STATUSES`.
+DocumentStatus = Literal["indexed", "outdated"]
+
 
 class HealthResponse(BaseModel):
     status: Literal["ok"] = Field(
@@ -162,7 +165,7 @@ class Document(BaseModel):
         " same `tenant` and `source_key` replaces it.",
         examples=["pro-014-control-sellado.md"],
     )
-    status: Literal["indexed", "outdated"] = Field(
+    status: DocumentStatus = Field(
         description="`indexed`: processed with the current chunking and embedding settings."
         " `outdated`: the current settings would index it differently; reprocess or"
         " upload it again.",

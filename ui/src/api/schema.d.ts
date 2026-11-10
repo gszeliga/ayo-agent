@@ -12,12 +12,15 @@ export interface paths {
          * List documents
          * @description List the stored documents, one page at a time, newest change first.
          *
-         *     Filter by `tenant` and by `q`, a case-insensitive substring of the title or the source key
-         *     (`%` and `_` match themselves). `total` counts every match, so a client can page with
-         *     `offset` until it has `total` items; the order is stable across pages, even on ties.
+         *     Filter by `tenant`, by `q`, a case-insensitive substring of the title or the source key
+         *     (`%` and `_` match themselves), and by `status`. `total` counts every match, so a client
+         *     can page with `offset` until it has `total` items; the order is stable across pages, even
+         *     on ties.
          *
          *     Each item carries a `status` computed now against the current settings: `outdated` means
-         *     the chunking or embedding settings changed since the document was indexed.
+         *     the chunking or embedding settings changed since the document was indexed (or were never
+         *     recorded). `status=outdated` lists exactly the documents that `GET /admin/settings` counts
+         *     as outdated, whatever their `outdated_reason`.
          *
          *     | Status | Meaning |
          *     |---|---|
@@ -1120,6 +1123,8 @@ export interface operations {
                 tenant?: string | null;
                 /** @description Case-insensitive substring of the title or the source key. */
                 q?: string | null;
+                /** @description Only documents with this `status` against the current settings. */
+                status?: ("indexed" | "outdated") | null;
                 /** @description Sort key; prefix `-` for descending. Ties are broken by an internal id, so the order is stable. */
                 sort?: "updated_at" | "-updated_at" | "created_at" | "-created_at" | "title" | "-title" | "chunk_count" | "-chunk_count";
                 /** @description Page size, 1 to 100. */
@@ -1151,7 +1156,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `sort`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`) or `string_pattern_mismatch` (`tenant`). */
+            /** @description A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `sort` or `status`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`) or `string_pattern_mismatch` (`tenant`). */
             422: {
                 headers: {
                     [name: string]: unknown;
