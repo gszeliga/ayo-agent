@@ -62,3 +62,8 @@ progress log. Resume from the first unchecked step.
   - Finding behind decision 4: `strict_order` iterative scans returned 0 rows in the
     pitfall test's layout (unreachable graph nodes), so the planned iterative-scan approach
     was replaced by exact search, with the user's OK.
+- **ADR 0002 expanded (2026-11-10)**, at the user's request: how filters break HNSW and
+  why iterative scans can still miss (unreachable nodes), where the exact-search cost
+  comes from and what one search covers, the measurement caveats, and a "When to
+  revisit" section (threshold in chunks and documents, three options in order of effort).
+  Docs only.

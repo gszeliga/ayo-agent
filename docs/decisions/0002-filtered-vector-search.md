@@ -21,6 +21,34 @@ Versions: pgvector **0.8.7** locally and in tests (`pgvector/pgvector:0.8.7-pg18
 **0.8.6** on the Neon dev branch (read-only `select extversion`, 2026-11-10). Both have
 iterative scans.
 
+### Why filters break an HNSW search
+
+An HNSW index is a graph: each chunk is a node linked to about 16 of its nearest
+neighbours (`m`). A search starts at an entry point, keeps moving to whichever neighbour
+is closer to the query, and keeps a list of the best `hnsw.ef_search` candidates
+(default 40). It stops when no neighbour improves that list and returns those
+candidates, nearest first.
+
+The index knows nothing about tenants. Postgres applies the `WHERE` to those ~40 rows
+only. If the filter keeps 20% of the chunks, about 8 of the 40 survive, and a `limit 20`
+query returns those few: there is no way to ask the index for more. A smaller filter,
+such as one customer plus `ayo` among many tenants, leaves even fewer, often none.
+
+**Iterative scans** (`hnsw.iterative_scan`, pgvector 0.8) keep searching outward
+through the graph when the filter has thrown away too much, until the query has its
+`limit` or `hnsw.max_scan_tuples` (default 20,000) is reached. `strict_order` keeps exact
+distance order. But a scan only finds nodes it can **reach by following edges**. When the
+index is built, each node keeps only its `m` best links. A small group of chunks far from
+a dense cluster links out to the cluster, but the cluster's nodes keep their links among
+themselves and drop the ones back. Those chunks have edges going out and none coming in,
+so no scan starting outside the group can reach them. The test layout below is built
+that way on purpose; real embeddings are far less extreme, but the mechanism is the
+reason HNSW recall is approximate. The same small, distinct tenant next to a large one
+can be poorly linked.
+
+The planner also chooses between the index and an exact scan from table statistics, so
+the same query can switch plans, and return different chunks, as data grows.
+
 ## Evidence
 
 Measured on the local dev database (Docker, Postgres 18, pgvector 0.8.7) in a throwaway
@@ -55,8 +83,19 @@ chunk that passes the filters, then top-k):
 | 4,220 | 38-50 ms |
 | 20,000 (no filter) | 180-260 ms |
 
-About 9-12 µs per searched chunk, nearly all of it reading the 4 KB vectors (TOAST) and
-computing distances. A Voyage query embedding takes much longer than any of these.
+About 9-12 µs per searched chunk, mostly reading the vectors: 1024 floats are 4 KB,
+stored out of line (TOAST), and fetched and decompressed per row. The distance itself is
+cheap. A Voyage query embedding (about 100-300 ms) takes longer than all of these but
+the unfiltered case.
+
+What counts is the number of chunks **one search covers**, not the size of the
+database: the tenant and document filters run first, through the ordinary indexes on
+`documents`. A production search covers one customer plus `ayo`, so its cost depends on
+those two tenants only, however many other customers there are.
+
+Caveats: random vectors, one run each, on a local machine. Neon will probably be slower
+(less CPU, storage over the network); it was not measured there to avoid writing test
+data to it. The endpoint's `debug.timings_ms.search` reports the real figure per call.
 
 ## Options
 
@@ -84,10 +123,26 @@ would be needed again for option 2.
 - Correct and reproducible results at the current scale. An evaluation `compare` shows
   only the effect of chunker, model or setting changes.
 - Cost grows linearly with the chunks one search covers (tenant + `ayo`): about 0.2 s at
-  20,000 chunks locally, probably more on Neon. **Revisit** when one search covers about
-  20,000 chunks, or its search time (reported by the endpoint's `debug` timings) gets
-  noticeable. Then measure option 2 (with `hnsw.ef_search` and `hnsw.max_scan_tuples`)
-  against recall measured with the evaluation harness, or partition by tenant.
+  20,000 chunks locally, probably more on Neon.
 - `tests/integration/test_search.py` covers the pitfall: with the planner pushed towards
   the index, a plain HNSW query returns fewer than 5 of the target tenant's chunks, and the
   search returns the 5 nearest.
+
+## When to revisit
+
+When one search covers about **20,000 chunks**, or its `debug.timings_ms.search` gets
+close to the embedding time. At 10-30 chunks per plant procedure, that is roughly
+700-2,000 documents for one customer plus `ayo`. `GET /admin/tenants` already reports
+chunk counts per tenant.
+
+Options then, from least to most effort:
+
+1. **HNSW with iterative scans** (option 2), with a larger `hnsw.ef_search`. Measure its
+   recall against exact search with the evaluation harness (`ayo-eval compare`) before
+   switching.
+2. **Smaller vectors**: `halfvec` (2 bytes per value instead of 4) halves storage and read
+   cost with almost no loss in similarity accuracy; Voyage can also return 512
+   dimensions. Either needs a migration and reprocessing every document.
+3. **Per-tenant indexes or table partitioning**, so each search's index holds only the
+   tenants it may return. That removes the filtering problem at its root, at more
+   maintenance cost.
