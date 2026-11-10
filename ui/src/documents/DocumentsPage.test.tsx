@@ -8,7 +8,7 @@ import { server } from '@/test/server'
 
 type Document = components['schemas']['Document']
 
-/** Stands in for the API: filters by tenant and q, pages by limit/offset; records each query. */
+/** Stands in for the API: filters by tenant, q and status, pages by limit/offset; records each query. */
 function serve(documents: Document[] = DOCUMENTS, tenants = TENANTS) {
   const queries: URLSearchParams[] = []
   server.use(
@@ -17,10 +17,12 @@ function serve(documents: Document[] = DOCUMENTS, tenants = TENANTS) {
       queries.push(query)
       const tenant = query.get('tenant')
       const q = query.get('q')?.toLowerCase()
+      const status = query.get('status')
       const matching = documents.filter(
         (doc) =>
           (!tenant || doc.tenant === tenant) &&
-          (!q || `${doc.title ?? ''} ${doc.source_key}`.toLowerCase().includes(q)),
+          (!q || `${doc.title ?? ''} ${doc.source_key}`.toLowerCase().includes(q)) &&
+          (!status || doc.status === status),
       )
       const offset = Number(query.get('offset'))
       const limit = Number(query.get('limit'))
@@ -170,6 +172,56 @@ test('sorting updates the URL and goes back to page 1', async () => {
   expect(queries.at(-1)?.get('offset')).toBe('0')
 })
 
+test('the status filter updates the URL, the request and the rows', async () => {
+  const queries = serve(manyDocuments(30).concat(DOCUMENTS))
+  const { user } = renderApp('/documents?page=2&tenant=planta-norte', { connected: true })
+  await waitFor(() => {
+    expect(rows()).toHaveLength(7)
+  })
+
+  await user.selectOptions(screen.getByLabelText('Status'), 'Outdated')
+
+  expect(location()).toBe('/documents?tenant=planta-norte&status=outdated')
+  await waitFor(() => {
+    expect(rows()).toHaveLength(1)
+  })
+  expect(Object.fromEntries(queries.at(-1)!)).toMatchObject({
+    tenant: 'planta-norte',
+    status: 'outdated',
+    offset: '0',
+  })
+  expect(rows()[0]).toHaveTextContent('Manual de mantenimiento de la caldera B2')
+
+  await user.selectOptions(screen.getByLabelText('Status'), 'All statuses')
+
+  expect(location()).toBe('/documents?tenant=planta-norte')
+  await waitFor(() => {
+    expect(queries.at(-1)?.has('status')).toBe(false)
+  })
+})
+
+test('the status select shows the status in the URL', async () => {
+  serve()
+  renderApp('/documents?status=indexed', { connected: true })
+
+  await waitFor(() => {
+    expect(rows()).toHaveLength(2)
+  })
+  expect(screen.getByLabelText('Status')).toHaveValue('indexed')
+})
+
+test('a status with nothing to show offers to clear the filters', async () => {
+  serve([makeDocument()])
+  const { user } = renderApp('/documents?status=outdated', { connected: true })
+
+  expect(await screen.findByRole('heading', { name: 'No documents match' })).toBeInTheDocument()
+  expect(screen.getByText('Try another search, tenant or status.')).toBeInTheDocument()
+  await user.click(screen.getAllByRole('button', { name: 'Clear filters' }).at(-1)!)
+
+  expect(location()).toBe('/documents')
+  expect(screen.getByLabelText('Status')).toHaveValue('')
+})
+
 test('typing a search sends one request once typing pauses', async () => {
   const queries = serve()
   const { user } = renderApp('/documents', { connected: true })
@@ -215,7 +267,9 @@ test('a page past the end moves to the last page', async () => {
 
 test('an invalid URL is corrected in place', async () => {
   serve()
-  renderApp('/documents?sort=size&page=0&tenant=Planta%20Norte', { connected: true })
+  renderApp('/documents?sort=size&page=0&tenant=Planta%20Norte&status=stale', {
+    connected: true,
+  })
 
   await waitFor(() => {
     expect(location()).toBe('/documents')

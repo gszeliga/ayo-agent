@@ -11,15 +11,17 @@ import { LazyUploadDialog } from '@/upload/LazyUploadDialog'
 
 import { DocumentsTable, DocumentsTableSkeleton } from './DocumentsTable'
 import {
-  DEFAULT_PARAMS,
   hasFilters,
   lastPage,
+  NO_FILTERS,
   parseListParams,
   Q_MAX_LENGTH,
   SORT_OPTIONS,
+  STATUS_OPTIONS,
   toSearchParams,
   type DocumentSort,
   type ListParams,
+  type StatusFilter,
 } from './listParams'
 import { Pagination } from './Pagination'
 import { useDocuments, useTenants } from './queries'
@@ -39,8 +41,10 @@ export function DocumentsPage() {
   const tenants = useTenants()
   const [uploading, setUploading] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
-  // Kept across pages and sorts; a new tenant or search starts a new one.
-  const selection = useSelection(`${params.tenant ?? ''}\u0000${params.q}`)
+  // Kept across pages and sorts; a new tenant, search or status starts a new one.
+  const selection = useSelection(
+    `${params.tenant ?? ''}\u0000${params.q}\u0000${params.status ?? ''}`,
+  )
   const uploadButton = (
     <Button
       onClick={() => {
@@ -141,6 +145,24 @@ export function DocumentsPage() {
                 }}
               />
             </div>
+            <label htmlFor="status" className="sr-only">
+              Status
+            </label>
+            <select
+              id="status"
+              className="border-input bg-card h-9 rounded-md border px-3"
+              value={params.status ?? ''}
+              onChange={(event) => {
+                update({ status: (event.target.value || null) as StatusFilter | null })
+              }}
+            >
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <label htmlFor="sort" className="sr-only">
               Sort
             </label>
@@ -162,7 +184,7 @@ export function DocumentsPage() {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  update({ tenant: DEFAULT_PARAMS.tenant, q: DEFAULT_PARAMS.q })
+                  update(NO_FILTERS)
                 }}
               >
                 Clear filters
@@ -186,12 +208,12 @@ export function DocumentsPage() {
           hasFilters(params) ? (
             <EmptyState
               title="No documents match"
-              description="Try another search or tenant."
+              description="Try another search, tenant or status."
               action={
                 <Button
                   variant="outline"
                   onClick={() => {
-                    update({ tenant: null, q: '' })
+                    update(NO_FILTERS)
                   }}
                 >
                   Clear filters

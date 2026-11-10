@@ -1,14 +1,17 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 
 import type { components } from '@/api/schema'
 import { CopyButton } from '@/components/CopyButton'
 import { LoadError } from '@/components/LoadError'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DEFAULT_PARAMS, toSearchParams } from '@/documents/listParams'
 import { OUTDATED_REASONS } from '@/documents/status'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { ROUTES } from '@/paths'
 
 import { useIndexingSettings } from './queries'
 import { ServiceDetails } from './ServiceDetails'
@@ -61,6 +64,10 @@ function Config({ label, value }: { label: string; value: string }) {
   )
 }
 
+// Every tenant's outdated documents, in the list's default order.
+const outdatedSearch = toSearchParams({ ...DEFAULT_PARAMS, status: 'outdated' })
+const OUTDATED_DOCUMENTS = `${ROUTES.documents}?${outdatedSearch.toString()}`
+
 const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`
 
 function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
@@ -98,7 +105,13 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
       {outdatedTotal > 0 && (
         <p className="text-muted-foreground text-[13px]">
           {plural(outdatedTotal, 'document is', 'documents are')} outdated: reprocess a document to
-          bring it up to date.
+          bring it up to date.{' '}
+          <Link
+            to={OUTDATED_DOCUMENTS}
+            className="text-foreground font-medium underline-offset-4 hover:underline"
+          >
+            Show outdated documents
+          </Link>
         </p>
       )}
     </Card>

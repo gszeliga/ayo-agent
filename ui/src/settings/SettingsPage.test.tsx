@@ -41,6 +41,37 @@ test('documents: indexed, and outdated by reason', async () => {
   expect(documents).toHaveTextContent('3 documents are outdated: reprocess a document')
 })
 
+test('outdated documents link to the list filtered to them', async () => {
+  const { user } = await openSettings()
+
+  await user.click(within(card('Documents')).getByRole('link', { name: 'Show outdated documents' }))
+
+  expect(screen.getByTestId('location')).toHaveTextContent('/documents?status=outdated')
+  expect(await screen.findByLabelText('Status')).toHaveValue('outdated')
+})
+
+test('no link when nothing is outdated', async () => {
+  server.use(
+    http.get(`${API}/admin/settings`, () =>
+      HttpResponse.json(
+        makeSettings({
+          documents: {
+            total: 4,
+            indexed: 4,
+            outdated: { unknown: 0, chunker_changed: 0, embedder_changed: 0 },
+          },
+        }),
+      ),
+    ),
+  )
+  await openSettings()
+
+  expect(card('Documents')).toHaveTextContent('Outdated0')
+  expect(
+    within(card('Documents')).queryByRole('link', { name: 'Show outdated documents' }),
+  ).not.toBeInTheDocument()
+})
+
 test('the fake provider is flagged', async () => {
   server.use(
     http.get(`${API}/admin/settings`, () =>

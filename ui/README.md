@@ -57,12 +57,14 @@ page's own origin, which is right when a proxy serves the UI and the API togethe
 
 ## Documents list
 
-`/documents?tenant=…&q=…&sort=…&page=…`: the URL holds the whole view, so it can be
+`/documents?tenant=…&q=…&status=…&sort=…&page=…`: the URL holds the whole view, so it can be
 reloaded, shared and stepped through with Back. Defaults are left out (`sort=-updated_at`,
 `page=1`) and invalid values fall back to them, the URL corrected in place, so a
 hand-edited URL never reaches the API as a `422` (`src/documents/listParams.ts`; its test
-checks the limits against `docs/openapi.json`). Tenant, sort and page changes add history
-entries; the search updates the URL 300 ms after typing pauses, without one. Changing a
+checks the limits and the status values against `docs/openapi.json`). The status filter
+(All statuses / Indexed / Outdated) is judged by the API against the current settings;
+the tenant counts stay totals, whatever the status. Tenant, status, sort and page changes
+add history entries; the search updates the URL 300 ms after typing pauses, without one. Changing a
 filter or the sort goes back to page 1; a page past the end moves to the last one. Page
 size is fixed at 25.
 
@@ -125,7 +127,8 @@ which updates or invalidates the cached data they change.
 
 ## Indexing settings and service status
 
-`/settings` (lazy-loaded): document counts (indexed, outdated by reason), the Chunking,
+`/settings` (lazy-loaded): document counts (indexed, outdated by reason, with a link to
+the list filtered to `status=outdated` when there are any), the Chunking,
 Embeddings and Uploads settings with the environment variable behind each (the fake
 provider is flagged), copyable config strings, and a Services card. Read-only: the
 settings come from the API's environment.

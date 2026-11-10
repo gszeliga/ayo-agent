@@ -365,12 +365,26 @@ the first unchecked item under "Progress log".
   `DOCUMENT_STATUSES`. 645 backend tests pass; `pnpm check` passes (260 UI tests; the UI
   does not use the filter yet). README: the filter in the list section and the reprocess
   section.
-- [ ] U10. Status filter in the UI.
+- [x] U10. Status filter in the UI (2026-11-10). `ListParams.status` (`indexed` /
+  `outdated` / null, typed from the generated schema; `STATUS_OPTIONS`) is read from and
+  written to `?status=` (after `q`; an invalid value falls back to all and the URL is
+  corrected in place), sent to the API only when set, and counts as a filter. A "Status"
+  select (All statuses / Indexed / Outdated) sits before the sort select; a change goes
+  back to page 1 and starts a new selection, like tenant and search. "Clear filters" and
+  the "No documents match" state clear it too (`NO_FILTERS`; hint "Try another search,
+  tenant or status."). The tenant counts stay totals (the API has no per-status count by
+  tenant). Settings page: "Show outdated documents" after the outdated hint, only when
+  some are, to `/documents?status=outdated`. Tests: parsing, fallbacks, URL order, the API
+  query, `hasFilters`, the values against `docs/openapi.json`; through MSW the select
+  updates the URL, the request (offset back to 0, tenant kept) and the rows, back to all;
+  the select shows the URL's value; an empty status match clears; an invalid status is
+  corrected; the settings link navigates and is absent when nothing is outdated. 270 UI
+  tests pass, `pnpm check` clean. `ui/README.md` updated.
 - [ ] U11. Bulk reprocess in the UI.
 
 ## Next (resume here)
-D1 is parked (decision 6). B5 is done. Next: **U10** (status filter in the UI; decision 7):
-write its brief and wait for approval.
+D1 is parked (decision 6). B5 and U10 are done. Next: **U11** (bulk reprocess in the UI;
+decision 7): write its brief and wait for approval.
 
 ## Final report (2026-11-05)
 
@@ -408,8 +422,8 @@ the connect screen (U3 follow-up), the error boundary, tab titles and axe check 
 - The manual browser run of U9 was skipped: the UI has only been exercised through its
   tests (MSW) and the user's own manual tries. Worth a click-through before relying on it,
   ideally against the Neon dev branch with the real embedder.
-- Outdated documents: the API can list them (`status=outdated`, B5), but the UI cannot
-  yet, and there is no bulk reprocess (U10, U11).
+- Outdated documents: the API and the UI can list them (B5, U10), but there is no bulk
+  reprocess yet (U11).
 - The UI's test environment needs workarounds: upload tests run under happy-dom (Vitest's
   jsdom cannot fetch a multipart body with a file), and jsdom's missing `matchMedia` and
   pointer capture are stubbed. Re-check when Vitest or jsdom are upgraded.
