@@ -9,8 +9,9 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Next: U11, bulk reprocess in the UI** (B5 and U10, the status filter, are done), under
-  "Next" in `plans/ui-progress.md`. **Read it first.** Deployment (D1) is parked (decision 6 there).
+- **Next: to be decided with the user**, see "Next" in `plans/ui-progress.md`. **Read it
+  first.** Done there (2026-11-10): status filter and bulk reprocess (B5, U10, U11; decision
+  7). Deployment (D1) is parked (decision 6).
 - Done (2026-11-05): admin UI (React + Vite + TS in `ui/`, details in `ui/README.md`).
   Decisions (deployment: decision 5), progress log, final report and "Open items" in
   `plans/ui-progress.md`.

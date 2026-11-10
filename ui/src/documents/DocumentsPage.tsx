@@ -1,4 +1,4 @@
-import { Loader2, Search, Upload } from 'lucide-react'
+import { Loader2, RefreshCw, Search, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -26,6 +26,7 @@ import {
 import { Pagination } from './Pagination'
 import { useDocuments, useTenants } from './queries'
 import { BulkDeleteDialog } from './BulkDeleteDialog'
+import { BulkReprocessDialog, type ReprocessSource } from './BulkReprocessDialog'
 import { SelectionBar } from './SelectionBar'
 import { TenantSelect, TenantSidebar } from './TenantFilter'
 import { useSelection } from './useSelection'
@@ -41,6 +42,8 @@ export function DocumentsPage() {
   const tenants = useTenants()
   const [uploading, setUploading] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  // Set while the reprocess dialog is open; the source is fixed when it opens.
+  const [reprocessing, setReprocessing] = useState<ReprocessSource | null>(null)
   // Kept across pages and sorts; a new tenant, search or status starts a new one.
   const selection = useSelection(
     `${params.tenant ?? ''}\u0000${params.q}\u0000${params.status ?? ''}`,
@@ -118,6 +121,9 @@ export function DocumentsPage() {
               (data?.items.filter((doc) => selection.has(doc.doc_id)).length ?? 0)
             }
             onClear={selection.clear}
+            onReprocess={() => {
+              setReprocessing({ kind: 'selection', items: selection.items })
+            }}
             onDelete={() => {
               setBulkDeleting(true)
             }}
@@ -190,6 +196,20 @@ export function DocumentsPage() {
                 Clear filters
               </Button>
             )}
+            {params.status === 'outdated' &&
+              data &&
+              data.total > 0 &&
+              !documents.isPlaceholderData && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setReprocessing({ kind: 'filter', params, total: data.total })
+                  }}
+                >
+                  <RefreshCw aria-hidden="true" />
+                  Reprocess all {data.total} outdated
+                </Button>
+              )}
             {documents.isFetching && data && (
               <Loader2
                 role="status"
@@ -254,6 +274,16 @@ export function DocumentsPage() {
         onOpenChange={setBulkDeleting}
         onDeleted={selection.remove}
       />
+      {reprocessing && (
+        <BulkReprocessDialog
+          source={reprocessing}
+          open
+          onOpenChange={(open) => {
+            if (!open) setReprocessing(null)
+          }}
+          onFinished={selection.remove}
+        />
+      )}
       <LazyUploadDialog
         mode={{ kind: 'upload', defaultTenant: params.tenant }}
         open={uploading}

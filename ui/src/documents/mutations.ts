@@ -13,7 +13,7 @@ export const BULK_DELETE_BATCH = 100
 const path = (docId: string) => ({ params: { path: { doc_id: docId } } })
 
 /** Everything a write can make stale: lists, tenant counts, status counts. */
-function refreshLists(queryClient: QueryClient) {
+export function refreshLists(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ['documents'] }),
     queryClient.invalidateQueries({ queryKey: ['tenants'] }),

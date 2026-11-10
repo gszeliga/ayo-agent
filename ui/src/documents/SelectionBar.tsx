@@ -1,4 +1,4 @@
-import { Trash2, X } from 'lucide-react'
+import { RefreshCw, Trash2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
@@ -6,12 +6,14 @@ export function SelectionBar({
   count,
   offPage,
   onClear,
+  onReprocess,
   onDelete,
 }: {
   count: number
   /** How many of them are on other pages. */
   offPage: number
   onClear: () => void
+  onReprocess: () => void
   onDelete: () => void
 }) {
   return (
@@ -29,6 +31,10 @@ export function SelectionBar({
       <Button variant="ghost" onClick={onClear}>
         <X aria-hidden="true" />
         Clear selection
+      </Button>
+      <Button variant="outline" onClick={onReprocess}>
+        <RefreshCw aria-hidden="true" />
+        Reprocess
       </Button>
       <Button variant="destructive" onClick={onDelete}>
         <Trash2 aria-hidden="true" />

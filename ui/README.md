@@ -125,6 +125,18 @@ ids already gone are reported in the toast; if a later batch fails, the dialog s
 was deleted and keeps the rest selected. All writes go through `src/documents/mutations.ts`,
 which updates or invalidates the cached data they change.
 
+**Bulk reprocess** (`BulkReprocessDialog`, run logic in `bulkReprocess.ts`): **Reprocess**
+in the selection bar, or **Reprocess all N outdated** in the toolbar when the list is
+filtered to `status=outdated` (every match, collected 100 at a time on Start, tenant and
+search included). There is no bulk endpoint: the dialog calls the single reprocess, one
+document at a time, without Force (up-to-date ones are skipped for free). It shows the
+progress and the current title; **Stop** takes effect after the current document; the
+dialog can't be closed while running, and closing the tab asks first. A `404` (deleted
+meanwhile) or `409` (replaced meanwhile) is counted and the run goes on; any other error
+(provider `502`, network, `401`) stops it and names the document. The summary counts each
+outcome; settled documents (reprocessed, up to date, gone) leave the selection, the rest
+stay. The list, tenants and settings are invalidated once, at the end.
+
 ## Indexing settings and service status
 
 `/settings` (lazy-loaded): document counts (indexed, outdated by reason, with a link to
@@ -232,7 +244,8 @@ src/
                       ThemeProvider + ThemeToggle, StatusIndicator (status dots, popover)
   documents/          the list: DocumentsPage, listParams (URL <-> state), queries,
                       mutations (rename, reprocess, delete, bulk delete), useSelection,
-                      SelectionBar, BulkDeleteDialog,
+                      SelectionBar, BulkDeleteDialog, BulkReprocessDialog + bulkReprocess
+                      (the run), fetchAllMatching (every page of a filter),
                       TenantFilter (sidebar + narrow select), DocumentsTable, StatusBadge,
                       status (reasons in words), Pagination
   document/           the detail (lazy-loaded route): DocumentPage, params (URL <-> state, back

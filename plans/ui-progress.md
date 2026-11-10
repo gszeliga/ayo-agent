@@ -380,11 +380,35 @@ the first unchecked item under "Progress log".
   the select shows the URL's value; an empty status match clears; an invalid status is
   corrected; the settings link navigates and is absent when nothing is outdated. 270 UI
   tests pass, `pnpm check` clean. `ui/README.md` updated.
-- [ ] U11. Bulk reprocess in the UI.
+- [x] U11. Bulk reprocess in the UI (2026-11-10). **Reprocess** in the selection bar, and
+  **Reprocess all N outdated** in the toolbar on `status=outdated` with matches (not while a
+  placeholder page shows). `BulkReprocessDialog` (an alert dialog): confirm (no typing;
+  Start collects a filter's ids with `queries.fetchAllMatching`, 100 per request, de-duplicated,
+  ending on a short page or `total`; a failure there stays on the confirmation with the
+  error), running (progress bar with `aria-valuenow`, "N of M done", the current title,
+  Stop -> "Stopping after this document…"; Escape and outside clicks ignored; a
+  `beforeunload` warning), and a summary by outcome (non-zero rows, "Not started", the
+  error that stopped it with the document's title; "the ones not settled are still
+  selected"). The run is `bulkReprocess.runBulkReprocess`, free of React: sequential, `force`
+  off, `shouldStop` asked before each document, `404` -> gone and `409` -> changed (the run
+  goes on), anything else -> failed and the run stops (decision 7 points agreed: stop on
+  `502`, no Force, no button on the settings page, refresh at the end only). At the end:
+  reprocessed documents' caches invalidated, gone ones removed, `refreshLists` (now
+  exported) once; settled ids (reprocessed, up to date, gone) leave the selection. Leaving
+  the page stops the run after the current document. Tests: the run alone (order, every
+  outcome, progress, stop between documents, each stopping error, a non-Error rejection,
+  empty); through MSW: selection with a `409` (summary, the one left selected), all
+  outdated over 101 documents (two collecting requests, 101 reprocesses, the list
+  refetched to empty; 101 rather than the brief's 130 to keep the test near 6 s under
+  jsdom), the button's visibility, Stop, Escape ignored while running, a `502` stopping it
+  with the message and the selection kept, a collecting failure, axe on each stage. The
+  settings refresh is an invalidation (no settings query is mounted on the list), not
+  asserted. 287 UI tests pass, `pnpm check` clean. `ui/README.md` updated.
 
 ## Next (resume here)
-D1 is parked (decision 6). B5 and U10 are done. Next: **U11** (bulk reprocess in the UI;
-decision 7): write its brief and wait for approval.
+D1 is parked (decision 6). B5, U10 and U11 (decision 7: outdated documents, filter and
+bulk reprocess) are done. Nothing is planned next: ask the user (candidates in "Open
+items", or resume D1).
 
 ## Final report (2026-11-05)
 
@@ -422,8 +446,9 @@ the connect screen (U3 follow-up), the error boundary, tab titles and axe check 
 - The manual browser run of U9 was skipped: the UI has only been exercised through its
   tests (MSW) and the user's own manual tries. Worth a click-through before relying on it,
   ideally against the Neon dev branch with the real embedder.
-- Outdated documents: the API and the UI can list them (B5, U10), but there is no bulk
-  reprocess yet (U11).
+- Bulk reprocess runs in the browser tab (decision 7): closing it stops the run, and a
+  long run against Voyage was only tested with MSW. A server-side job (with a jobs table)
+  would be the step if runs get long or must survive the tab.
 - The UI's test environment needs workarounds: upload tests run under happy-dom (Vitest's
   jsdom cannot fetch a multipart body with a file), and jsdom's missing `matchMedia` and
   pointer capture are stubbed. Re-check when Vitest or jsdom are upgraded.
