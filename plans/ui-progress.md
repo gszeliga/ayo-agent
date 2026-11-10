@@ -50,6 +50,15 @@ the first unchecked item under "Progress log".
    `POST /admin/documents/{doc_id}/reprocess` at a time, with progress and a stop; no
    server-side bulk endpoint or jobs table (a request for many Voyage calls would hit
    proxy timeouts and report no progress). No `outdated_reason` filter for now.
+8. **Test search screen (2026-11-10)**, the search spec's "UI handoff", while the
+   evaluation harness is paused (`plans/search-progress.md`, decision 10). Prototype first
+   (U12), then the page (U13). Route `/search`, nav entry between Documents and Indexing
+   settings. **The query never goes in the URL** (it would reach browser history and the
+   proxy's access log; the API treats queries as sensitive as documents): only tenants,
+   top k and the options may. A search runs on submit only (Enter, Shift+Enter for a new
+   line, or the button), never while typing: each one is a paid provider call, so no
+   refetch on focus and no retries. `debug: true` is always sent (timing line, configs
+   under "Details"). No backend changes.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - **U0** This file; `CLAUDE.md` points at it.
@@ -133,6 +142,8 @@ the first unchecked item under "Progress log".
 - **U11** UI: bulk reprocess, from the selection bar and as "Reprocess all outdated" on
   the filtered list (every match, not only the page); progress, stop, a summary by
   outcome, then the list and the settings counts refreshed.
+- **U12** Clickable prototype of the test search screen, on the U1 Artifact (decision 8).
+- **U13** The test search page (decision 8), following the approved U12 prototype.
 
 ## Progress log (update after every step; resume from the first unchecked item)
 - [x] U0. Plan agreed with the user (2026-11-02) and written here.
@@ -404,11 +415,35 @@ the first unchecked item under "Progress log".
   with the message and the selection kept, a collecting failure, axe on each stage. The
   settings refresh is an invalidation (no settings query is mounted on the list), not
   asserted. 287 UI tests pass, `pnpm check` clean. `ui/README.md` updated.
+- [x] U12. Test search prototype, approved by the user (2026-11-10). Added to the U1
+  Artifact (https://claude.ai/artifact/We1nZk6KWUYCXvHJvGwoZt, version 9, artboard
+  `project/Main.dc.html`; `startScreen` can be `search`). Mock retrieval only (word-stem
+  overlap; the numbers mean nothing); two shared `ayo` documents (Pareto, Ishikawa) added to
+  the mock data. What the design settles:
+  - Page "Test search": a question box (counter `n / 2000`, the hint "never logged or put
+    in the URL"), then one row: Tenants (a popover with a checkbox per tenant and its
+    counts, "All tenants" by default, the note that the copilot searches one customer
+    plus `ayo`), Top k (number, 1-50, default 5), Options (popover: minimum similarity 0-1,
+    empty by default; "Include documents embedded with another model"; a count chip when
+    set), and Search.
+  - Banners: provider down (from the health query) above the form; `502` with Try again;
+    `skipped.embedder_mismatch` > 0 in amber with **Include them** (re-runs with
+    `include_outdated`) and **Review outdated documents** (the list on `status=outdated`).
+  - A summary line: result count, scope (top k, min, tenants, other models included), the
+    three timings, and **Details** (embedded query, embedder and chunker configs, skipped).
+  - Result cards: rank, similarity bar (0-1, negatives empty) and value to 4 decimals,
+    title linking to the document's Chunks tab on the chunk's page with the chunk
+    outlined ("Back to search" keeps the results), tenant, "Other model" badge with a
+    tooltip, heading path, `source_key · chunk N`, characters, raw text clamped to 3 lines
+    with Show more.
+  - States: before the first search (what a result shows), skeleton on the first search,
+    previous results dimmed on the next ones, and three empty cases (nothing to search,
+    everything skipped, nothing reached the minimum, with "Clear the minimum and search
+    again"). `422` under the question; `401` to the connect screen.
 
 ## Next (resume here)
-D1 is parked (decision 6). B5, U10 and U11 (decision 7: outdated documents, filter and
-bulk reprocess) are done. Nothing is planned next: ask the user (candidates in "Open
-items", or resume D1).
+D1 is parked (decision 6). U12 (the test search prototype) is approved: next, the **U13
+brief** (decision 8), then wait for approval.
 
 ## Final report (2026-11-05)
 

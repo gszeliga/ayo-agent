@@ -9,6 +9,9 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
+- **Active: test search screen in the UI** (decision 8 and steps U12-U13 in
+  `plans/ui-progress.md`). U12 (prototype) is approved; **next: write the U13 brief** and
+  wait for approval.
 - **Paused (2026-11-10): search and retrieval evaluation.** Spec
   `plans/claude-code-prompt-search-eval.md`; decisions (which override the spec where they
   differ), steps S1-S5 and log in `plans/search-progress.md`. **Read both first.** S1 and S2
