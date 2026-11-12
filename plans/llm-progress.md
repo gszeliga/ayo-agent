@@ -8,9 +8,9 @@ earlier specs; pasted into the session on 2026-11-12). This file holds the agree
 deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
-L5: the brief for the check core without I/O (the nine draft scenarios, expectations,
-schema validation, metrics, report structure). Before L7 the OpenRouter account needs
-credits: the L4 live run got `402` (see the log).
+L6: the brief for the `ayo-llm-check models|run` command (models listing with tools, context,
+prices and a ZDR column; the call cap; report files under `eval/llm/`; a clear message for
+OpenRouter's "no endpoint matches" 404; README). Credits are on the account (USD 5).
 
 ## Decisions (agreed 2026-11-12)
 1. **The repo's patterns win over the spec's names.** There is no `HttpEmbedder`: the model
@@ -67,6 +67,18 @@ credits: the L4 live run got `402` (see the log).
    what lets the app run without one. `build_llm_provider` lives in `llm/build.py`.
 20. **The live tool test runs twice**, forced by name and with `tool_choice: "required"`
    (answers decision 9): three requests in all.
+21. **The check code lives in `llm/check/`** (`scenarios.py`, `evaluate.py`, `runner.py`,
+   `report.py`), not `llm/scenarios.py` as the spec said, to keep it apart from the provider
+   code the app uses.
+22. **Rates carry a 95% Wilson interval** (agreed 2026-11-12): pass rates per model and
+   scenario and the bad-argument rate, so small samples are not over-read (22/27 and 25/27
+   overlap). Rounded to 4 decimals.
+23. **Provider errors are not model failures**: a run that raises `LLMError` is counted as an
+   error (by class name) and left out of the pass rate.
+24. **"Asks a question" means the text contains "?"**, a labelled heuristic; the meaning of
+   the text is not judged. Failure details name tools and schema locations, never values.
+25. **Two costs per call**: the average `cost` OpenRouter reported, and an approximate one
+   from tokens x listed prices (`None` without prices).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **L1** Types, errors, `LLMProvider` protocol, `check_request`, `FakeLLMProvider`,
@@ -78,7 +90,7 @@ credits: the L4 live run got `402` (see the log).
   one structured log line per call, privacy tests on every error path.
 - [x] **L4** Lazy wiring into the app (lifespan, `get_llm_provider`), lazy-config tests,
   two live tests, `live` marker wording.
-- [ ] **L5** Check core without I/O: the nine draft scenarios (Spanish), expectations,
+- [x] **L5** Check core without I/O: the nine draft scenarios (Spanish), expectations,
   schema validation (`jsonschema`, runtime dependency), metrics and report structure.
 - [ ] **L6** `ayo-llm-check models|run` CLI (with a ZDR column in `models`), call cap,
   `eval/llm/` reports (git-ignored except an example), README.
@@ -86,8 +98,13 @@ credits: the L4 live run got `402` (see the log).
   revisited.
 
 ## Open items
-- The OpenRouter account had no credits on 2026-11-12 (live tests: `402`). The live tests
-  and the L7 run need credits; whether `tool_choice: "required"` is honoured is still open.
+- OpenRouter answers `404` when no endpoint matches the routing or data policy (likely what
+  `nvidia/nemotron-3.5-lightning:free` returned with `data_collection=deny`). Today that is a
+  generic `LLMBadRequestError` ("request rejected"), hard to diagnose; give it a clear
+  message in L6 (it will happen if a model loses its last deny-compatible or ZDR endpoint).
+- Qwen3-32B reasons by default and can spend all of `max_tokens` on it: a 16-token
+  completion came back empty (`finish_reason=length`). The check must show this; L7 should
+  run Qwen3 both with the default and with `--reasoning-effort none`.
 
 ## Progress log
 - **L1 (2026-11-12).** `src/ayo_copilot/llm/`: `types.py` (`ToolSpec`, `ToolCall`,
@@ -132,3 +149,29 @@ credits: the L4 live run got `402` (see the log).
   all three calls got `402`, mapped to `LLMInsufficientCreditsError`, not retried, one
   WARNING line each, no content. To rerun once credits are added:
   `uv run pytest -m live tests/live/test_openrouter_live.py`.
+- **Live runs (2026-11-12, after the user added USD 5 of credit).** Free models were tried
+  first, at no cost: `google/gemma-4-31b-it:free` was rate limited (`429` after retries) and
+  `nvidia/nemotron-3.5-lightning:free` gave `404` (probably the data policy). With credits,
+  `uv run pytest -m live tests/live/test_openrouter_live.py`:
+  - `mistralai/mistral-small-3.2-24b-instruct`: 3/3 passed; tool calls 11 completion tokens,
+    0.8-1.3 s; served by Mistral (text) and DeepInfra (tools).
+  - `qwen/qwen3-32b` (reasoning by default): tool calls passed (95-125 completion tokens, of
+    which 85-111 reasoning; 7.5-15.7 s), the 16-token completion failed (all reasoning,
+    `finish_reason=length`, no text).
+  - `qwen/qwen3-32b` with `LLM_REASONING_EFFORT=none`: 3/3 passed, 0 reasoning tokens, tool
+    calls 20 completion tokens, 2.3-4.4 s.
+  - `tool_choice: "required"` is honoured by both models (decision 9 settled).
+  - The top-level `provider` is returned in practice, so `upstream_provider` is filled.
+  - Total spent: about USD 0.0003.
+- **L5 (2026-11-12).** `llm/check/`: `scenarios.py` (draft `record_field`, `log_event`,
+  `propose_transition` with a per-scenario enum, `add_action`; draft Spanish prompts per
+  phase; nine scenarios with `Expectations`/`ValueRule`), `evaluate.py` (every-call checks
+  with `jsonschema` Draft 2020-12, then expectations; seven failure reasons; safe details),
+  `runner.py` (`run_check`, `planned_calls`, `RunResult`, `summarize`, `Rate` with
+  `wilson_interval`, nearest-rank `percentile`, `Pricing`), `report.py` (`build_report`,
+  no raw outputs unless `include_raw`). `jsonschema` is a runtime dependency. ADR 0003 updated
+  with the live findings (provider reported, `"required"` honoured). Tests:
+  `test_llm_check_scenarios.py`, `test_llm_check_evaluate.py` (a pass and a fail per
+  scenario, enum violation, repeated rejected call, several reasons at once),
+  `test_llm_check_runner.py` (order, errors apart, exact metrics, intervals, percentiles,
+  report structure, raw outputs only on request).

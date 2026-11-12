@@ -36,7 +36,8 @@ others possible.
   `prompt_tokens`, `completion_tokens`, `total_tokens`, `cost` (credits),
   `completion_tokens_details.reasoning_tokens`, `prompt_tokens_details.cached_tokens`.
   The top-level `model` is the model actually used; the upstream provider is not in the
-  documented non-streaming response (a top-level `provider` is read if present).
+  documented non-streaming response, but a top-level `provider` came back in every live
+  call (2026-11-12) and is read when present.
   <https://openrouter.ai/docs/use-cases/usage-accounting>
 - **Errors.** Body `{"error": {"code", "message", "metadata"?}}`; `400` bad request, `401`
   bad key, `402` no credits, `403` moderation or guardrail, `408` timeout, `429` rate
@@ -71,8 +72,8 @@ others possible.
   provider's default applies (OpenRouter documents 1.0), which varies with routing.
 - **`reasoning.effort` only when `LLM_REASONING_EFFORT` is set**; otherwise the model's
   default. Reasoning goes to `LLMResponse.reasoning`, never to `text`, never to logs.
-- **`tool_choice: "required"` is sent as is** though undocumented; the live test shows
-  whether it is honoured. `parallel_tool_calls` is not sent (several calls per turn are
+- **`tool_choice: "required"` is sent as is** though undocumented; the live tests show
+  Mistral Small 3.2 and Qwen3-32B honour it (2026-11-12). `parallel_tool_calls` is not sent (several calls per turn are
   wanted).
 - **Tool arguments are parsed, never trusted, never raised on**: invalid JSON or a
   non-object gives `arguments=None` with a reason that never quotes them; empty arguments

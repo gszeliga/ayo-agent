@@ -118,6 +118,8 @@ src/ayo_copilot/
   llm/provider.py      LLMProvider protocol (sync), check_request
   llm/build.py         build_llm_provider (no request, no key check), describe_llm_provider (startup log)
   llm/fake.py          FakeLLMProvider (scripted, records calls) and response helpers
+  llm/check/           ayo-llm-check core: scenarios.py (DRAFT tools, prompts, nine scenarios),
+                       evaluate.py (verdicts), runner.py (runs, metrics, Wilson CIs), report.py
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
