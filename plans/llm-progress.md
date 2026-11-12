@@ -8,8 +8,8 @@ earlier specs; pasted into the session on 2026-11-12). This file holds the agree
 deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
-L2: the brief for `OpenRouterProvider` (request building, response parsing, multi-turn
-serialization, single-attempt error mapping) and ADR 0003.
+L3: the brief for retries (backoff with jitter, `Retry-After`, total budget, errors in a
+200), the per-call log line and the privacy tests on every error path.
 
 ## Decisions (agreed 2026-11-12)
 1. **The repo's patterns win over the spec's names.** There is no `HttpEmbedder`: the model
@@ -39,11 +39,23 @@ serialization, single-attempt error mapping) and ADR 0003.
 10. **`FakeLLMProvider` lives in the package** (`ayo_copilot.llm.fake`), like `FakeEmbedder`.
    It rejects malformed requests with the same `check_request` the real provider will use,
    but does not check that scripted calls name offered tools (the check's tests need that).
+11. **`provider.require_parameters: true` on every request**, not only when tools are
+   offered: it also guarantees `temperature`, `max_tokens` and `reasoning` are honoured.
+12. **`parallel_tool_calls` is not sent** (OpenRouter's default, true, is wanted: scenario 1
+   expects several `record_field` calls in one turn).
+13. **History carries each tool call's raw arguments verbatim**, invalid JSON included; the
+   orchestrator decides what to do with invalid calls.
+14. **`ayo-llm-check models` also reports whether each model has a ZDR endpoint** (agreed
+   2026-11-12), and L7 tries a run with `LLM_ZDR=true`.
+15. **An error in a 200 is mapped by its `code`** like an HTTP status (e.g. `502` ->
+   `LLMUnavailableError`), keeping `status=200`; with no usable code it is an
+   `LLMResponseError`. A missing tool call id becomes `call_<index>`; arguments sent as an
+   object are accepted and re-serialized.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **L1** Types, errors, `LLMProvider` protocol, `check_request`, `FakeLLMProvider`,
   `LLMSettings`, `.env.example` (and a test that it lists every setting), README.
-- [ ] **L2** `OpenRouterProvider`: request building (tools, routing preferences, data
+- [x] **L2** `OpenRouterProvider`: request building (tools, routing preferences, data
   policy, reasoning effort, per-call model), response parsing (invalid arguments never
   raise, reasoning apart), multi-turn serialization, single-attempt error mapping; ADR 0003.
 - [ ] **L3** Retries (backoff with jitter, `Retry-After`, total budget, errors in a 200),
@@ -52,8 +64,8 @@ serialization, single-attempt error mapping) and ADR 0003.
   two live tests, `live` marker wording.
 - [ ] **L5** Check core without I/O: the nine draft scenarios (Spanish), expectations,
   schema validation (`jsonschema`, runtime dependency), metrics and report structure.
-- [ ] **L6** `ayo-llm-check models|run` CLI, call cap, `eval/llm/` reports (git-ignored
-  except an example), README.
+- [ ] **L6** `ayo-llm-check models|run` CLI (with a ZDR column in `models`), call cap,
+  `eval/llm/` reports (git-ignored except an example), README.
 - [ ] **L7** Manual run with the user's key; results and the final report; default model
   revisited.
 
@@ -70,3 +82,15 @@ serialization, single-attempt error mapping) and ADR 0003.
   `.env.example` LLM section; a new test that `.env.example` lists exactly the settings'
   variables. README configuration table and layout. Tests: `test_llm_types.py`,
   `test_llm_fake.py`, LLM cases in `test_config.py`.
+- **L2 (2026-11-12).** `llm/openrouter.py`: `OpenRouterProvider` (one attempt per call;
+  missing key -> `LLMConfigError` after `check_request`, before any request), the
+  serializers (messages, tools, `tool_choice`), `error_for_status`, `parse_completion` and
+  `parse_arguments`. Request: system message first (omitted when empty), temperature and
+  `max_tokens` always, `provider: {require_parameters, data_collection[, zdr]}`,
+  `reasoning.effort` when set, attribution headers when set. Response: content parts
+  joined, empty text -> None, reasoning (or `reasoning_content`) apart, usage with
+  reasoning tokens and cost (malformed values -> None), `model` and `provider` when
+  present, latency from an injectable clock. ADR `docs/decisions/0003-llm-provider.md`
+  with the documentation facts and URLs. Tests: `tests/unit/test_openrouter.py` (request
+  building, multi-turn payload, parsing, every error mapping, no secret or content in
+  error messages).

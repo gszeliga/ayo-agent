@@ -117,6 +117,7 @@ src/ayo_copilot/
   llm/errors.py        LLMError and subclasses (safe messages, optional status)
   llm/provider.py      LLMProvider protocol (sync), check_request
   llm/fake.py          FakeLLMProvider (scripted, records calls) and response helpers
+  llm/openrouter.py    OpenRouterProvider (httpx2), serializers, error mapping, parse_completion
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
                        0002 = documents.chunk_count/size_bytes/*_config + list index
 scripts/               dev_db.sh, export_openapi.py
