@@ -131,7 +131,7 @@ src/ayo_copilot/
                        catalog.py (models listing), cli.py (ayo-llm-check)
   conversation/case.py     CaseSnapshot (Case, Event, Action) and TurnChanges (what a turn accepted)
   conversation/phases.py   TRANSITIONS, exit criteria (missing_for), describe_missing
-  conversation/tools.py    the five tool specs (single source), tools_for_phase, execute_tool
+  conversation/tools.py    TOOLS (one ToolDef per tool: spec, phases, handler), tools_for_phase, execute_tool
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)

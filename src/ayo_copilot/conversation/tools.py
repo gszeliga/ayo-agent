@@ -51,36 +51,10 @@ REASONING_MAX = 500
 # Each schema error message sent back to the model is capped (it may echo the value).
 _SCHEMA_DETAIL_MAX = 200
 
-TOOL_NAMES: tuple[str, ...] = (
-    "record_field",
-    "log_event",
-    "add_action",
-    "update_action",
-    "propose_transition",
-)
-
 # The annotation types `log_event` may record, per phase.
 LOG_EVENT_TYPES: dict[Phase, tuple[EventType, ...]] = {
     "challenge": ("evidence", "hypothesis", "hypothesis_discarded"),
     "analyse": ANNOTATION_TYPES,
-}
-
-# The phases that get each tool (`propose_transition`: every phase with a target).
-_PHASES_BY_TOOL: dict[str, frozenset[Phase]] = {
-    "record_field": frozenset({"understand", "challenge"}),
-    "log_event": frozenset(LOG_EVENT_TYPES),
-    "add_action": frozenset({"action", "followup"}),
-    "update_action": frozenset({"action", "followup"}),
-    "propose_transition": frozenset(p for p, t in TRANSITIONS.items() if t),
-}
-
-# String arguments that are stored or shown, so they are cleaned before use.
-_TEXT_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "record_field": ("value",),
-    "log_event": ("content",),
-    "add_action": ("description", "owner"),
-    "update_action": (),
-    "propose_transition": ("reasoning",),
 }
 
 
@@ -202,15 +176,8 @@ def propose_transition_tool(phase: Phase) -> ToolSpec:
 
 
 def tools_for_phase(phase: Phase) -> tuple[ToolSpec, ...]:
-    """The tools offered in `phase`, in the order of `TOOL_NAMES` (none when closed)."""
-    builders: dict[str, Callable[[], ToolSpec]] = {
-        "record_field": record_field_tool,
-        "log_event": lambda: log_event_tool(phase),
-        "add_action": add_action_tool,
-        "update_action": update_action_tool,
-        "propose_transition": lambda: propose_transition_tool(phase),
-    }
-    return tuple(builders[name]() for name in TOOL_NAMES if phase in _PHASES_BY_TOOL[name])
+    """The tools offered in `phase`, in the order of `TOOLS` (none when closed)."""
+    return tuple(tool.build(phase) for tool in TOOLS if phase in tool.phases)
 
 
 # --- Execution ----------------------------------------------------------------
@@ -272,12 +239,12 @@ def execute_tool(
     """
     phase = snapshot.case.state
     name = call.name
-    if name not in TOOL_NAMES:
+    tool = _TOOLS_BY_NAME.get(name)
+    if tool is None:
         return _error(name, "unknown_tool", f"there is no tool named {name!r}")
-    offered = {spec.name: spec for spec in tools_for_phase(phase)}
-    spec = offered.get(name)
-    if spec is None:
+    if phase not in tool.phases:
         return _error(name, "tool_not_offered", f"{name} is not available in phase {phase}")
+    spec = tool.build(phase)
     if call.arguments is None:
         return _error(
             name, "invalid_json", f"the arguments are not valid JSON: {call.arguments_error}"
@@ -286,12 +253,11 @@ def execute_tool(
     if schema_errors:
         return _error(name, "invalid_arguments", "; ".join(schema_errors))
     arguments = dict(call.arguments)
-    for key in _TEXT_ARGUMENTS[name]:
+    for key in tool.text_arguments:
         arguments[key] = clean_text(arguments[key])
         if not arguments[key]:
             return _error(name, "invalid_arguments", f"{key}: is empty")
-    handler = _HANDLERS[name]
-    return handler(snapshot, changes, arguments, allow_transition)
+    return tool.handler(snapshot, changes, arguments, allow_transition)
 
 
 def _record_field(
@@ -370,10 +336,61 @@ def _propose_transition(
     return _success(name, previous_phase=source, phase=target)
 
 
-_HANDLERS: dict[str, Callable[[CaseSnapshot, TurnChanges, dict[str, Any], bool], ToolOutcome]] = {
-    "record_field": _record_field,
-    "log_event": _log_event,
-    "add_action": _add_action,
-    "update_action": _update_action,
-    "propose_transition": _propose_transition,
-}
+# --- The tool table -------------------------------------------------------------
+
+Handler = Callable[[CaseSnapshot, TurnChanges, dict[str, Any], bool], ToolOutcome]
+
+
+@dataclass(frozen=True)
+class ToolDef:
+    """Everything about one tool: the spec the model sees in a phase, the phases that offer
+    it, the string arguments cleaned before use (stored or shown) and the handler."""
+
+    name: str
+    phases: frozenset[Phase]
+    build: Callable[[Phase], ToolSpec]
+    handler: Handler
+    text_arguments: tuple[str, ...] = ()
+
+
+# The single table of tools; its order is the order the model sees them in.
+TOOLS: tuple[ToolDef, ...] = (
+    ToolDef(
+        name="record_field",
+        phases=frozenset({"understand", "challenge"}),
+        build=lambda _phase: record_field_tool(),
+        handler=_record_field,
+        text_arguments=("value",),
+    ),
+    ToolDef(
+        name="log_event",
+        phases=frozenset(LOG_EVENT_TYPES),
+        build=log_event_tool,
+        handler=_log_event,
+        text_arguments=("content",),
+    ),
+    ToolDef(
+        name="add_action",
+        phases=frozenset({"action", "followup"}),
+        build=lambda _phase: add_action_tool(),
+        handler=_add_action,
+        text_arguments=("description", "owner"),
+    ),
+    ToolDef(
+        name="update_action",
+        phases=frozenset({"action", "followup"}),
+        build=lambda _phase: update_action_tool(),
+        handler=_update_action,
+    ),
+    ToolDef(
+        name="propose_transition",
+        # Every phase with somewhere to go (all but `closed`).
+        phases=frozenset(phase for phase, reachable in TRANSITIONS.items() if reachable),
+        build=propose_transition_tool,
+        handler=_propose_transition,
+        text_arguments=("reasoning",),
+    ),
+)
+
+TOOL_NAMES: tuple[str, ...] = tuple(tool.name for tool in TOOLS)
+_TOOLS_BY_NAME: dict[str, ToolDef] = {tool.name: tool for tool in TOOLS}

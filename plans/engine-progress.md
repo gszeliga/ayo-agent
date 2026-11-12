@@ -97,3 +97,10 @@ Pending OK, not part of E3: applying migration 0003 to the Neon dev branch.
   Tests: `tests/unit/test_conversation_phases.py` and `test_conversation_tools.py` (flat,
   like the rest of `tests/unit/`, not a subfolder as the brief said). Full suite green
   (1154 passed).
+- **E2 follow-up (2026-11-12, asked by the user).** `tools.py`: the per-tool dicts
+  (`TOOL_NAMES`, `_PHASES_BY_TOOL`, `_TEXT_ARGUMENTS`, the builders in `tools_for_phase`,
+  `_HANDLERS`) merged into one table, `TOOLS: tuple[ToolDef, ...]` (name, phases, spec
+  builder, handler, text arguments); `TOOL_NAMES` is derived from it. No behaviour change.
+  New tests: each entry builds its own spec in every phase it lists, and every free-text
+  argument (string without enum or pattern) is in `text_arguments`, so a new one cannot
+  skip cleaning.

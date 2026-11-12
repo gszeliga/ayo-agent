@@ -20,6 +20,7 @@ from ayo_copilot.conversation.case import (
 )
 from ayo_copilot.conversation.tools import (
     TOOL_NAMES,
+    TOOLS,
     ToolOutcome,
     clean_text,
     execute_tool,
@@ -143,9 +144,37 @@ def test_text_limits_in_the_schemas() -> None:
     assert actions["add_action"]["owner"]["maxLength"] == 100
 
 
-def test_tool_names_cover_every_handler() -> None:
+def test_tool_table_names_are_unique_and_every_tool_is_offered_somewhere() -> None:
+    assert TOOL_NAMES == (
+        "record_field",
+        "log_event",
+        "add_action",
+        "update_action",
+        "propose_transition",
+    )
     offered = {spec.name for phase in PHASES for spec in tools_for_phase(phase)}
     assert offered == set(TOOL_NAMES)
+
+
+@pytest.mark.parametrize("tool", TOOLS, ids=lambda tool: tool.name)
+def test_each_table_entry_builds_its_own_spec_in_every_phase_it_lists(tool: Any) -> None:
+    assert tool.phases
+    for phase in tool.phases:
+        assert tool.build(phase).name == tool.name
+
+
+@pytest.mark.parametrize("tool", TOOLS, ids=lambda tool: tool.name)
+def test_every_free_text_argument_is_cleaned(tool: Any) -> None:
+    """Free text (a string with neither enum nor pattern) must be listed for cleaning, and
+    only such arguments are listed."""
+    for phase in tool.phases:
+        properties = tool.build(phase).parameters["properties"]
+        free_text = {
+            key
+            for key, schema in properties.items()
+            if schema.get("type") == "string" and "enum" not in schema and "pattern" not in schema
+        }
+        assert set(tool.text_arguments) == free_text
 
 
 # --- Rejections before any handler ----------------------------------------------
