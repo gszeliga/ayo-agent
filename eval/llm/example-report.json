@@ -1,0 +1,982 @@
+{
+  "report_version": 1,
+  "notice": "Draft scenarios and prompts: they compare models on tool-calling discipline only and are not the production prompts. Small samples: read the 95% intervals, not only the rates. Estimated costs are approximate (tokens x listed prices).",
+  "config": {
+    "models": [
+      "mistralai/mistral-small-3.2-24b-instruct",
+      "qwen/qwen3-32b"
+    ],
+    "runs": 1,
+    "scenarios": [
+      "understand_all_facts",
+      "understand_vague",
+      "understand_confirmed",
+      "challenge_cause_without_data",
+      "challenge_contradicting_data",
+      "analyse_validated_cause",
+      "enum_skip_ahead",
+      "greeting",
+      "rejected_transition"
+    ],
+    "planned_calls": 18,
+    "temperature": 0.2,
+    "max_tokens": 1024,
+    "reasoning_effort": null,
+    "data_collection": "deny",
+    "zdr": false,
+    "base_url": "https://openrouter.ai/api/v1",
+    "prices_per_token": {
+      "mistralai/mistral-small-3.2-24b-instruct": {
+        "prompt": 1e-07,
+        "completion": 3e-07
+      },
+      "qwen/qwen3-32b": {
+        "prompt": 8e-08,
+        "completion": 2.8e-07
+      }
+    },
+    "started_at": "2026-11-12T09:00:00Z",
+    "finished_at": "2026-11-12T09:00:00Z",
+    "ayo_copilot_version": "0.1.0",
+    "include_raw": false
+  },
+  "scenarios": [
+    {
+      "id": "understand_all_facts",
+      "title": "Entender: el usuario da los cuatro datos con claridad",
+      "phase": "understand",
+      "tools": [
+        "record_field",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [
+          "record_field"
+        ],
+        "must_call_none": false,
+        "forbidden_tools": [],
+        "forbidden_values": [],
+        "required_values": [],
+        "must_cover": {
+          "tool": "record_field",
+          "field": "field",
+          "values": [
+            "since",
+            "standard",
+            "what",
+            "where"
+          ]
+        },
+        "needs_question": false
+      }
+    },
+    {
+      "id": "understand_vague",
+      "title": "Entender: mensaje vago, hay que preguntar",
+      "phase": "understand",
+      "tools": [
+        "record_field",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [],
+        "must_call_none": true,
+        "forbidden_tools": [],
+        "forbidden_values": [],
+        "required_values": [],
+        "must_cover": null,
+        "needs_question": true
+      }
+    },
+    {
+      "id": "understand_confirmed",
+      "title": "Entender: datos completos y confirmados, proponer Cuestionar",
+      "phase": "understand",
+      "tools": [
+        "record_field",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [
+          "propose_transition"
+        ],
+        "must_call_none": false,
+        "forbidden_tools": [],
+        "forbidden_values": [],
+        "required_values": [
+          {
+            "tool": "propose_transition",
+            "field": "target_state",
+            "values": [
+              "challenge"
+            ]
+          }
+        ],
+        "must_cover": null,
+        "needs_question": false
+      }
+    },
+    {
+      "id": "challenge_cause_without_data",
+      "title": "Cuestionar: causa afirmada sin datos, pedir evidencia",
+      "phase": "challenge",
+      "tools": [
+        "log_event",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [],
+        "must_call_none": false,
+        "forbidden_tools": [
+          "propose_transition"
+        ],
+        "forbidden_values": [
+          {
+            "tool": "log_event",
+            "field": "event_type",
+            "values": [
+              "validated_cause"
+            ]
+          }
+        ],
+        "required_values": [],
+        "must_cover": null,
+        "needs_question": true
+      }
+    },
+    {
+      "id": "challenge_contradicting_data",
+      "title": "Cuestionar: los datos contradicen la hipótesis anterior",
+      "phase": "challenge",
+      "tools": [
+        "log_event",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [],
+        "must_call_none": false,
+        "forbidden_tools": [],
+        "forbidden_values": [],
+        "required_values": [
+          {
+            "tool": "log_event",
+            "field": "event_type",
+            "values": [
+              "evidence",
+              "hypothesis_discarded"
+            ]
+          }
+        ],
+        "must_cover": null,
+        "needs_question": false
+      }
+    },
+    {
+      "id": "analyse_validated_cause",
+      "title": "Analizar: causa respaldada por evidencia",
+      "phase": "analyse",
+      "tools": [
+        "log_event",
+        "propose_transition",
+        "add_action"
+      ],
+      "expectations": {
+        "must_call_any": [],
+        "must_call_none": false,
+        "forbidden_tools": [],
+        "forbidden_values": [],
+        "required_values": [
+          {
+            "tool": "log_event",
+            "field": "event_type",
+            "values": [
+              "validated_cause"
+            ]
+          }
+        ],
+        "must_cover": null,
+        "needs_question": false
+      }
+    },
+    {
+      "id": "enum_skip_ahead",
+      "title": "Enum: el usuario insiste en saltar a Actuar; solo se permite Cuestionar",
+      "phase": "understand",
+      "tools": [
+        "record_field",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [],
+        "must_call_none": false,
+        "forbidden_tools": [],
+        "forbidden_values": [],
+        "required_values": [],
+        "must_cover": null,
+        "needs_question": false
+      }
+    },
+    {
+      "id": "greeting",
+      "title": "Saludo sin contenido del problema",
+      "phase": "understand",
+      "tools": [
+        "record_field",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [],
+        "must_call_none": true,
+        "forbidden_tools": [],
+        "forbidden_values": [],
+        "required_values": [],
+        "must_cover": null,
+        "needs_question": false
+      }
+    },
+    {
+      "id": "rejected_transition",
+      "title": "Resultado de herramienta: transición rechazada por falta de evidencia",
+      "phase": "challenge",
+      "tools": [
+        "log_event",
+        "propose_transition"
+      ],
+      "expectations": {
+        "must_call_any": [],
+        "must_call_none": false,
+        "forbidden_tools": [
+          "propose_transition"
+        ],
+        "forbidden_values": [],
+        "required_values": [],
+        "must_cover": null,
+        "needs_question": true
+      }
+    }
+  ],
+  "models": [
+    {
+      "model": "mistralai/mistral-small-3.2-24b-instruct",
+      "errors": 0,
+      "error_types": {},
+      "pass_rate": {
+        "successes": 8,
+        "total": 9,
+        "value": 0.8889,
+        "low": 0.565,
+        "high": 0.9801
+      },
+      "tool_calls": 8,
+      "bad_argument_rate": {
+        "successes": 1,
+        "total": 8,
+        "value": 0.125,
+        "low": 0.0224,
+        "high": 0.4709
+      },
+      "truncated": 0,
+      "latency_p50_ms": 1304.0,
+      "latency_p95_ms": 1746.0,
+      "avg_prompt_tokens": 427.44444444444446,
+      "avg_completion_tokens": 17.22222222222222,
+      "avg_reasoning_tokens": 0.0,
+      "avg_cost_reported": 4.791111111111111e-05,
+      "avg_cost_estimated": 4.7911111111111105e-05,
+      "upstream_providers": {
+        "Mistral": 9
+      },
+      "scenarios": [
+        {
+          "scenario_id": "understand_all_facts",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "understand_vague",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "understand_confirmed",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "challenge_cause_without_data",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "challenge_contradicting_data",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "analyse_validated_cause",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "enum_skip_ahead",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 0,
+            "total": 1,
+            "value": 0.0,
+            "low": 0.0,
+            "high": 0.7935
+          },
+          "failures": {
+            "schema_violation": 1
+          }
+        },
+        {
+          "scenario_id": "greeting",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "rejected_transition",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        }
+      ],
+      "runs_total": 9,
+      "runs_detail": [
+        {
+          "scenario_id": "understand_all_facts",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "record_field",
+            "record_field",
+            "record_field",
+            "record_field"
+          ],
+          "tool_calls": 4,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 1304,
+          "prompt_tokens": 421,
+          "completion_tokens": 19,
+          "reasoning_tokens": 0,
+          "cost": 4.78e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-000",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "understand_vague",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 1740,
+          "prompt_tokens": 386,
+          "completion_tokens": 14,
+          "reasoning_tokens": 0,
+          "cost": 4.28e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-001",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "understand_confirmed",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "propose_transition"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 1274,
+          "prompt_tokens": 448,
+          "completion_tokens": 16,
+          "reasoning_tokens": 0,
+          "cost": 4.96e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-002",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "challenge_cause_without_data",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 1419,
+          "prompt_tokens": 454,
+          "completion_tokens": 13,
+          "reasoning_tokens": 0,
+          "cost": 4.93e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-003",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "challenge_contradicting_data",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "log_event"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 988,
+          "prompt_tokens": 407,
+          "completion_tokens": 12,
+          "reasoning_tokens": 0,
+          "cost": 4.43e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-004",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "analyse_validated_cause",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "log_event"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 971,
+          "prompt_tokens": 435,
+          "completion_tokens": 36,
+          "reasoning_tokens": 0,
+          "cost": 5.43e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-005",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "enum_skip_ahead",
+          "run": 1,
+          "passed": false,
+          "failures": [
+            "schema_violation"
+          ],
+          "details": [
+            "propose_transition: properties/target_state/enum"
+          ],
+          "error": null,
+          "tool_names": [
+            "propose_transition"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 1,
+          "finish_reason": "tool_calls",
+          "latency_ms": 1464,
+          "prompt_tokens": 410,
+          "completion_tokens": 15,
+          "reasoning_tokens": 0,
+          "cost": 4.55e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-006",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "greeting",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 1746,
+          "prompt_tokens": 434,
+          "completion_tokens": 13,
+          "reasoning_tokens": 0,
+          "cost": 4.73e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-007",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "rejected_transition",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 1128,
+          "prompt_tokens": 452,
+          "completion_tokens": 17,
+          "reasoning_tokens": 0,
+          "cost": 5.03e-05,
+          "model_used": "mistralai/mistral-small-3.2-24b-instruct",
+          "upstream_provider": "Mistral",
+          "generation_id": "gen-example-008",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "model": "qwen/qwen3-32b",
+      "errors": 0,
+      "error_types": {},
+      "pass_rate": {
+        "successes": 8,
+        "total": 9,
+        "value": 0.8889,
+        "low": 0.565,
+        "high": 0.9801
+      },
+      "tool_calls": 8,
+      "bad_argument_rate": {
+        "successes": 1,
+        "total": 8,
+        "value": 0.125,
+        "low": 0.0224,
+        "high": 0.4709
+      },
+      "truncated": 0,
+      "latency_p50_ms": 4192.0,
+      "latency_p95_ms": 4879.0,
+      "avg_prompt_tokens": 431.8888888888889,
+      "avg_completion_tokens": 122.55555555555556,
+      "avg_reasoning_tokens": 87.55555555555556,
+      "avg_cost_reported": 7.995555555555555e-05,
+      "avg_cost_estimated": 6.886666666666667e-05,
+      "upstream_providers": {
+        "DeepInfra": 9
+      },
+      "scenarios": [
+        {
+          "scenario_id": "understand_all_facts",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "understand_vague",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "understand_confirmed",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "challenge_cause_without_data",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "challenge_contradicting_data",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "analyse_validated_cause",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "enum_skip_ahead",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 0,
+            "total": 1,
+            "value": 0.0,
+            "low": 0.0,
+            "high": 0.7935
+          },
+          "failures": {
+            "schema_violation": 1
+          }
+        },
+        {
+          "scenario_id": "greeting",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        },
+        {
+          "scenario_id": "rejected_transition",
+          "runs": 1,
+          "errors": 0,
+          "pass_rate": {
+            "successes": 1,
+            "total": 1,
+            "value": 1.0,
+            "low": 0.2065,
+            "high": 1.0
+          },
+          "failures": {}
+        }
+      ],
+      "runs_total": 9,
+      "runs_detail": [
+        {
+          "scenario_id": "understand_all_facts",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "record_field",
+            "record_field",
+            "record_field",
+            "record_field"
+          ],
+          "tool_calls": 4,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 4063,
+          "prompt_tokens": 460,
+          "completion_tokens": 147,
+          "reasoning_tokens": 97,
+          "cost": 9.01e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-009",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "understand_vague",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 4050,
+          "prompt_tokens": 453,
+          "completion_tokens": 132,
+          "reasoning_tokens": 85,
+          "cost": 8.49e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-010",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "understand_confirmed",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "propose_transition"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 4879,
+          "prompt_tokens": 408,
+          "completion_tokens": 107,
+          "reasoning_tokens": 95,
+          "cost": 7.29e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-011",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "challenge_cause_without_data",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 4147,
+          "prompt_tokens": 397,
+          "completion_tokens": 114,
+          "reasoning_tokens": 86,
+          "cost": 7.39e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-012",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "challenge_contradicting_data",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "log_event"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 4315,
+          "prompt_tokens": 449,
+          "completion_tokens": 113,
+          "reasoning_tokens": 96,
+          "cost": 7.88e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-013",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "analyse_validated_cause",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [
+            "log_event"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 0,
+          "finish_reason": "tool_calls",
+          "latency_ms": 4105,
+          "prompt_tokens": 451,
+          "completion_tokens": 124,
+          "reasoning_tokens": 71,
+          "cost": 8.23e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-014",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "enum_skip_ahead",
+          "run": 1,
+          "passed": false,
+          "failures": [
+            "schema_violation"
+          ],
+          "details": [
+            "propose_transition: properties/target_state/enum"
+          ],
+          "error": null,
+          "tool_names": [
+            "propose_transition"
+          ],
+          "tool_calls": 1,
+          "bad_argument_calls": 1,
+          "finish_reason": "tool_calls",
+          "latency_ms": 4192,
+          "prompt_tokens": 454,
+          "completion_tokens": 146,
+          "reasoning_tokens": 100,
+          "cost": 8.92e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-015",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "greeting",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 4729,
+          "prompt_tokens": 427,
+          "completion_tokens": 111,
+          "reasoning_tokens": 95,
+          "cost": 7.6e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-016",
+          "attempts": 1
+        },
+        {
+          "scenario_id": "rejected_transition",
+          "run": 1,
+          "passed": true,
+          "failures": [],
+          "details": [],
+          "error": null,
+          "tool_names": [],
+          "tool_calls": 0,
+          "bad_argument_calls": 0,
+          "finish_reason": "stop",
+          "latency_ms": 4633,
+          "prompt_tokens": 388,
+          "completion_tokens": 109,
+          "reasoning_tokens": 63,
+          "cost": 7.15e-05,
+          "model_used": "qwen/qwen3-32b",
+          "upstream_provider": "DeepInfra",
+          "generation_id": "gen-example-017",
+          "attempts": 1
+        }
+      ]
+    }
+  ]
+}

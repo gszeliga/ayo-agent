@@ -669,3 +669,12 @@ def test_builds_its_own_client_with_both_timeouts() -> None:
         assert timeout.connect == 10.0
     finally:
         provider.close()
+
+
+def test_a_404_says_no_endpoint_matches() -> None:
+    with pytest.raises(LLMBadRequestError, match="no endpoint matches") as excinfo:
+        call(make_provider(Recorder(error_response(404))))
+    assert "LLM_DATA_COLLECTION" in str(excinfo.value)
+    body = {"error": {"code": 404, "message": SECRET}}
+    with pytest.raises(LLMBadRequestError, match="no endpoint matches"):
+        call(make_provider(Recorder(httpx2.Response(200, json=body))))

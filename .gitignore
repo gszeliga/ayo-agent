@@ -16,3 +16,7 @@ voyage.ai
 
 # Local knowledge files
 data/
+
+# ayo-llm-check reports (one example is committed)
+eval/llm/*.json
+!eval/llm/example-report.json

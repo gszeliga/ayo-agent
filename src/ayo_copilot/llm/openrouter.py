@@ -285,6 +285,13 @@ _STATUS_ERRORS: dict[int, tuple[type[LLMError], str]] = {
     401: (LLMAuthError, "API key refused"),
     402: (LLMInsufficientCreditsError, "insufficient credits"),
     403: (LLMBadRequestError, "forbidden: moderation or guardrail"),
+    # OpenRouter's answer when no upstream endpoint fits: unknown model, or none left after
+    # require_parameters, the data policy or ZDR.
+    404: (
+        LLMBadRequestError,
+        "no endpoint matches the model, routing or data policy;"
+        " check LLM_MODEL, LLM_DATA_COLLECTION and LLM_ZDR",
+    ),
     408: (LLMUnavailableError, "request timed out"),
     429: (LLMRateLimitError, "rate limited"),
 }

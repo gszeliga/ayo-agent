@@ -74,6 +74,8 @@ scripts/dev_db.sh up|down                 # local dev DB: pgvector/pgvector:0.8.
 uv run alembic upgrade head               # migrations (uses MIGRATIONS_DATABASE_URL, else DATABASE_URL)
 uv run ayo-copilot                        # run the API on 127.0.0.1:8000
 uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
+uv run ayo-llm-check models --model ID     # OpenRouter listing: tools, context, prices, ZDR (free)
+uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)
 pnpm install && pnpm dev                  # http://localhost:5173 (API needs CORS_ALLOWED_ORIGINS=http://localhost:5173)
 pnpm check                                # gen:api:check + lint + format:check + typecheck + test
@@ -119,13 +121,15 @@ src/ayo_copilot/
   llm/build.py         build_llm_provider (no request, no key check), describe_llm_provider (startup log)
   llm/fake.py          FakeLLMProvider (scripted, records calls) and response helpers
   llm/check/           ayo-llm-check core: scenarios.py (DRAFT tools, prompts, nine scenarios),
-                       evaluate.py (verdicts), runner.py (runs, metrics, Wilson CIs), report.py
+                       evaluate.py (verdicts), runner.py (runs, metrics, Wilson CIs), report.py,
+                       catalog.py (models listing), cli.py (ayo-llm-check)
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
                        0002 = documents.chunk_count/size_bytes/*_config + list index
 scripts/               dev_db.sh, export_openapi.py
 docs/                  openapi.json (generated, committed), decisions/
+eval/llm/              ayo-llm-check reports (git-ignored) and example-report.json (scripted)
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; layout in ui/README.md
   src/api/schema.d.ts  generated from docs/openapi.json (never edit)

@@ -8,9 +8,9 @@ earlier specs; pasted into the session on 2026-11-12). This file holds the agree
 deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
-L6: the brief for the `ayo-llm-check models|run` command (models listing with tools, context,
-prices and a ZDR column; the call cap; report files under `eval/llm/`; a clear message for
-OpenRouter's "no endpoint matches" 404; README). Credits are on the account (USD 5).
+L7: the brief for the manual run with the user's key: `models`, then a small `run` of the two
+candidates (Qwen3 also with `--reasoning-effort none`, and one run with `LLM_ZDR=true`), the
+results in this log, the default model revisited, and the final report.
 
 ## Decisions (agreed 2026-11-12)
 1. **The repo's patterns win over the spec's names.** There is no `HttpEmbedder`: the model
@@ -79,6 +79,16 @@ OpenRouter's "no endpoint matches" 404; README). Credits are on the account (USD
    the text is not judged. Failure details name tools and schema locations, never values.
 25. **Two costs per call**: the average `cost` OpenRouter reported, and an approximate one
    from tokens x listed prices (`None` without prices).
+26. **`--scenarios` keeps the scenarios' fixed order**, whatever order the flag lists, so
+   reports stay comparable. `--reasoning-effort default` clears `LLM_REASONING_EFFORT`.
+27. **Exit codes**: `models` 0 / 1 (a model unlisted or without tools) / 2 (listing failed);
+   `run` 0 once the report is written (no pass threshold), 1 if every call errored, 2 when
+   stopped before calling (cap, no key, unknown scenario, bad arguments).
+28. **A 404 says "no endpoint matches the model, routing or data policy"** and names
+   `LLM_MODEL`, `LLM_DATA_COLLECTION`, `LLM_ZDR` (still `LLMBadRequestError`, not retried).
+29. **The models listing is read without a key** (it is public): `/models` and
+   `/models?zdr=true`. Its reasoning column shows what is listed: Qwen3 only says
+   `mandatory: false` ("optional"), though it reasons by default.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **L1** Types, errors, `LLMProvider` protocol, `check_request`, `FakeLLMProvider`,
@@ -92,16 +102,12 @@ OpenRouter's "no endpoint matches" 404; README). Credits are on the account (USD
   two live tests, `live` marker wording.
 - [x] **L5** Check core without I/O: the nine draft scenarios (Spanish), expectations,
   schema validation (`jsonschema`, runtime dependency), metrics and report structure.
-- [ ] **L6** `ayo-llm-check models|run` CLI (with a ZDR column in `models`), call cap,
+- [x] **L6** `ayo-llm-check models|run` CLI (with a ZDR column in `models`), call cap,
   `eval/llm/` reports (git-ignored except an example), README.
 - [ ] **L7** Manual run with the user's key; results and the final report; default model
   revisited.
 
 ## Open items
-- OpenRouter answers `404` when no endpoint matches the routing or data policy (likely what
-  `nvidia/nemotron-3.5-lightning:free` returned with `data_collection=deny`). Today that is a
-  generic `LLMBadRequestError` ("request rejected"), hard to diagnose; give it a clear
-  message in L6 (it will happen if a model loses its last deny-compatible or ZDR endpoint).
 - Qwen3-32B reasons by default and can spend all of `max_tokens` on it: a 16-token
   completion came back empty (`finish_reason=length`). The check must show this; L7 should
   run Qwen3 both with the default and with `--reasoning-effort none`.
@@ -175,3 +181,16 @@ OpenRouter's "no endpoint matches" 404; README). Credits are on the account (USD
   scenario, enum violation, repeated rejected call, several reasons at once),
   `test_llm_check_runner.py` (order, errors apart, exact metrics, intervals, percentiles,
   report structure, raw outputs only on request).
+- **L6 (2026-11-12).** `llm/check/catalog.py` (`fetch_catalog`, `ModelInfo`, `CatalogError`),
+  `llm/check/cli.py` (`main` with injectable `Deps`, `entrypoint`; `models` and `run`; plan
+  and cap before any call; progress lines; model and scenario tables with intervals;
+  failure list; report files, a suffix when the name exists), console script
+  `ayo-llm-check`, the 404 message, `.gitignore` for `eval/llm/*.json`, and
+  `eval/llm/example-report.json` generated from a scripted run. README section (key,
+  commands, reading the output and report). Tried for real: `ayo-llm-check models` on the
+  two candidates (free): both list tools and a ZDR endpoint; Mistral Small 3.2 256k context,
+  USD 0.10/0.30 per M; Qwen3-32B 131k, USD 0.08/0.28 per M. Tests:
+  `tests/unit/test_llm_check_cli.py` (models table and exit codes, catalog parsing without a
+  key, cap and missing key stop before calling, `--yes`, `--scenarios`, report contents
+  without raw output, `--include-raw`, reasoning override, all-errors exit, example report
+  structure) and the 404 message in `test_openrouter.py`.
