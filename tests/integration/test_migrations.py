@@ -201,3 +201,202 @@ def test_0002_downgrade_keeps_documents(scratch_database_url: str) -> None:
     with psycopg.connect(scratch_database_url) as conn:
         assert _document_columns(conn) >= NEW_DOCUMENT_COLUMNS
         assert _has_index(conn, LIST_INDEX)
+
+
+CONVERSATION_TABLES = {
+    "problems",
+    "problem_events",
+    "actions",
+    "conversation_links",
+    "turn_traces",
+}
+CHILD_TABLES = ("problem_events", "actions", "conversation_links", "turn_traces")
+
+
+def _insert_problem(conn: psycopg.Connection, tenant: str = "acme") -> str:
+    (problem_id,) = conn.execute(
+        "insert into problems (tenant) values (%s) returning id", (tenant,)
+    ).fetchone()
+    return problem_id
+
+
+def _insert_children(conn: psycopg.Connection, problem_id: str) -> None:
+    conn.execute(
+        "insert into problem_events (problem_id, role, content, state_at_time)"
+        " values (%s, 'user', 'La línea 3 para cada hora', 'understand')",
+        (problem_id,),
+    )
+    conn.execute(
+        "insert into actions (problem_id, description, owner, due_date)"
+        " values (%s, 'Revisar el sensor', 'Marta', '2026-11-20')",
+        (problem_id,),
+    )
+    conn.execute(
+        "insert into conversation_links"
+        " (problem_id, channel_type, external_channel_id, external_thread_id)"
+        " values (%s, 'web', 'web', %s)",
+        (problem_id, str(problem_id)),
+    )
+    conn.execute(
+        "insert into turn_traces (problem_id, turn_no, phase_before, phase_after,"
+        " prompts_version, llm_calls, duration_ms)"
+        " values (%s, 1, 'understand', 'understand', 'draft-1', 1, 10)",
+        (problem_id,),
+    )
+
+
+def test_0003_creates_conversation_tables_with_defaults(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        assert _tables(conn) >= CONVERSATION_TABLES
+        problem_id = _insert_problem(conn)
+        _insert_children(conn, problem_id)
+        assert conn.execute(
+            "select state, version, closed_at from problems where id = %s", (problem_id,)
+        ).fetchone() == ("understand", 0, None)
+        assert conn.execute("select event_type from problem_events").fetchone() == ("message",)
+        assert conn.execute("select status from actions").fetchone() == ("pending",)
+        assert conn.execute(
+            "select tool_calls, retrieved, capped, retrieval_error from turn_traces"
+        ).fetchone() == ([], [], False, None)
+        for index in (
+            "problems_tenant_updated_at_idx",
+            "problem_events_problem_id_id_idx",
+            "problem_events_problem_id_event_type_idx",
+            "actions_problem_id_idx",
+        ):
+            assert _has_index(conn, index), index
+
+
+@pytest.mark.parametrize(
+    ("statement", "constraint"),
+    [
+        (
+            "insert into problems (tenant, state) values ('acme', 'follow_up')",
+            "problems_state_check",
+        ),
+        (
+            "insert into problem_events (problem_id, role, content, state_at_time)"
+            " values (%(p)s, 'system', 'x', 'understand')",
+            "problem_events_role_check",
+        ),
+        (
+            "insert into problem_events (problem_id, role, content, event_type, state_at_time)"
+            " values (%(p)s, 'assistant', 'x', 'root_cause', 'analyse')",
+            "problem_events_event_type_check",
+        ),
+        (
+            "insert into actions (problem_id, description, owner, due_date, status)"
+            " values (%(p)s, 'x', 'Marta', '2026-11-20', 'overdue')",
+            "actions_status_check",
+        ),
+    ],
+    ids=["state", "role", "event_type", "action_status"],
+)
+def test_0003_check_constraints_reject_unknown_values(
+    scratch_database_url: str, statement: str, constraint: str
+) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        problem_id = _insert_problem(conn)
+        with pytest.raises(psycopg.errors.CheckViolation) as excinfo:
+            conn.execute(statement, {"p": problem_id})
+
+    assert excinfo.value.diag.constraint_name == constraint
+
+
+UNKNOWN_PROBLEM = "00000000-0000-0000-0000-000000000000"
+ORPHAN_INSERTS = {
+    "problem_events": "insert into problem_events (problem_id, role, content, state_at_time)"
+    " values (%s, 'user', 'x', 'understand')",
+    "actions": "insert into actions (problem_id, description, owner, due_date)"
+    " values (%s, 'x', 'Marta', '2026-11-20')",
+    "conversation_links": "insert into conversation_links"
+    " (problem_id, channel_type, external_channel_id, external_thread_id)"
+    " values (%s, 'web', 'web', 'orphan')",
+    "turn_traces": "insert into turn_traces (problem_id, turn_no, phase_before, phase_after,"
+    " prompts_version, llm_calls, duration_ms) values (%s, 1, 'understand', 'understand',"
+    " 'draft-1', 1, 10)",
+}
+
+
+@pytest.mark.parametrize("table", CHILD_TABLES)
+def test_0003_children_need_an_existing_problem(scratch_database_url: str, table: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with (
+        psycopg.connect(scratch_database_url) as conn,
+        pytest.raises(psycopg.errors.ForeignKeyViolation),
+    ):
+        conn.execute(ORPHAN_INSERTS[table], (UNKNOWN_PROBLEM,))
+
+
+def test_0003_link_is_unique_per_channel_thread(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        first, second = _insert_problem(conn), _insert_problem(conn)
+        link = (
+            "insert into conversation_links"
+            " (problem_id, channel_type, external_channel_id, external_thread_id)"
+            " values (%s, %s, 'web', 'session-1')"
+        )
+        conn.execute(link, (first, "web"))
+        conn.execute(link, (second, "slack"))  # another channel type: allowed
+        with pytest.raises(psycopg.errors.UniqueViolation) as excinfo:
+            conn.execute(link, (second, "web"))
+
+    assert excinfo.value.diag.constraint_name == "conversation_links_channel_thread_key"
+
+
+def test_0003_trace_turn_numbers_are_unique_per_problem(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        problem_id = _insert_problem(conn)
+        _insert_children(conn, problem_id)
+        with pytest.raises(psycopg.errors.UniqueViolation) as excinfo:
+            conn.execute(
+                "insert into turn_traces (problem_id, turn_no, phase_before, phase_after,"
+                " prompts_version, llm_calls, duration_ms)"
+                " values (%s, 1, 'understand', 'challenge', 'draft-1', 2, 10)",
+                (problem_id,),
+            )
+
+    assert excinfo.value.diag.constraint_name == "turn_traces_problem_id_turn_no_key"
+
+
+def test_0003_deleting_a_problem_cascades(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        doomed, kept = _insert_problem(conn), _insert_problem(conn)
+        _insert_children(conn, doomed)
+        _insert_children(conn, kept)
+        conn.execute("delete from problems where id = %s", (doomed,))
+
+        for table in CHILD_TABLES:
+            rows = conn.execute(f"select problem_id from {table}").fetchall()
+            assert rows == [(kept,)], table
+
+
+def test_0003_downgrade_removes_conversation_tables_and_keeps_documents(
+    scratch_database_url: str,
+) -> None:
+    config = alembic_config(scratch_database_url)
+    command.upgrade(config, "head")
+    with psycopg.connect(scratch_database_url) as conn:
+        _insert_document(conn, "upload-000000000001", "a.md")
+        _insert_children(conn, _insert_problem(conn))
+
+    command.downgrade(config, "0002")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        assert not CONVERSATION_TABLES & _tables(conn)
+        assert conn.execute("select doc_id from documents").fetchall() == [("upload-000000000001",)]
+
+    command.upgrade(config, "head")
+    with psycopg.connect(scratch_database_url) as conn:
+        assert _tables(conn) >= CONVERSATION_TABLES

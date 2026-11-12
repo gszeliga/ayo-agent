@@ -75,5 +75,8 @@ def _session_pool(migrated_database_url: str) -> Iterator[ConnectionPool]:
 def db_pool(_session_pool: ConnectionPool) -> ConnectionPool:
     """The shared pool, with empty tables: truncated before each test (see ADR 0001)."""
     with _session_pool.connection() as conn:
-        conn.execute("truncate documents, chunks restart identity cascade")
+        conn.execute(
+            "truncate documents, chunks, problems, problem_events, actions,"
+            " conversation_links, turn_traces restart identity cascade"
+        )
     return _session_pool

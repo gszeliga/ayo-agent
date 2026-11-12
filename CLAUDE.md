@@ -9,13 +9,16 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Paused (2026-11-12): LLM provider through OpenRouter.** Spec
-  `plans/claude-code-prompt-llm-provider.md`; decisions (which override the spec where they
-  differ), steps L1-L7 and log in `plans/llm-progress.md`. **Read both first.** L1-L6 are
-  done (provider, fake, wiring, `ayo-llm-check`). L7, the real billed check run, waits
-  until the user says so (they do not want to spend credit yet): do not run `ayo-llm-check
-  run` or the OpenRouter live tests without their OK. No endpoint uses the model yet.
-  Nothing else is planned: ask the user what comes next.
+- **Active (2026-11-12): conversation engine core.** Spec
+  `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
+  they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
+  E11 is billed (live test, manual conversations, `ayo-llm-check` rerun): give call counts
+  and a cost estimate and wait for the user's OK.
+- Done (2026-11-12): LLM provider through OpenRouter (L1-L6; spec
+  `plans/claude-code-prompt-llm-provider.md`, decisions and log in `plans/llm-progress.md`).
+  L7, the billed check run, is superseded by E11 of the engine milestone (decision 10 in
+  `plans/engine-progress.md`). Do not run `ayo-llm-check run` or the OpenRouter live tests
+  without the user's OK.
 - Done (2026-11-10): test search screen in the UI (`/search`; decision 8 and steps
   U12-U13 in `plans/ui-progress.md`).
 - **Paused (2026-11-10): search and retrieval evaluation.** Spec
@@ -46,7 +49,7 @@ working rules, update this file in that step's commit.
 - Keep `README.md` current: any step that adds or changes an endpoint, a setting or a
   command updates it in the same commit.
 - After the step: update the active milestone's progress file (now
-  `plans/llm-progress.md`), make **exactly one commit** (code + tests + log together),
+  `plans/engine-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.
@@ -130,6 +133,7 @@ src/ayo_copilot/
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
                        0002 = documents.chunk_count/size_bytes/*_config + list index
+                       0003 = problems, problem_events, actions, conversation_links, turn_traces
 scripts/               dev_db.sh, export_openapi.py
 docs/                  openapi.json (generated, committed), decisions/
 eval/llm/              ayo-llm-check reports (git-ignored) and example-report.json (scripted)

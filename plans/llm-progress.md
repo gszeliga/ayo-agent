@@ -8,6 +8,11 @@ earlier specs; pasted into the session on 2026-11-12). This file holds the agree
 deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
+**Superseded (2026-11-12):** L7 will not run as planned below. The conversation engine
+milestone replaces the draft tools with the real ones, so the billed check runs once, in
+its step E11 (decision 10 in `plans/engine-progress.md`). The plan below is kept for
+reference.
+
 **Paused before L7 (2026-11-12)**, at the user's request: they do not want to spend the
 OpenRouter credit yet. L1-L6 are done and committed (not pushed). Resume only when the
 user says so, starting with the L7 plan proposed on 2026-11-12 (all billed, estimated
