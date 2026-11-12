@@ -116,6 +116,7 @@ src/ayo_copilot/
                        LLMSettings (ayo-llm-check), ConversationSettings < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
+  db/conversations.py  hand-written SQL for cases, events, actions, links, traces (TraceRecord)
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
   ingestion/signatures.py  content/chunk/embed signatures, make_doc_id, CHUNKER_VERSION
   ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2), FakeEmbedder
@@ -137,6 +138,7 @@ src/ayo_copilot/
   conversation/context.py  build_system_prompt (parts, delimited data blocks), build_messages (window)
   conversation/query.py    build_query: the retrieval query from the case state
   conversation/reply.py    compose_reply and the fallback message
+  conversation/store.py    resolve_case (race-safe), load_snapshot, commit_turn (version check), read_session
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)

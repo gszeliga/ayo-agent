@@ -316,3 +316,37 @@ def test_no_tool_messages_and_max_messages_must_be_positive() -> None:
     assert all(m.role != "tool" and not m.tool_calls for m in messages)
     with pytest.raises(ValueError):
         build_messages([], "action", "Hola", 0)
+
+
+def test_a_phase_change_keeps_the_turn_that_opened_the_phase() -> None:
+    history = [
+        message("user", "Merma en la línea 2", "understand"),
+        message("assistant", "¿Desde cuándo?", "understand"),
+        message("user", "Desde el lunes, y el estándar es 1,5 %", "understand"),
+        message("assistant", "Con eso pasamos a cuestionar: ¿qué datos tienes?", "challenge"),
+    ]
+    messages = build_messages(history, "challenge", "Solo pasa en el turno de noche", 12)
+    assert roles_and_texts(messages) == [
+        ("user", "Desde el lunes, y el estándar es 1,5 %"),
+        ("assistant", "Con eso pasamos a cuestionar: ¿qué datos tienes?"),
+        ("user", "Solo pasa en el turno de noche"),
+    ]
+
+
+def test_reopening_a_phase_does_not_replay_its_earlier_visit() -> None:
+    history = [
+        message("user", "Acción: revisar boquillas", "action"),
+        message("assistant", "Registrada. ¿Algo más?", "action"),
+        message("user", "Nada más", "action"),
+        message("assistant", "Pasamos a seguimiento", "followup"),
+        message("user", "La revisión no basta", "followup"),
+        message("assistant", "Volvemos al plan: ¿qué acción añadimos?", "action"),
+    ]
+    messages = build_messages(history, "action", "Cambiar la boquilla", 12)
+    assert roles_and_texts(messages) == [
+        ("user", "La revisión no basta"),
+        ("assistant", "Volvemos al plan: ¿qué acción añadimos?"),
+        ("user", "Cambiar la boquilla"),
+    ]
+    # Within the turn that reopened it (the reply is not stored yet): only the user message.
+    assert roles_and_texts(build_messages(history[:5], "action", "x", 12)) == [("user", "x")]

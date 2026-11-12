@@ -8,9 +8,11 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E4 done (2026-11-12, commit "Add the context assembly, retrieval query and reply (E4)",
-not pushed).** Next is **E5**: write its brief and wait for approval before coding.
-Pending OK, not part of E5: applying migration 0003 to the Neon dev branch.
+**E5 done (2026-11-12, commit "Add the conversation storage (E5)", not pushed).** Next is
+**E6**: write its brief and wait for approval before coding. The brief must settle
+retrieval around a phase change (proposed: once per phase per turn, at the start and after
+a hop into a retrieving phase; knowledge dropped on a hop into a phase that does not).
+Pending OK, not part of E6: applying migration 0003 to the Neon dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -67,6 +69,13 @@ Pending OK, not part of E5: applying migration 0003 to the Neon dev branch.
     phase's stored messages (none yet) plus the current user message, and a line in the
     system prompt saying the phase just changed; E6 drops the turn's earlier tool exchange
     on a hop, so no call carries tool calls for tools it does not offer.
+20. **Message window = the current visit to the phase** (agreed 2026-11-12): a turn's user
+    message is stored with the phase the turn started in, its reply with the phase it
+    ended in. `build_messages` takes the trailing run of stored messages in the current
+    phase (so a reopened phase does not replay its earlier visit), plus the user message
+    just before it when the run opens with a reply (the turn that changed phase), then
+    caps and trims to a leading user message. `load_snapshot` loads the last
+    `CONTEXT_MAX_MESSAGES + 1` messages for that extra one.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **E1** Migration 0003 (five tables), migration and constraint tests, `db_pool`
@@ -78,7 +87,7 @@ Pending OK, not part of E5: applying migration 0003 to the Neon dev branch.
   `string.Template` loader failing at startup; unit tests.
 - [x] **E4** Context assembly (system prompt parts, delimited data, field hygiene, message
   window), query builder, reply composition; unit tests.
-- [ ] **E5** Repository: load snapshot, `resolve_case` (race-safe), commit a turn with the
+- [x] **E5** Repository: load snapshot, `resolve_case` (race-safe), commit a turn with the
   optimistic version check, read a session; integration tests.
 - [ ] **E6** Turn engine: model loop, phase hops, caps and timeout, retrieval and its
   failure path, trace, per-phase model; engine tests 1-13.
@@ -163,3 +172,19 @@ Pending OK, not part of E5: applying migration 0003 to the Neon dev branch.
   (part order, sections, cut and cleaning, injection only inside the reference block,
   tags in user text neutralized, message window, query order and cut, fallback). Full
   suite green (1239 passed).
+- **E5 (2026-11-12).** `db/conversations.py` (SQL; `TraceRecord`, `ToolCallTrace` with the
+  name cut to 64, `RetrievedTrace`: content cannot fit in a trace) and
+  `conversation/store.py`: `resolve_case` (lookup, then problem + link in a savepoint
+  with `on conflict do nothing`; the loser rolls back and reads the winner's link;
+  `CaseTenantMismatch` creates nothing), `load_snapshot` (repeatable read, read only; all
+  annotations, last N+1 messages, actions; `CaseNotFound`), `commit_turn` (problem update
+  first with `version = expected`, else `CaseChanged`; events user message / annotations /
+  reply; new actions; status updates scoped to the case; trace with `max(turn_no) + 1`
+  under the row lock; `closed_at` on closing), `read_session` (`SessionView` with
+  `SessionAction(action, overdue)`). `context.build_messages`: decision 20. Tests:
+  `tests/integration/test_conversation_store.py` (create and reuse, other keys, tenant
+  mismatch, a 4-thread race and a deterministic forced race, snapshots, write order,
+  version only on commit, actions and `closed_at`, another case's action untouched, turn
+  numbers, trace JSON without content, stale version and a 2-thread commit race with no
+  partial writes, session view); unit tests for the window after a hop and a reopening.
+  Full suite green (1260 passed).

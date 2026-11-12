@@ -211,19 +211,28 @@ def knowledge_block(knowledge: Knowledge) -> str:
 def build_messages(
     history: Sequence[Event], phase: Phase, user_text: str, max_messages: int
 ) -> list[Message]:
-    """The conversation the model sees: the stored messages of `phase`, verbatim, then the
-    current user message; at most `max_messages`, starting with a user message.
+    """The conversation the model sees, verbatim, then the current user message; at most
+    `max_messages`, starting with a user message.
+
+    Only the current visit to `phase`: the trailing run of stored messages in that phase
+    (an earlier visit, before a reopening, is not replayed). A turn that changed phase
+    stores its user message under the old phase and its reply under the new one; when the
+    run starts with that reply, the user message before it is kept too, so the model sees
+    the question it asked when the phase opened.
 
     Annotations and earlier turns' tool calls are never replayed (their substance is in
     the case record); the engine appends this turn's tool exchange itself.
     """
     if max_messages < 1:
         raise ValueError("max_messages must be at least 1")
-    messages = [
-        Message(role=event.role, content=event.content)
-        for event in history
-        if event.event_type == "message" and event.state_at_time == phase
-    ]
+    stored = [event for event in history if event.event_type == "message"]
+    start = len(stored)
+    while start > 0 and stored[start - 1].state_at_time == phase:
+        start -= 1
+    opens_with_reply = start < len(stored) and stored[start].role == "assistant"
+    if opens_with_reply and start > 0 and stored[start - 1].role == "user":
+        start -= 1
+    messages = [Message(role=event.role, content=event.content) for event in stored[start:]]
     messages.append(Message(role="user", content=user_text))
     window = messages[-max_messages:]
     while window[0].role != "user":
