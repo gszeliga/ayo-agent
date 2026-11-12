@@ -8,27 +8,9 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E1 done (2026-11-12, commit "Add the conversation engine schema (E1)", not pushed).**
-Next is **E2**: write its brief and wait for approval before coding. What the brief should
-cover (proposed in the plan, not yet approved in detail):
-- New package `src/ayo_copilot/conversation/` (the prompts will live in its `prompts/`
-  in E3). Pure code, no database, no LLM calls.
-- A case snapshot (dataclasses): the case (id, tenant, state, the four fields, version),
-  events, actions, plus the changes accepted during the turn (so E5 can commit them).
-- Phase machine: the transitions table and exit criteria from the spec, each rejection
-  naming what is missing (`missing: ["where", "standard"]`, "no evidence recorded yet").
-- Tools module (the single source the check imports in E9): `record_field`, `log_event`,
-  `add_action`, `update_action`, `propose_transition`, built as `llm.types.ToolSpec`;
-  which tools each phase gets, with `log_event`'s enum restricted per phase and
-  `propose_transition`'s enum and description generated from the transitions table;
-  `jsonschema` validation, then semantic checks (action belongs to the case, real date);
-  results `{"ok": true, ...}` / `{"ok": false, "error", "detail"}`; unknown or not-offered
-  tool and `arguments is None` -> error result, not executed; the hop cap
-  (`MAX_PHASE_HOPS`) is the engine's job (E6), but the handler should make it easy.
-- `field` enum is `where` for the model, stored as `where_`.
-- Unit tests per the spec's "Unit" list (transitions, criteria, tools, handlers on a
-  snapshot, criteria seeing earlier changes in the same turn, error shapes).
-Pending OK, not part of E2: applying migration 0003 to the Neon dev branch.
+**E2 done (2026-11-12, commit "Add the case snapshot, phase machine and tools (E2)", not
+pushed).** Next is **E3**: write its brief and wait for approval before coding.
+Pending OK, not part of E3: applying migration 0003 to the Neon dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -58,11 +40,16 @@ Pending OK, not part of E2: applying migration 0003 to the Neon dev branch.
     default model is revisited then.
 11. **Migration 0003 is exactly the spec's schema**, with explicit constraint and index
     names; no extra constraints (e.g. none tying `closed_at` to `state`).
+12. **`add_action` accepts past due dates** (agreed 2026-11-12): only a real date is
+    required, so the handlers need no clock.
+13. **Actions added in a turn have no id until commit** (agreed 2026-11-12): `add_action`
+    returns no id and `update_action` only reaches stored actions (the ids in the case
+    record); no provisional ids that would change after the commit.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **E1** Migration 0003 (five tables), migration and constraint tests, `db_pool`
   truncates the new tables; this file; the spec saved untracked.
-- [ ] **E2** Case snapshot, phase machine (transitions, exit criteria, missing items), tools
+- [x] **E2** Case snapshot, phase machine (transitions, exit criteria, missing items), tools
   module (specs, exposure per phase, generated `propose_transition` enum, schema and
   semantic validation, handlers on the snapshot); unit tests.
 - [ ] **E3** `ConversationSettings`, `.env.example`; draft prompt files (Spanish); the
@@ -94,3 +81,19 @@ Pending OK, not part of E2: applying migration 0003 to the Neon dev branch.
   channel type allowed), unique turn numbers, cascade delete (other cases untouched),
   downgrade to 0002 keeping documents and upgrading again. "`version` only changes on
   commit" waits for E5. Full suite green (1043 passed).
+- **E2 (2026-11-12).** `src/ayo_copilot/conversation/`: `case.py` (`Case`, `Event`,
+  `Action` with `is_overdue`, `CaseSnapshot`, `TurnChanges` for the commit; content out of
+  every repr; `where` <-> `where_` in `FIELD_COLUMNS`), `phases.py` (`TRANSITIONS` with a
+  Spanish condition per target, `missing_for` returning facts by model name or
+  `evidence` / `validated_cause` / `action` / `incomplete_actions` / `pending_actions`,
+  `describe_missing`), `tools.py` (the five specs with the spec's length limits,
+  `tools_for_phase`, `log_event` enum per phase, `propose_transition` enum and description
+  generated from the table; `execute_tool`: `unknown_tool`, `tool_not_offered`,
+  `invalid_json`, `invalid_arguments` (Draft 2020-12, details capped at 200 chars each and
+  sent only to the model), control characters stripped and text trimmed, `invalid_date`,
+  `action_not_found`, `criteria_not_met` with `missing`, `phase_hop_limit` when the engine
+  passes `allow_transition=False`). Tool descriptions in Spanish, error codes and details
+  in English. `update_action` with the same status is `ok` with `changed: false`.
+  Tests: `tests/unit/test_conversation_phases.py` and `test_conversation_tools.py` (flat,
+  like the rest of `tests/unit/`, not a subfolder as the brief said). Full suite green
+  (1154 passed).
