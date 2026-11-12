@@ -8,9 +8,17 @@ earlier specs; pasted into the session on 2026-11-12). This file holds the agree
 deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
-L7: the brief for the manual run with the user's key: `models`, then a small `run` of the two
-candidates (Qwen3 also with `--reasoning-effort none`, and one run with `LLM_ZDR=true`), the
-results in this log, the default model revisited, and the final report.
+**Paused before L7 (2026-11-12)**, at the user's request: they do not want to spend the
+OpenRouter credit yet. L1-L6 are done and committed (not pushed). Resume only when the
+user says so, starting with the L7 plan proposed on 2026-11-12 (all billed, estimated
+under USD 0.05; the account has about USD 5):
+1. `ayo-llm-check models` on both candidates (free).
+2. `run --models mistralai/mistral-small-3.2-24b-instruct,qwen/qwen3-32b --runs 3` (54 calls).
+3. Qwen3 with `--reasoning-effort none --runs 3` (27 calls).
+4. Both with `LLM_ZDR=true --runs 1` (18 calls).
+5. Results in this log, the default model revisited, and the spec's final report.
+A cheaper alternative offered: a smoke run, Mistral only, `--runs 1` (9 calls, about
+USD 0.0005).
 
 ## Decisions (agreed 2026-11-12)
 1. **The repo's patterns win over the spec's names.** There is no `HttpEmbedder`: the model
@@ -105,7 +113,7 @@ results in this log, the default model revisited, and the final report.
 - [x] **L6** `ayo-llm-check models|run` CLI (with a ZDR column in `models`), call cap,
   `eval/llm/` reports (git-ignored except an example), README.
 - [ ] **L7** Manual run with the user's key; results and the final report; default model
-  revisited.
+  revisited. **Paused (2026-11-12)**: see "Next".
 
 ## Open items
 - Qwen3-32B reasons by default and can spend all of `max_tokens` on it: a 16-token
@@ -194,3 +202,5 @@ results in this log, the default model revisited, and the final report.
   key, cap and missing key stop before calling, `--yes`, `--scenarios`, report contents
   without raw output, `--include-raw`, reasoning override, all-errors exit, example report
   structure) and the 404 message in `test_openrouter.py`.
+- **Paused (2026-11-12)** before L7, at the user's request (no spend yet). The default model
+  stays `mistralai/mistral-small-3.2-24b-instruct` (provisional) until L7 runs.

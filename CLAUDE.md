@@ -9,10 +9,13 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active (2026-11-12): LLM provider through OpenRouter.** Spec
+- **Paused (2026-11-12): LLM provider through OpenRouter.** Spec
   `plans/claude-code-prompt-llm-provider.md`; decisions (which override the spec where they
-  differ), steps L1-L7 and log in `plans/llm-progress.md`. **Read both first.** No endpoint
-  uses the model yet; `docs/openapi.json` must not change in this milestone.
+  differ), steps L1-L7 and log in `plans/llm-progress.md`. **Read both first.** L1-L6 are
+  done (provider, fake, wiring, `ayo-llm-check`). L7, the real billed check run, waits
+  until the user says so (they do not want to spend credit yet): do not run `ayo-llm-check
+  run` or the OpenRouter live tests without their OK. No endpoint uses the model yet.
+  Nothing else is planned: ask the user what comes next.
 - Done (2026-11-10): test search screen in the UI (`/search`; decision 8 and steps
   U12-U13 in `plans/ui-progress.md`).
 - **Paused (2026-11-10): search and retrieval evaluation.** Spec
