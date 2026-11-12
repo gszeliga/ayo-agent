@@ -68,7 +68,7 @@ working rules, update this file in that step's commit.
 uv sync                                   # install
 uv run pytest                             # unit + API + integration (testcontainers); `live` deselected
 uv run pytest -m "not integration"        # no Docker, no database
-uv run pytest -m live                     # one real Voyage call (needs VOYAGE_API_KEY)
+uv run pytest -m live                     # real Voyage + OpenRouter calls (needs the keys)
 uv run ruff check . && uv run ruff format --check .
 scripts/dev_db.sh up|down                 # local dev DB: pgvector/pgvector:0.8.7-pg18-trixie on localhost:5433
 uv run alembic upgrade head               # migrations (uses MIGRATIONS_DATABASE_URL, else DATABASE_URL)
@@ -95,10 +95,10 @@ Migrations on Neon must use the direct endpoint (host without `-pooler`).
 src/ayo_copilot/
   __init__.py          main(): logging.basicConfig + uvicorn (factory=True)
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
-                       CORS middleware, lifespan: pool, embedder, DB_LOG_LEVEL, dimension check
+                       CORS middleware, lifespan: pool, embedder, LLM provider, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, Search*, errors
-  dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor (request.state)
+  dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider (request.state)
   routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, search, tenants, settings, health (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
@@ -116,6 +116,7 @@ src/ayo_copilot/
   llm/types.py         ToolSpec, ToolCall, Message, Usage, LLMResponse (self-validating; content not in repr)
   llm/errors.py        LLMError and subclasses (safe messages, optional status)
   llm/provider.py      LLMProvider protocol (sync), check_request
+  llm/build.py         build_llm_provider (no request, no key check), describe_llm_provider (startup log)
   llm/fake.py          FakeLLMProvider (scripted, records calls) and response helpers
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids

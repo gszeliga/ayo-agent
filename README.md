@@ -310,7 +310,8 @@ from `docs/openapi.json`, so an API change also runs `pnpm gen:api` there.
 ```sh
 uv run pytest                        # everything except `live`; integration tests need Docker
 uv run pytest -m "not integration"   # no Docker, no database
-uv run pytest -m live                # one real Voyage request (needs VOYAGE_API_KEY)
+uv run pytest -m live                # real calls: Voyage (VOYAGE_API_KEY) and OpenRouter
+                                     # (OPENROUTER_API_KEY, LLM_MODEL; 3 tiny requests)
 uv run ruff check . && uv run ruff format --check .
 ```
 
@@ -318,7 +319,7 @@ Integration tests start their own Postgres container (testcontainers), separate 
 dev database, and are skipped with a clear message when Docker is not available. To use
 an existing server instead, set `TEST_DATABASE_URL` (a pgvector-enabled Postgres; each
 test run creates and drops its own databases). Neon URLs are refused. Tests never read
-`.env`. Why this setup: `docs/decisions/0001-test-database.md`.
+`.env`, except the `live` ones, which take the API keys (and `LLM_MODEL`) from it. Why this setup: `docs/decisions/0001-test-database.md`.
 
 ## API contract
 

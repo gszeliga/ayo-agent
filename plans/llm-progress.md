@@ -8,8 +8,9 @@ earlier specs; pasted into the session on 2026-11-12). This file holds the agree
 deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
-L4: the brief for wiring the provider into the app lazily (lifespan, `get_llm_provider`),
-the lazy-configuration tests and the two live tests.
+L5: the brief for the check core without I/O (the nine draft scenarios, expectations,
+schema validation, metrics, report structure). Before L7 the OpenRouter account needs
+credits: the L4 live run got `402` (see the log).
 
 ## Decisions (agreed 2026-11-12)
 1. **The repo's patterns win over the spec's names.** There is no `HttpEmbedder`: the model
@@ -61,6 +62,11 @@ the lazy-configuration tests and the two live tests.
    `Retry-After` is still not retried); `Retry-After` wins over backoff; backoff is full
    jitter up to 1, 2, 4, ... s, capped at 10 s; no wait may end past the budget (a long
    `Retry-After` fails at once). A request in flight is not cut by the budget.
+19. **The provider is built at startup, not lazily** (the spec said "built lazily"):
+   building makes no request and checks no key, so only the key check is lazy, which is
+   what lets the app run without one. `build_llm_provider` lives in `llm/build.py`.
+20. **The live tool test runs twice**, forced by name and with `tool_choice: "required"`
+   (answers decision 9): three requests in all.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **L1** Types, errors, `LLMProvider` protocol, `check_request`, `FakeLLMProvider`,
@@ -70,7 +76,7 @@ the lazy-configuration tests and the two live tests.
   raise, reasoning apart), multi-turn serialization, single-attempt error mapping; ADR 0003.
 - [x] **L3** Retries (backoff with jitter, `Retry-After`, total budget, errors in a 200),
   one structured log line per call, privacy tests on every error path.
-- [ ] **L4** Lazy wiring into the app (lifespan, `get_llm_provider`), lazy-config tests,
+- [x] **L4** Lazy wiring into the app (lifespan, `get_llm_provider`), lazy-config tests,
   two live tests, `live` marker wording.
 - [ ] **L5** Check core without I/O: the nine draft scenarios (Spanish), expectations,
   schema validation (`jsonschema`, runtime dependency), metrics and report structure.
@@ -80,7 +86,8 @@ the lazy-configuration tests and the two live tests.
   revisited.
 
 ## Open items
-- None yet.
+- The OpenRouter account had no credits on 2026-11-12 (live tests: `402`). The live tests
+  and the L7 run need credits; whether `tool_choice: "required"` is honoured is still open.
 
 ## Progress log
 - **L1 (2026-11-12).** `src/ayo_copilot/llm/`: `types.py` (`ToolSpec`, `ToolCall`,
@@ -114,3 +121,14 @@ the lazy-configuration tests and the two live tests.
   `tests/unit/test_openrouter_retries.py` (retryable vs never-retried, bounds, `Retry-After`
   seconds and date, backoff bounds, budget, latency, generation ids, both log lines, and a
   privacy sweep over 14 paths with every logger captured at DEBUG).
+- **L4 (2026-11-12).** `llm/build.py`: `build_llm_provider` (every `LLM_*` setting mapped)
+  and `describe_llm_provider` (startup line with `key=set|missing`, never the key). The
+  lifespan builds the provider, exposes it as `llm`, logs that line and closes the client at
+  shutdown; `dependencies.get_llm_provider`. `live` marker reworded. Tests:
+  `tests/unit/test_llm_build.py`, two startup tests (no key: app starts, `/health` works,
+  calls raise `LLMConfigError`, client closed; startup line without the key), and
+  `tests/live/test_openrouter_live.py` (minimal completion; tool call forced by name and
+  with `"required"`). **Live run:** the key was accepted but the account has no credits:
+  all three calls got `402`, mapped to `LLMInsufficientCreditsError`, not retried, one
+  WARNING line each, no content. To rerun once credits are added:
+  `uv run pytest -m live tests/live/test_openrouter_live.py`.

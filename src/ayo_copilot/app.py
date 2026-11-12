@@ -18,6 +18,7 @@ from ayo_copilot.ingestion.embedding import (
     VoyageEmbedder,
     build_embedder,
 )
+from ayo_copilot.llm.build import build_llm_provider, describe_llm_provider
 from ayo_copilot.routers import admin
 from ayo_copilot.schemas import HealthResponse
 
@@ -126,6 +127,10 @@ def _make_lifespan(
             # Uploads, reprocesses and searches go through the tracker, so /admin/health can report
             # their last outcome; the monitor checks the provider itself, on demand.
             tracked = TrackedEmbedder(embedder)
+            # No request and no key check here: without OPENROUTER_API_KEY the app still
+            # starts, and only a model call fails (LLMConfigError). No endpoint uses it yet.
+            llm = build_llm_provider(resolved)
+            logger.info("%s", describe_llm_provider(llm, resolved))
             try:
                 # Endpoints read these through `request.state` (see dependencies.py).
                 yield {
@@ -133,10 +138,14 @@ def _make_lifespan(
                     "pool": pool,
                     "embedder": tracked,
                     "embedding_monitor": EmbeddingMonitor(embedder, tracked),
+                    "llm": llm,
                 }
             finally:
                 # FakeEmbedder holds no resources and has no close().
                 tracked.close()
+                close = getattr(llm, "close", None)
+                if close is not None:
+                    close()
         finally:
             pool.close()
 

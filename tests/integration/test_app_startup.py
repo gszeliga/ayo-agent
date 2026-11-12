@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from ayo_copilot import app as app_module
 from ayo_copilot.app import StartupError, create_app
 from ayo_copilot.config import Settings
+from ayo_copilot.llm import LLMConfigError, Message
+from ayo_copilot.llm.openrouter import OpenRouterProvider
 
 pytestmark = pytest.mark.integration
 
@@ -119,3 +121,47 @@ def test_startup_logs_the_voyage_embedder_without_the_key(
         " base_url=https://api.voyageai.com/v1"
     )
     assert "pa-test-secret-key" not in caplog.text
+
+
+def test_startup_without_an_openrouter_key(
+    migrated_database_url: str,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    caplog.set_level(logging.INFO, logger="ayo_copilot")
+    settings = make_settings(migrated_database_url)
+    assert settings.openrouter_api_key is None
+
+    with TestClient(create_app(settings)) as client:
+        llm = client.app_state["llm"]
+        assert isinstance(llm, OpenRouterProvider)
+        assert client.get("/health").status_code == 200
+        with pytest.raises(LLMConfigError):
+            llm.complete(system="s", messages=[Message(role="user", content="Hola")])
+
+    assert llm._client.is_closed
+    [record] = [r for r in caplog.records if r.getMessage().startswith("llm:")]
+    assert record.levelno == logging.INFO
+    assert record.getMessage().endswith("key=missing")
+
+
+def test_startup_logs_the_llm_provider_without_the_key(
+    migrated_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    settings = make_settings(
+        migrated_database_url,
+        openrouter_api_key="sk-or-v1-startup-secret",
+        llm_model="qwen/qwen3-32b",
+    )
+
+    # Building the provider makes no request, so this never reaches OpenRouter.
+    start(create_app(settings))
+
+    [record] = [r for r in caplog.records if r.getMessage().startswith("llm:")]
+    assert record.getMessage() == (
+        "llm: openrouter model=qwen/qwen3-32b data_collection=deny zdr=false"
+        " reasoning_effort=default key=set"
+    )
+    assert "sk-or-v1-startup-secret" not in caplog.text
