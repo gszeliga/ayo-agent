@@ -8,7 +8,7 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E5 done (2026-11-12, commit "Add the conversation storage (E5)", not pushed).** Next is
+**E5 done (2026-11-12, commit "Add the conversation storage (E5)"; E1-E5 pushed).** Next is
 **E6**: write its brief and wait for approval before coding. The brief must settle
 retrieval around a phase change (proposed: once per phase per turn, at the start and after
 a hop into a retrieving phase; knowledge dropped on a hop into a phase that does not).
