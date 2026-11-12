@@ -8,9 +8,9 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E2 done (2026-11-12, commit "Add the case snapshot, phase machine and tools (E2)", not
-pushed).** Next is **E3**: write its brief and wait for approval before coding.
-Pending OK, not part of E3: applying migration 0003 to the Neon dev branch.
+**E3 done (2026-11-12, commit "Add the conversation settings and draft prompt files (E3)",
+not pushed).** Next is **E4**: write its brief and wait for approval before coding.
+Pending OK, not part of E4: applying migration 0003 to the Neon dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -45,6 +45,15 @@ Pending OK, not part of E3: applying migration 0003 to the Neon dev branch.
 13. **Actions added in a turn have no id until commit** (agreed 2026-11-12): `add_action`
     returns no id and `update_action` only reaches stored actions (the ids in the case
     record); no provisional ids that would change after the commit.
+14. **Prompt files** (agreed 2026-11-12): HTML comments (`<!-- -->`) anywhere in a prompt
+    file are removed before rendering, so the DRAFT note and editors' notes never reach
+    the model. Placeholders come only from code (`$phase`, `$exit_conditions` from
+    `TRANSITIONS`; none in `base.md`); everything dynamic (date, case record, knowledge)
+    is a separate part added by the context assembly, never substituted into a template.
+    Files are rendered once at startup.
+15. **`FIELD_MAX_CHARS` is applied when rendering** the case record (E4); the
+    `record_field` schema keeps its fixed 500 so the tool specs stay settings-free (the
+    check imports them).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **E1** Migration 0003 (five tables), migration and constraint tests, `db_pool`
@@ -52,7 +61,7 @@ Pending OK, not part of E3: applying migration 0003 to the Neon dev branch.
 - [x] **E2** Case snapshot, phase machine (transitions, exit criteria, missing items), tools
   module (specs, exposure per phase, generated `propose_transition` enum, schema and
   semantic validation, handlers on the snapshot); unit tests.
-- [ ] **E3** `ConversationSettings`, `.env.example`; draft prompt files (Spanish); the
+- [x] **E3** `ConversationSettings`, `.env.example`; draft prompt files (Spanish); the
   `string.Template` loader failing at startup; unit tests.
 - [ ] **E4** Context assembly (system prompt parts, delimited data, field hygiene, message
   window), query builder, reply composition; unit tests.
@@ -70,6 +79,8 @@ Pending OK, not part of E3: applying migration 0003 to the Neon dev branch.
 
 ## Open items
 - Applying migration 0003 to the Neon dev branch: not done; needs the user's OK.
+- `APP_TIMEZONE` relies on the system time zone database; a slim container image may lack
+  it. Add the `tzdata` package when deployment (D1) resumes, if the image needs it.
 
 ## Progress log
 - **E1 (2026-11-12).** `migrations/versions/0003_conversation_engine.py`: `problems`,
@@ -104,3 +115,22 @@ Pending OK, not part of E3: applying migration 0003 to the Neon dev branch.
   New tests: each entry builds its own spec in every phase it lists, and every free-text
   argument (string without enum or pattern) is in `text_arguments`, so a new one cannot
   skip cleaning.
+- **E3 (2026-11-12).** `config.py`: `ConversationSettings` (mixed into `Settings`; all
+  defaults; `RETRIEVAL_PHASES` comma-separated and limited to non-closed phases, top_k
+  1-50, similarity 0-1, `COMMON_TENANT` by the tenant pattern, `APP_TIMEZONE` loaded with
+  `zoneinfo`, `LLM_MODEL_BY_PHASE` JSON with non-closed phases and non-empty models,
+  `PROMPTS_VERSION` 1-64 non-space characters). `MAX_SEARCH_TOP_K` moved from `schemas`
+  to `config` (schemas imports config; still importable from `schemas`).
+  `conversation/prompt_files.py`: `load_prompts` -> `PromptSet` (rendered base and phase
+  prompts, `sha256` of the files), `PromptError` naming the file only. Six Spanish draft
+  files in `conversation/prompts/`, each opening with the DRAFT note in a comment; phase
+  files end with `$exit_conditions`. `phases.describe_targets` shared with the
+  `propose_transition` description. App lifespan loads the prompts first (before the
+  pool), fails with `StartupError("prompts: ...")`, logs
+  `prompts: version=... files=6 sha256=<12 hex>`; `get_prompts` dependency. Wheel checked:
+  the `.md` files ship. `.env.example`, README (settings table, "Editing the prompt files"),
+  CLAUDE.md layout. Tests: settings defaults, parsing and each refusal; real files load
+  with nothing left unresolved and no comment; missing, empty, comment-only, non-UTF-8,
+  unclosed comment, stray `$`, unknown placeholder (exact message), `$$`, braces; no
+  content in errors or reprs; startup loads and logs, and fails on a broken directory.
+  Full suite green (1208 passed).

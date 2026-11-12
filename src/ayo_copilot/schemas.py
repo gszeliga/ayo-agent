@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic_core import PydanticCustomError
 
-from ayo_copilot.config import Settings
+from ayo_copilot.config import MAX_SEARCH_TOP_K, Settings
 from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusCounts, TenantRow
 from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
@@ -605,7 +605,6 @@ class ServiceHealth(BaseModel):
 
 
 MAX_QUERY_CHARS = 2000
-MAX_SEARCH_TOP_K = 50
 MAX_SEARCH_TENANTS = 50
 MAX_SEARCH_DOC_IDS = 50
 

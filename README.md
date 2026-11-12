@@ -440,6 +440,44 @@ a key, which is only needed when a model is called.
 | `LLM_REASONING_EFFORT` | *(unset: the model's default)* | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. Reasoning tokens are billed as output; `none` turns reasoning off where the model allows it. |
 | `LLM_APP_URL`, `LLM_APP_TITLE` | *(unset)* | Optional OpenRouter attribution headers (`HTTP-Referer`, `X-OpenRouter-Title`). |
 
+Conversation engine settings. **Not used by any endpoint yet** (the engine is being built).
+None is required. Invalid values (an unknown phase, a time zone that does not exist,
+malformed JSON) stop the app at startup.
+
+| Variable | Default | Description |
+|---|---|---|
+| `RETRIEVAL_PHASES` | `analyse` | Comma-separated phases whose turns search the knowledge base: `understand`, `challenge`, `analyse`, `action`, `followup`. Empty: no phase searches. |
+| `RETRIEVAL_TOP_K` | `5` | Chunks retrieved per turn, 1 to 50. |
+| `RETRIEVAL_MIN_SIMILARITY` | *(unset: keep all)* | Drop retrieved chunks below this similarity, 0 to 1. No validated value yet. |
+| `COMMON_TENANT` | `ayo` | Tenant searched together with the case's own: the shared knowledge. Never another customer's. |
+| `CONTEXT_MAX_MESSAGES` | `12` | Messages of the current phase sent to the model, at most. |
+| `MAX_TOOL_ROUNDS` | `6` | Model calls per turn, at most. |
+| `MAX_PHASE_HOPS` | `1` | Phase changes accepted within one turn; `0`: the phase only changes between messages. |
+| `TURN_TIMEOUT_SECONDS` | `90` | Time budget per turn, checked between model calls (a call in flight has the LLM timeouts). |
+| `MAX_USER_MESSAGE_CHARS` | `4000` | Longest user message accepted. |
+| `FIELD_MAX_CHARS` | `500` | Each case fact is cut to this length when shown to the model. |
+| `PROMPTS_VERSION` | `draft-1` | Recorded in every turn trace. Bump it whenever the prompt files change. 1 to 64 characters, no spaces. |
+| `APP_TIMEZONE` | `Europe/Madrid` | IANA time zone of "today" for the model (so "el viernes" becomes a date). |
+| `LLM_MODEL_BY_PHASE` | *(empty)* | Optional JSON mapping a phase to a model, such as `{"analyse": "<model id>"}`; phases without an entry use `LLM_MODEL`. |
+
+### Editing the prompt files
+
+The conversation prompts are Markdown files in `src/ayo_copilot/conversation/prompts/`:
+`base.md` (sent in every phase) and one per phase (`understand.md`, `challenge.md`,
+`analyse.md`, `action.md`, `followup.md`). The current ones are **drafts** to make the
+engine work, to be replaced with AYO's real method.
+
+- Text inside HTML comments (`<!-- ... -->`) is a note for editors: it is removed before
+  the prompt reaches the model.
+- Phase files may use two placeholders, filled in by the code: `$phase` (the phase name)
+  and `$exit_conditions` (where the case can go from that phase and when, generated from
+  the rules the code enforces). `base.md` takes none. Write a literal dollar sign as `$$`.
+- The files are read once, at startup: restart the app after editing. A missing or empty
+  file, a stray `$` or an unknown placeholder stops the app with an error naming the file.
+- Bump `PROMPTS_VERSION` after any change; the startup log prints the version and a hash
+  of the files (`prompts: version=draft-1 files=6 sha256=...`), so an edit without a bump
+  shows.
+
 Changing `CHUNK_SIZE`, `CHUNK_OVERLAP`, `MIN_CHUNK_SIZE`, `EMBEDDING_MODEL` or
 `EMBEDDING_DIMENSIONS` changes the document signatures, so the next upload of each
 document reprocesses it.

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from psycopg_pool import ConnectionPool, PoolTimeout
 
 from ayo_copilot.config import BuildSettings, Settings, database_host, default_env_file
+from ayo_copilot.conversation.prompt_files import PromptError, PromptSet, load_prompts
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
 from ayo_copilot.errors import install_error_handlers
@@ -106,6 +107,7 @@ def _make_lifespan(
                 logger.info("settings: environment only, no file at %s", env_file)
         resolved = settings or Settings()
         set_db_log_level(resolved.db_log_level)
+        prompts = _load_prompts(resolved)
         host = database_host(resolved.database_url.get_secret_value())
 
         # Opening the pool blocks the event loop, which is fine before serving starts.
@@ -139,6 +141,7 @@ def _make_lifespan(
                     "embedder": tracked,
                     "embedding_monitor": EmbeddingMonitor(embedder, tracked),
                     "llm": llm,
+                    "prompts": prompts,
                 }
             finally:
                 # FakeEmbedder holds no resources and has no close().
@@ -150,6 +153,21 @@ def _make_lifespan(
             pool.close()
 
     return lifespan
+
+
+def _load_prompts(settings: Settings) -> PromptSet:
+    """Render the prompt files, or refuse to start (the error names the file only)."""
+    try:
+        prompts = load_prompts()
+    except PromptError as error:
+        raise StartupError(f"prompts: {error}") from None
+    logger.info(
+        "prompts: version=%s files=%d sha256=%s",
+        settings.prompts_version,
+        prompts.file_count,
+        prompts.sha256[:12],
+    )
+    return prompts
 
 
 def _log_embedder(embedder: Embedder, settings: Settings) -> None:

@@ -58,6 +58,12 @@ def targets(phase: Phase) -> tuple[Phase, ...]:
     return tuple(target.phase for target in TRANSITIONS[phase])
 
 
+def describe_targets(phase: Phase) -> str:
+    """One line per target, `- <phase>: <condition>`, for the model (the
+    `propose_transition` description and the phase prompts' `$exit_conditions`)."""
+    return "\n".join(f"- {target.phase}: {target.condition}" for target in TRANSITIONS[phase])
+
+
 def is_allowed(source: Phase, target: Phase) -> bool:
     return target in targets(source)
 

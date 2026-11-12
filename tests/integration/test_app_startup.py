@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -8,6 +9,7 @@ from fastapi.testclient import TestClient
 from ayo_copilot import app as app_module
 from ayo_copilot.app import StartupError, create_app
 from ayo_copilot.config import Settings
+from ayo_copilot.conversation import prompt_files
 from ayo_copilot.llm import LLMConfigError, Message
 from ayo_copilot.llm.openrouter import OpenRouterProvider
 
@@ -165,3 +167,28 @@ def test_startup_logs_the_llm_provider_without_the_key(
         " reasoning_effort=default key=set"
     )
     assert "sk-or-v1-startup-secret" not in caplog.text
+
+
+def test_startup_loads_the_prompts_and_logs_their_version(
+    migrated_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="ayo_copilot.app")
+    settings = make_settings(migrated_database_url, prompts_version="draft-7")
+
+    with TestClient(create_app(settings)) as client:
+        prompts = client.app_state["prompts"]
+
+    assert set(prompts.phases) == {"understand", "challenge", "analyse", "action", "followup"}
+    assert f"prompts: version=draft-7 files=6 sha256={prompts.sha256[:12]}" in caplog.text
+    assert "copiloto" not in caplog.text
+
+
+def test_startup_fails_on_a_broken_prompt_file(
+    migrated_database_url: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "base.md").write_text("Base.", encoding="utf-8")
+    monkeypatch.setattr(prompt_files, "PROMPTS_DIR", tmp_path)
+    app = create_app(make_settings(migrated_database_url))
+
+    with pytest.raises(StartupError, match=r"prompts: prompt file understand\.md is missing"):
+        start(app)

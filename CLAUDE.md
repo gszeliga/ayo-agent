@@ -103,17 +103,17 @@ Migrations on Neon must use the direct endpoint (host without `-pooler`).
 src/ayo_copilot/
   __init__.py          main(): logging.basicConfig + uvicorn (factory=True)
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
-                       CORS middleware, lifespan: pool, embedder, LLM provider, DB_LOG_LEVEL, dimension check
+                       CORS middleware, lifespan: prompts, pool, embedder, LLM provider, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, Search*, errors
-  dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider (request.state)
+  dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider / get_prompts (request.state)
   routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, search, tenants, settings, health (provisional X-API-Key auth, size limits)
   documents.py         admin read/write operations on stored documents (own transactions)
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
   search.py            search(): embed_query, then exact vector search in one read-only transaction
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS),
-                       LLMSettings (ayo-llm-check) < Settings
+                       LLMSettings (ayo-llm-check), ConversationSettings < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
@@ -130,8 +130,10 @@ src/ayo_copilot/
                        evaluate.py (verdicts), runner.py (runs, metrics, Wilson CIs), report.py,
                        catalog.py (models listing), cli.py (ayo-llm-check)
   conversation/case.py     CaseSnapshot (Case, Event, Action) and TurnChanges (what a turn accepted)
-  conversation/phases.py   TRANSITIONS, exit criteria (missing_for), describe_missing
+  conversation/phases.py   TRANSITIONS, exit criteria (missing_for), describe_missing / describe_targets
   conversation/tools.py    TOOLS (one ToolDef per tool: spec, phases, handler), tools_for_phase, execute_tool
+  conversation/prompt_files.py  load_prompts (string.Template, once at startup) -> PromptSet
+  conversation/prompts/    draft prompt files (Spanish): base.md + one per phase
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)

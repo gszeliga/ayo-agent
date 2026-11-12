@@ -37,6 +37,7 @@ from ayo_copilot.conversation.case import (
 from ayo_copilot.conversation.phases import (
     TRANSITIONS,
     describe_missing,
+    describe_targets,
     is_allowed,
     missing_for,
     targets,
@@ -155,10 +156,9 @@ def update_action_tool() -> ToolSpec:
 def propose_transition_tool(phase: Phase) -> ToolSpec:
     """`target_state` offers only the phases reachable from `phase`; the description gives
     each target's condition."""
-    reachable = TRANSITIONS[phase]
-    if not reachable:
+    if not TRANSITIONS[phase]:
         raise ValueError(f"propose_transition is not offered in phase {phase}")
-    lines = "\n".join(f"- {target.phase}: {target.condition}" for target in reachable)
+    lines = describe_targets(phase)
     return ToolSpec(
         name="propose_transition",
         description=(

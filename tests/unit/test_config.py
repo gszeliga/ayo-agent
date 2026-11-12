@@ -368,3 +368,84 @@ def test_env_example_lists_every_setting_and_nothing_else() -> None:
     fields = {name.upper() for name in Settings.model_fields}
 
     assert _env_example_names() == fields
+
+
+# --- Conversation engine settings ----------------------------------------------
+
+
+def test_conversation_defaults() -> None:
+    settings = make_settings()
+
+    assert settings.retrieval_phases == ["analyse"]
+    assert settings.retrieval_top_k == 5
+    assert settings.retrieval_min_similarity is None
+    assert settings.common_tenant == "ayo"
+    assert settings.context_max_messages == 12
+    assert settings.max_tool_rounds == 6
+    assert settings.max_phase_hops == 1
+    assert settings.turn_timeout_seconds == 90
+    assert settings.max_user_message_chars == 4000
+    assert settings.field_max_chars == 500
+    assert settings.prompts_version == "draft-1"
+    assert settings.app_timezone == "Europe/Madrid"
+    assert str(settings.timezone()) == "Europe/Madrid"
+    assert settings.llm_model_by_phase == {}
+
+
+def test_conversation_settings_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RETRIEVAL_PHASES", " analyse, challenge ,,analyse")
+    monkeypatch.setenv("RETRIEVAL_MIN_SIMILARITY", "0.4")
+    monkeypatch.setenv("LLM_MODEL_BY_PHASE", '{"analyse": " vendor/big-model "}')
+    monkeypatch.setenv("APP_TIMEZONE", "America/Mexico_City")
+    monkeypatch.setenv("MAX_PHASE_HOPS", "0")
+
+    settings = make_settings()
+
+    assert settings.retrieval_phases == ["analyse", "challenge"]
+    assert settings.retrieval_min_similarity == 0.4
+    assert settings.llm_model_by_phase == {"analyse": "vendor/big-model"}
+    assert settings.app_timezone == "America/Mexico_City"
+    assert settings.max_phase_hops == 0
+
+
+def test_empty_retrieval_phases_mean_no_retrieval(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RETRIEVAL_PHASES", " , ")
+    assert make_settings().retrieval_phases == []
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"retrieval_phases": "closed"}, "RETRIEVAL_PHASES: 'closed'"),
+        ({"retrieval_phases": "analyse,analysis"}, "RETRIEVAL_PHASES: 'analysis'"),
+        ({"retrieval_top_k": 0}, "retrieval_top_k"),
+        ({"retrieval_top_k": 51}, "retrieval_top_k"),
+        ({"retrieval_min_similarity": 1.5}, "retrieval_min_similarity"),
+        ({"retrieval_min_similarity": -0.1}, "retrieval_min_similarity"),
+        ({"common_tenant": "AYO"}, "COMMON_TENANT"),
+        ({"context_max_messages": 0}, "context_max_messages"),
+        ({"max_tool_rounds": 0}, "max_tool_rounds"),
+        ({"max_phase_hops": -1}, "max_phase_hops"),
+        ({"turn_timeout_seconds": 0}, "turn_timeout_seconds"),
+        ({"max_user_message_chars": 0}, "max_user_message_chars"),
+        ({"field_max_chars": 0}, "field_max_chars"),
+        ({"prompts_version": ""}, "prompts_version"),
+        ({"prompts_version": "draft 2"}, "prompts_version"),
+        ({"prompts_version": "v" * 65}, "prompts_version"),
+        ({"app_timezone": "Europe/Atlantis"}, "APP_TIMEZONE: 'Europe/Atlantis'"),
+        ({"app_timezone": "../etc/passwd"}, "APP_TIMEZONE"),
+        ({"llm_model_by_phase": {"closed": "m"}}, "LLM_MODEL_BY_PHASE: 'closed'"),
+        ({"llm_model_by_phase": {"analyse": " "}}, "the model for 'analyse' is empty"),
+    ],
+)
+def test_invalid_conversation_settings_are_refused(
+    overrides: dict[str, object], message: str
+) -> None:
+    with pytest.raises(ValidationError, match=re.escape(message)):
+        make_settings(**overrides)
+
+
+def test_llm_model_by_phase_must_be_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_MODEL_BY_PHASE", "analyse=vendor/model")
+    with pytest.raises(Exception, match="llm_model_by_phase"):
+        make_settings()

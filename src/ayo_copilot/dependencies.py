@@ -5,6 +5,7 @@ from fastapi import Request
 from psycopg_pool import ConnectionPool
 
 from ayo_copilot.config import Settings
+from ayo_copilot.conversation.prompt_files import PromptSet
 from ayo_copilot.health import EmbeddingMonitor
 from ayo_copilot.ingestion.embedding import Embedder
 from ayo_copilot.llm import LLMProvider
@@ -30,3 +31,8 @@ def get_llm_provider(request: Request) -> LLMProvider:
     """The language model provider. Present even without OPENROUTER_API_KEY: calls then
     raise LLMConfigError."""
     return request.state.llm
+
+
+def get_prompts(request: Request) -> PromptSet:
+    """The prompt files, rendered at startup."""
+    return request.state.prompts

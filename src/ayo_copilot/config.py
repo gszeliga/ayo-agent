@@ -1,10 +1,15 @@
 import os
+import re
 from pathlib import Path
 from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from ayo_copilot.conversation.case import PHASES
+from ayo_copilot.ingestion.storage import TENANT_PATTERN
 
 # pgvector cannot build an HNSW index on a `vector` column wider than this.
 HNSW_MAX_DIMENSIONS = 2000
@@ -12,6 +17,8 @@ HNSW_MAX_DIMENSIONS = 2000
 VOYAGE_MAX_BATCH_SIZE = 1000
 # A database on any other host needs ALLOW_REMOTE_DATABASE=true.
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+# Most chunks one search returns (POST /admin/search and the engine's retrieval).
+MAX_SEARCH_TOP_K = 50
 
 
 # Set in the environment to read settings from another file than the project's `.env`.
@@ -169,7 +176,91 @@ class LLMSettings(BaseSettings):
     llm_app_title: str | None = None
 
 
-class Settings(LLMSettings, DatabaseSettings, BuildSettings):
+# The phases that can retrieve or have their own model: every phase but `closed`.
+ACTIVE_PHASES = tuple(phase for phase in PHASES if phase != "closed")
+
+
+class ConversationSettings(BaseSettings):
+    """The conversation engine's settings. All have defaults: none is required."""
+
+    model_config = SETTINGS_CONFIG
+
+    # Phases whose turns search the knowledge base (comma-separated); empty: none.
+    retrieval_phases: Annotated[list[str], NoDecode] = ["analyse"]
+    retrieval_top_k: int = Field(default=5, ge=1, le=MAX_SEARCH_TOP_K)
+    # Unset keeps every result: no validated threshold yet.
+    retrieval_min_similarity: float | None = Field(default=None, ge=0, le=1)
+    # Searched with the case's own tenant: the shared knowledge (AYO's method).
+    common_tenant: str = "ayo"
+    # Messages of the current phase sent to the model, at most.
+    context_max_messages: int = Field(default=12, ge=1)
+    # Model calls per turn, at most.
+    max_tool_rounds: int = Field(default=6, ge=1)
+    # Accepted phase changes per turn; 0: the phase only changes between messages.
+    max_phase_hops: int = Field(default=1, ge=0)
+    # Checked between model calls; a call in flight has the provider's own timeouts.
+    turn_timeout_seconds: float = Field(default=90.0, gt=0)
+    max_user_message_chars: int = Field(default=4000, ge=1)
+    # Each case fact is cut to this length when shown to the model.
+    field_max_chars: int = Field(default=500, ge=1)
+    # Recorded in every turn trace; bump it when the prompt files change.
+    prompts_version: str = Field(default="draft-1", min_length=1, max_length=64, pattern=r"^\S+$")
+    # Today's date for the model ("el viernes") is taken in this time zone.
+    app_timezone: str = "Europe/Madrid"
+    # JSON, e.g. {"analyse": "<model id>"}; a phase without an entry uses LLM_MODEL.
+    llm_model_by_phase: dict[str, str] = {}
+
+    @field_validator("retrieval_phases", mode="before")
+    @classmethod
+    def _split_phases(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [phase.strip() for phase in value.split(",") if phase.strip()]
+        return value
+
+    @field_validator("retrieval_phases")
+    @classmethod
+    def _check_phases(cls, phases: list[str]) -> list[str]:
+        for phase in phases:
+            _check_active_phase("RETRIEVAL_PHASES", phase)
+        return list(dict.fromkeys(phases))
+
+    @field_validator("common_tenant")
+    @classmethod
+    def _check_common_tenant(cls, tenant: str) -> str:
+        if not re.fullmatch(TENANT_PATTERN, tenant):
+            raise ValueError(f"COMMON_TENANT must match {TENANT_PATTERN}")
+        return tenant
+
+    @field_validator("app_timezone")
+    @classmethod
+    def _check_timezone(cls, name: str) -> str:
+        try:
+            ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(
+                f"APP_TIMEZONE: {name!r} is not a known time zone (e.g. Europe/Madrid)"
+            ) from None
+        return name
+
+    @field_validator("llm_model_by_phase")
+    @classmethod
+    def _check_models_by_phase(cls, mapping: dict[str, str]) -> dict[str, str]:
+        for phase, model in mapping.items():
+            _check_active_phase("LLM_MODEL_BY_PHASE", phase)
+            if not model.strip():
+                raise ValueError(f"LLM_MODEL_BY_PHASE: the model for {phase!r} is empty")
+        return {phase: model.strip() for phase, model in mapping.items()}
+
+    def timezone(self) -> ZoneInfo:
+        return ZoneInfo(self.app_timezone)
+
+
+def _check_active_phase(setting: str, phase: str) -> None:
+    if phase not in ACTIVE_PHASES:
+        raise ValueError(f"{setting}: {phase!r} is not one of {', '.join(ACTIVE_PHASES)}")
+
+
+class Settings(ConversationSettings, LLMSettings, DatabaseSettings, BuildSettings):
     """Application settings, read from environment variables (and `.env`)."""
 
     # Provisional admin authentication (see routers/admin.py).
