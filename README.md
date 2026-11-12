@@ -360,6 +360,26 @@ Never commit `.env`.
 | `EMBEDDING_TIMEOUT_SECONDS` | `30` | Timeout per embedding request. |
 | `EMBEDDING_MAX_RETRIES` | `3` | Retries on `429`, `5xx`, timeouts and connection errors, with exponential backoff and jitter. Other errors fail at once. |
 
+Language model settings (through [OpenRouter](https://openrouter.ai)). **No endpoint uses
+the model yet.** None of them is required: the app starts and everything else works without
+a key, which is only needed when a model is called.
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLM_PROVIDER` | `openrouter` | The only provider for now. |
+| `OPENROUTER_API_KEY` | *(unset)* | OpenRouter API key. |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL. |
+| `LLM_MODEL` | `mistralai/mistral-small-3.2-24b-instruct` | Default model (OpenRouter id); each call can override it. Provisional, to confirm with the tool-calling check. |
+| `LLM_TEMPERATURE` | `0.2` | Sent with every call (0 to 2), because upstream providers' own defaults differ. Low, so tool calls are consistent. |
+| `LLM_MAX_TOKENS` | `1024` | Maximum output tokens per call; reasoning tokens count against it. |
+| `LLM_TIMEOUT_SECONDS` | `60` | Read timeout per request. |
+| `LLM_MAX_RETRIES` | `2` | Retries on timeouts, connection errors, `429` and `5xx`. |
+| `LLM_RETRY_BUDGET_SECONDS` | `90` | No retry starts once this much time has passed since the first attempt. |
+| `LLM_DATA_COLLECTION` | `deny` | `deny` routes only to upstream providers that neither store nor train on prompts, which will hold customer content. `allow` lifts that. |
+| `LLM_ZDR` | `false` | `true` routes only to Zero Data Retention endpoints: stricter, but fewer providers per model. |
+| `LLM_REASONING_EFFORT` | *(unset: the model's default)* | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. Reasoning tokens are billed as output; `none` turns reasoning off where the model allows it. |
+| `LLM_APP_URL`, `LLM_APP_TITLE` | *(unset)* | Optional OpenRouter attribution headers (`HTTP-Referer`, `X-OpenRouter-Title`). |
+
 Changing `CHUNK_SIZE`, `CHUNK_OVERLAP`, `MIN_CHUNK_SIZE`, `EMBEDDING_MODEL` or
 `EMBEDDING_DIMENSIONS` changes the document signatures, so the next upload of each
 document reprocesses it.
@@ -389,7 +409,8 @@ Chunks are never merged across unrelated sections.
 
 ```
 src/ayo_copilot/   the app: API (app.py, routers/, schemas.py, errors.py), settings,
-                   database access (db/), ingestion pipeline (ingestion/)
+                   database access (db/), ingestion pipeline (ingestion/), language
+                   model access (llm/, not used by any endpoint yet)
 migrations/        Alembic migrations
 scripts/           dev_db.sh, export_openapi.py
 docs/              openapi.json, decisions/ (architecture decision records)

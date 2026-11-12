@@ -133,7 +133,43 @@ class DatabaseSettings(BaseSettings):
         return url.get_secret_value()
 
 
-class Settings(DatabaseSettings, BuildSettings):
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+
+class LLMSettings(BaseSettings):
+    """The language model settings alone, for tools such as `ayo-llm-check` that need no
+    database or admin key. Nothing here is required at startup: a missing API key only
+    fails when the model is actually called."""
+
+    model_config = SETTINGS_CONFIG
+
+    llm_provider: Literal["openrouter"] = "openrouter"
+    openrouter_api_key: SecretStr | None = Field(default=None, min_length=1)
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Default model; each call can override it.
+    llm_model: str = Field(default="mistralai/mistral-small-3.2-24b-instruct", min_length=1)
+    # Always sent: upstream providers' own defaults differ (OpenRouter documents 1.0).
+    llm_temperature: float = Field(default=0.2, ge=0, le=2)
+    # Reasoning tokens count against this limit too.
+    llm_max_tokens: int = Field(default=1024, gt=0)
+    # Read timeout per request; the connect timeout is fixed (see the provider).
+    llm_timeout_seconds: float = Field(default=60.0, gt=0)
+    llm_max_retries: int = Field(default=2, ge=0)
+    # No new attempt starts once this much time has passed since the first one.
+    llm_retry_budget_seconds: float = Field(default=90.0, gt=0)
+    # OpenRouter routing: "deny" uses only upstream providers that do not store prompts or
+    # train on them; prompts will hold customer content.
+    llm_data_collection: Literal["allow", "deny"] = "deny"
+    # OpenRouter routing: only Zero Data Retention endpoints (stricter, fewer providers).
+    llm_zdr: bool = False
+    # Unset: the model's own default. "none" turns reasoning off where the model allows it.
+    llm_reasoning_effort: ReasoningEffort | None = None
+    # Optional OpenRouter attribution headers (HTTP-Referer, X-OpenRouter-Title).
+    llm_app_url: str | None = None
+    llm_app_title: str | None = None
+
+
+class Settings(LLMSettings, DatabaseSettings, BuildSettings):
     """Application settings, read from environment variables (and `.env`)."""
 
     # Provisional admin authentication (see routers/admin.py).

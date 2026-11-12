@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,7 @@ from pydantic import ValidationError
 from ayo_copilot.config import (
     ENV_FILE_VARIABLE,
     DatabaseSettings,
+    LLMSettings,
     Settings,
     default_env_file,
 )
@@ -238,7 +240,7 @@ def test_empty_env_file_values_count_as_unset(
         Settings(_env_file=env_file)
 
 
-@pytest.mark.parametrize("field", ["admin_api_key", "voyage_api_key"])
+@pytest.mark.parametrize("field", ["admin_api_key", "voyage_api_key", "openrouter_api_key"])
 def test_empty_secrets_are_refused(field: str) -> None:
     with pytest.raises(ValidationError, match=field):
         make_settings(**{field: ""})
@@ -290,3 +292,79 @@ def test_empty_cors_origins_mean_cors_off(monkeypatch: pytest.MonkeyPatch) -> No
 def test_malformed_cors_origins_are_refused(origin: str) -> None:
     with pytest.raises(ValidationError, match="CORS_ALLOWED_ORIGINS"):
         make_settings(cors_allowed_origins=f"http://localhost:5173,{origin}")
+
+
+def test_llm_defaults() -> None:
+    settings = make_settings()
+
+    assert settings.llm_provider == "openrouter"
+    assert settings.openrouter_api_key is None
+    assert settings.openrouter_base_url == "https://openrouter.ai/api/v1"
+    assert settings.llm_model == "mistralai/mistral-small-3.2-24b-instruct"
+    assert settings.llm_temperature == 0.2
+    assert settings.llm_max_tokens == 1024
+    assert settings.llm_timeout_seconds == 60
+    assert settings.llm_max_retries == 2
+    assert settings.llm_retry_budget_seconds == 90
+    assert settings.llm_data_collection == "deny"
+    assert settings.llm_zdr is False
+    assert settings.llm_reasoning_effort is None
+    assert settings.llm_app_url is None
+    assert settings.llm_app_title is None
+
+
+def test_llm_settings_load_without_admin_key_or_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ADMIN_API_KEY", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-from-env")
+    monkeypatch.setenv("LLM_MODEL", "qwen/qwen3-32b")
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "none")
+    monkeypatch.setenv("LLM_ZDR", "true")
+
+    settings = LLMSettings(_env_file=None)
+
+    assert settings.openrouter_api_key is not None
+    assert settings.openrouter_api_key.get_secret_value() == "sk-or-from-env"
+    assert settings.llm_model == "qwen/qwen3-32b"
+    assert settings.llm_reasoning_effort == "none"
+    assert settings.llm_zdr is True
+
+
+def test_openrouter_key_is_not_shown_in_repr() -> None:
+    settings = make_settings(openrouter_api_key="sk-or-secret-value")
+
+    assert "sk-or-secret-value" not in repr(settings)
+    assert "sk-or-secret-value" not in str(settings)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("llm_provider", "openai"),
+        ("llm_model", ""),
+        ("llm_temperature", -0.1),
+        ("llm_temperature", 2.1),
+        ("llm_max_tokens", 0),
+        ("llm_timeout_seconds", 0),
+        ("llm_max_retries", -1),
+        ("llm_retry_budget_seconds", 0),
+        ("llm_data_collection", "maybe"),
+        ("llm_reasoning_effort", "extreme"),
+    ],
+)
+def test_invalid_llm_settings_are_refused(field: str, value: object) -> None:
+    with pytest.raises(ValidationError, match=field):
+        make_settings(**{field: value})
+
+
+def _env_example_names() -> set[str]:
+    """Variable names assigned in .env.example, commented-out ones included."""
+    text = (PROJECT_ROOT / ".env.example").read_text()
+    return set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)=", text, flags=re.MULTILINE))
+
+
+def test_env_example_lists_every_setting_and_nothing_else() -> None:
+    fields = {name.upper() for name in Settings.model_fields}
+
+    assert _env_example_names() == fields

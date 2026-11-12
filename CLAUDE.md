@@ -9,8 +9,12 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
+- **Active (2026-11-12): LLM provider through OpenRouter.** Spec
+  `plans/claude-code-prompt-llm-provider.md`; decisions (which override the spec where they
+  differ), steps L1-L7 and log in `plans/llm-progress.md`. **Read both first.** No endpoint
+  uses the model yet; `docs/openapi.json` must not change in this milestone.
 - Done (2026-11-10): test search screen in the UI (`/search`; decision 8 and steps
-  U12-U13 in `plans/ui-progress.md`). Nothing is planned next: ask the user.
+  U12-U13 in `plans/ui-progress.md`).
 - **Paused (2026-11-10): search and retrieval evaluation.** Spec
   `plans/claude-code-prompt-search-eval.md`; decisions (which override the spec where they
   differ), steps S1-S5 and log in `plans/search-progress.md`. **Read both first.** S1 and S2
@@ -39,7 +43,7 @@ working rules, update this file in that step's commit.
 - Keep `README.md` current: any step that adds or changes an endpoint, a setting or a
   command updates it in the same commit.
 - After the step: update the active milestone's progress file (now
-  `plans/search-progress.md`), make **exactly one commit** (code + tests + log together),
+  `plans/llm-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.
@@ -100,7 +104,8 @@ src/ayo_copilot/
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
   search.py            search(): embed_query, then exact vector search in one read-only transaction
   openapi.py           render_openapi() for the committed contract docs/openapi.json
-  config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS) < Settings
+  config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS),
+                       LLMSettings (ayo-llm-check) < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
@@ -108,6 +113,10 @@ src/ayo_copilot/
   ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2), FakeEmbedder
   ingestion/storage.py     tenant and source_key validation (name is historical)
   ingestion/service.py     the pipeline: ingest_document, reprocess_document and their stages
+  llm/types.py         ToolSpec, ToolCall, Message, Usage, LLMResponse (self-validating; content not in repr)
+  llm/errors.py        LLMError and subclasses (safe messages, optional status)
+  llm/provider.py      LLMProvider protocol (sync), check_request
+  llm/fake.py          FakeLLMProvider (scripted, records calls) and response helpers
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
                        0002 = documents.chunk_count/size_bytes/*_config + list index
 scripts/               dev_db.sh, export_openapi.py
