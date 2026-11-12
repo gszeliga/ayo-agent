@@ -95,6 +95,7 @@ def make_provider(handler: Handler, **overrides: Any) -> OpenRouterProvider:
         "max_tokens": 1024,
         "base_url": BASE_URL,
         "client": httpx2.Client(base_url=BASE_URL, transport=httpx2.MockTransport(handler)),
+        "sleep": lambda seconds: None,
     }
     values.update(overrides)
     return OpenRouterProvider(**values)

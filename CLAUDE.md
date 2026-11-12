@@ -117,7 +117,8 @@ src/ayo_copilot/
   llm/errors.py        LLMError and subclasses (safe messages, optional status)
   llm/provider.py      LLMProvider protocol (sync), check_request
   llm/fake.py          FakeLLMProvider (scripted, records calls) and response helpers
-  llm/openrouter.py    OpenRouterProvider (httpx2), serializers, error mapping, parse_completion
+  llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
+                       retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
                        0002 = documents.chunk_count/size_bytes/*_config + list index
 scripts/               dev_db.sh, export_openapi.py
@@ -135,6 +136,8 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
   there because Alembic needs it).
 - Repository functions take a connection and never commit; the service owns transactions.
   The embedding provider is called outside any transaction.
+- LLM calls log metadata only (models, attempts, tokens, cost, tool names, generation
+  ids): never prompts, messages, tool arguments, text or reasoning; tests check every path.
 - Vector search is exact (ADR 0002): never rely on the HNSW index for filtered queries.
   Search queries are as sensitive as documents: never log the query or the chunks found.
 - HTTP client is `httpx2` (pydantic's fork), not `httpx`; tests mock it with `MockTransport`.

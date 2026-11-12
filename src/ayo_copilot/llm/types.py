@@ -158,8 +158,12 @@ class LLMResponse:
     usage: Usage = field(default_factory=Usage)
     model: str | None = None
     upstream_provider: str | None = None
+    # The whole call, retries and waits included.
     latency_ms: int = 0
     reasoning: str | None = field(default=None, repr=False)
+    # The provider's id for this generation (OpenRouter: `gen-...`), to look the call up.
+    generation_id: str | None = None
+    attempts: int = 1
 
     def __post_init__(self) -> None:
         if self.text is not None and not isinstance(self.text, str):
@@ -175,6 +179,12 @@ class LLMResponse:
             raise TypeError("response latency_ms must be an integer")
         if self.latency_ms < 0:
             raise ValueError("response latency_ms must not be negative")
+        if self.generation_id is not None and not isinstance(self.generation_id, str):
+            raise TypeError("response generation_id must be a string or None")
+        if isinstance(self.attempts, bool) or not isinstance(self.attempts, int):
+            raise TypeError("response attempts must be an integer")
+        if self.attempts < 1:
+            raise ValueError("response attempts must be at least 1")
 
     @property
     def tool_names(self) -> list[str]:

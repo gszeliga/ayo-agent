@@ -7,11 +7,32 @@ body can echo the prompt).
 
 
 class LLMError(Exception):
-    """A language model call failed. `status` is the HTTP status, when there was one."""
+    """A language model call failed.
 
-    def __init__(self, message: str, *, status: int | None = None) -> None:
+    - `status`: the HTTP status, when there was one (200 for an error inside a 200 body).
+    - `reason`: a short safe tag for logs, such as `http_429`, `body_502`, `timeout`.
+    - `retry_after`: seconds the provider asked us to wait (`Retry-After`), if it did.
+    - `generation_id`: the provider's id for the failed attempt, if it sent one.
+    - `attempts` and `generation_ids`: set on the error a call finally raises, covering
+      every attempt (ids only for the attempts that had one).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        reason: str | None = None,
+        retry_after: float | None = None,
+        generation_id: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.status = status
+        self.reason = reason
+        self.retry_after = retry_after
+        self.generation_id = generation_id
+        self.attempts = 1
+        self.generation_ids: tuple[str, ...] = (generation_id,) if generation_id else ()
 
 
 class LLMConfigError(LLMError):

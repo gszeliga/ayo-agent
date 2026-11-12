@@ -8,8 +8,8 @@ earlier specs; pasted into the session on 2026-11-12). This file holds the agree
 deviations, which win over the spec, the plan and the progress log.
 
 ## Next (resume here)
-L3: the brief for retries (backoff with jitter, `Retry-After`, total budget, errors in a
-200), the per-call log line and the privacy tests on every error path.
+L4: the brief for wiring the provider into the app lazily (lifespan, `get_llm_provider`),
+the lazy-configuration tests and the two live tests.
 
 ## Decisions (agreed 2026-11-12)
 1. **The repo's patterns win over the spec's names.** There is no `HttpEmbedder`: the model
@@ -51,6 +51,16 @@ L3: the brief for retries (backoff with jitter, `Retry-After`, total budget, err
    `LLMUnavailableError`), keeping `status=200`; with no usable code it is an
    `LLMResponseError`. A missing tool call id becomes `call_<index>`; arguments sent as an
    object are accepted and re-serialized.
+16. **Generation ids are logged** (agreed 2026-11-12): `LLMResponse.generation_id`, and on the
+   final error `LLMError.generation_ids` for every attempt that had one, so the cost of
+   failed or retried calls can be looked up at OpenRouter without storing usage here.
+17. **`LLMResponse.latency_ms` is the whole call**, retries and waits included, and
+   `LLMResponse.attempts` counts the attempts. The final error carries `attempts` and says
+   "after N attempts" when there was more than one.
+18. **Retry rules**: `LLMRateLimitError` and `LLMUnavailableError` only (so a `402` with
+   `Retry-After` is still not retried); `Retry-After` wins over backoff; backoff is full
+   jitter up to 1, 2, 4, ... s, capped at 10 s; no wait may end past the budget (a long
+   `Retry-After` fails at once). A request in flight is not cut by the budget.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **L1** Types, errors, `LLMProvider` protocol, `check_request`, `FakeLLMProvider`,
@@ -58,7 +68,7 @@ L3: the brief for retries (backoff with jitter, `Retry-After`, total budget, err
 - [x] **L2** `OpenRouterProvider`: request building (tools, routing preferences, data
   policy, reasoning effort, per-call model), response parsing (invalid arguments never
   raise, reasoning apart), multi-turn serialization, single-attempt error mapping; ADR 0003.
-- [ ] **L3** Retries (backoff with jitter, `Retry-After`, total budget, errors in a 200),
+- [x] **L3** Retries (backoff with jitter, `Retry-After`, total budget, errors in a 200),
   one structured log line per call, privacy tests on every error path.
 - [ ] **L4** Lazy wiring into the app (lifespan, `get_llm_provider`), lazy-config tests,
   two live tests, `live` marker wording.
@@ -94,3 +104,13 @@ L3: the brief for retries (backoff with jitter, `Retry-After`, total budget, err
   with the documentation facts and URLs. Tests: `tests/unit/test_openrouter.py` (request
   building, multi-turn payload, parsing, every error mapping, no secret or content in
   error messages).
+- **L3 (2026-11-12).** `OpenRouterProvider` retries (`max_retries`, `retry_budget_seconds`,
+  injectable `sleep` and `wall_clock`), `parse_retry_after` (seconds or HTTP date),
+  `LLMError` gains `reason` (safe tag: `http_429`, `body_502`, `timeout`, ...),
+  `retry_after`, `generation_id`, `attempts`, `generation_ids`; `LLMResponse` gains
+  `generation_id` and `attempts`. One log line per call (INFO ok / WARNING error) with
+  metadata only; invented tool names logged as `<invalid>`. README retry rows, ADR 0003
+  retry/log/generation-id choices, CLAUDE.md convention. Tests:
+  `tests/unit/test_openrouter_retries.py` (retryable vs never-retried, bounds, `Retry-After`
+  seconds and date, backoff bounds, budget, latency, generation ids, both log lines, and a
+  privacy sweep over 14 paths with every logger captured at DEBUG).

@@ -174,6 +174,9 @@ def test_a_response_keeps_tool_calls_in_order() -> None:
         ({"usage": {"prompt_tokens": 1}}, TypeError),
         ({"latency_ms": 1.5}, TypeError),
         ({"latency_ms": -1}, ValueError),
+        ({"generation_id": 7}, TypeError),
+        ({"attempts": 0}, ValueError),
+        ({"attempts": 1.0}, TypeError),
     ],
 )
 def test_response_fields_are_checked(kwargs: dict[str, Any], error: type[Exception]) -> None:

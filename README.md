@@ -373,8 +373,8 @@ a key, which is only needed when a model is called.
 | `LLM_TEMPERATURE` | `0.2` | Sent with every call (0 to 2), because upstream providers' own defaults differ. Low, so tool calls are consistent. |
 | `LLM_MAX_TOKENS` | `1024` | Maximum output tokens per call; reasoning tokens count against it. |
 | `LLM_TIMEOUT_SECONDS` | `60` | Read timeout per request. |
-| `LLM_MAX_RETRIES` | `2` | Retries on timeouts, connection errors, `429` and `5xx`. |
-| `LLM_RETRY_BUDGET_SECONDS` | `90` | No retry starts once this much time has passed since the first attempt. |
+| `LLM_MAX_RETRIES` | `2` | Retries on timeouts, connection errors, `408`, `429` and `5xx` (also when OpenRouter reports them inside a `200`), waiting as `Retry-After` asks or with exponential backoff and jitter (at most 10 s). `400`, `401`, `402` and `403` fail at once. |
+| `LLM_RETRY_BUDGET_SECONDS` | `90` | No wait or retry that would end past this many seconds after the first attempt: the call fails at once instead (a running request still gets its full read timeout). |
 | `LLM_DATA_COLLECTION` | `deny` | `deny` routes only to upstream providers that neither store nor train on prompts, which will hold customer content. `allow` lifts that. |
 | `LLM_ZDR` | `false` | `true` routes only to Zero Data Retention endpoints: stricter, but fewer providers per model. |
 | `LLM_REASONING_EFFORT` | *(unset: the model's default)* | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. Reasoning tokens are billed as output; `none` turns reasoning off where the model allows it. |

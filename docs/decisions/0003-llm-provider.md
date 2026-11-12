@@ -83,6 +83,23 @@ others possible.
   connection errors unavailable, other `4xx` (including `403`) bad request; an empty,
   non-JSON or choice-less body is a response error. Messages hold the status only, never
   the body.
+- **Retries** (`LLM_MAX_RETRIES`, `LLM_RETRY_BUDGET_SECONDS`): rate limits and unavailability
+  (`408`, `429`, `5xx`, timeouts, connection errors, and the same codes inside a `200`) are
+  retried, waiting as `Retry-After` asks (seconds or an HTTP date) or with full-jitter
+  exponential backoff capped at 10 s. `400`, `401`, `402` (even with `Retry-After`, which
+  OpenRouter only sends for its in-flight budget), `403` and unusable bodies are not. No
+  wait or attempt may end past the budget, so a long `Retry-After` fails the call at once.
+- **One log line per call** (`ayo_copilot.llm.openrouter`, INFO on success, WARNING on
+  failure): models requested and used, upstream provider, attempts and why each retry
+  happened, latency, tokens, cost, finish reason, tool count and names (a name that is not
+  a plausible tool name is logged as `<invalid>`), and the generation ids. Never content,
+  arguments, reasoning, bodies or the key.
+- **Generation ids** (the body's `id`, `gen-...`) are kept on `LLMResponse.generation_id`
+  and, for every attempt that had one, on the final `LLMError.generation_ids` and in the
+  log line, so the usage and cost of any call, failed attempts included, can be looked up
+  later (`GET /api/v1/generation?id=...` or the OpenRouter activity page) without storing
+  them here. A plain HTTP error carries no id in its documented body, so those attempts
+  cannot be traced this way; they are normally rejected before any generation.
 - **Default model `mistralai/mistral-small-3.2-24b-instruct`** (provisional): no reasoning
   by default, cheaper output than `qwen/qwen3-32b`, and Mistral itself among its
   providers. To be confirmed with `ayo-llm-check run`.
