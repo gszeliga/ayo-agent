@@ -1,7 +1,8 @@
 """The prompt files: loaded and rendered once, at startup.
 
 The prompts live as Markdown files in `prompts/` so consultants can edit them: `base.md`
-(every phase) and one file per phase but `closed`. Rendering uses `string.Template`, never
+(every phase), one file per phase but `closed`, and `glossary.md` (what each phase is for,
+sent in every phase). Rendering uses `string.Template`, never
 `str.format` (the text may hold braces), and only with values that come from code:
 
 - `$phase`: the phase the file is for (phase files only);
@@ -29,6 +30,7 @@ from ayo_copilot.conversation.phases import describe_targets
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 BASE_PROMPT = "base"
+GLOSSARY_PROMPT = "glossary"
 # The phases with a prompt file: every phase but `closed` (a closed case gets no turn).
 PROMPT_PHASES: tuple[Phase, ...] = tuple(phase for phase in PHASES if phase != "closed")
 
@@ -46,6 +48,7 @@ class PromptSet:
 
     base: str = field(repr=False)
     phases: Mapping[Phase, str] = field(repr=False)
+    glossary: str = field(repr=False)
     sha256: str
 
     def for_phase(self, phase: Phase) -> str:
@@ -56,7 +59,7 @@ class PromptSet:
 
     @property
     def file_count(self) -> int:
-        return 1 + len(self.phases)
+        return 2 + len(self.phases)
 
 
 def load_prompts(directory: Path | None = None) -> PromptSet:
@@ -75,7 +78,13 @@ def load_prompts(directory: Path | None = None) -> PromptSet:
         phase: load(phase, {"phase": phase, "exit_conditions": describe_targets(phase)})
         for phase in PROMPT_PHASES
     }
-    return PromptSet(base=base, phases=MappingProxyType(phases), sha256=digest.hexdigest())
+    glossary = load(GLOSSARY_PROMPT, {})
+    return PromptSet(
+        base=base,
+        phases=MappingProxyType(phases),
+        glossary=glossary,
+        sha256=digest.hexdigest(),
+    )
 
 
 def _read(path: Path) -> bytes:

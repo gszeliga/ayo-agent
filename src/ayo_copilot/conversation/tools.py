@@ -14,7 +14,6 @@ to the model. Logs and traces carry the tool name and `error_code`, never the re
 """
 
 import json
-import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import date
@@ -33,6 +32,7 @@ from ayo_copilot.conversation.case import (
     Phase,
     Transition,
     TurnChanges,
+    clean_text,
 )
 from ayo_copilot.conversation.phases import (
     TRANSITIONS,
@@ -204,12 +204,6 @@ def _error(name: str, code: str, detail: str, **extra: Any) -> ToolOutcome:
 
 def _success(name: str, **result: Any) -> ToolOutcome:
     return ToolOutcome(name, True, None, {"ok": True, **result})
-
-
-def clean_text(value: str) -> str:
-    """Remove control characters (keeping newlines and tabs) and surrounding whitespace."""
-    kept = (ch for ch in value if ch in "\n\t" or unicodedata.category(ch) != "Cc")
-    return "".join(kept).strip()
 
 
 def _schema_errors(spec: ToolSpec, arguments: Mapping[str, Any]) -> list[str]:

@@ -463,19 +463,21 @@ malformed JSON) stop the app at startup.
 ### Editing the prompt files
 
 The conversation prompts are Markdown files in `src/ayo_copilot/conversation/prompts/`:
-`base.md` (sent in every phase) and one per phase (`understand.md`, `challenge.md`,
-`analyse.md`, `action.md`, `followup.md`). The current ones are **drafts** to make the
+`base.md` (sent in every phase), one per phase (`understand.md`, `challenge.md`,
+`analyse.md`, `action.md`, `followup.md`) and `glossary.md` (what each phase is for, sent
+in every phase so the model understands references to other phases). The current ones are **drafts** to make the
 engine work, to be replaced with AYO's real method.
 
 - Text inside HTML comments (`<!-- ... -->`) is a note for editors: it is removed before
   the prompt reaches the model.
 - Phase files may use two placeholders, filled in by the code: `$phase` (the phase name)
   and `$exit_conditions` (where the case can go from that phase and when, generated from
-  the rules the code enforces). `base.md` takes none. Write a literal dollar sign as `$$`.
+  the rules the code enforces). `base.md` and `glossary.md` take none. Write a literal
+  dollar sign as `$$`.
 - The files are read once, at startup: restart the app after editing. A missing or empty
   file, a stray `$` or an unknown placeholder stops the app with an error naming the file.
 - Bump `PROMPTS_VERSION` after any change; the startup log prints the version and a hash
-  of the files (`prompts: version=draft-1 files=6 sha256=...`), so an edit without a bump
+  of the files (`prompts: version=draft-1 files=7 sha256=...`), so an edit without a bump
   shows.
 
 Changing `CHUNK_SIZE`, `CHUNK_OVERLAP`, `MIN_CHUNK_SIZE`, `EMBEDDING_MODEL` or

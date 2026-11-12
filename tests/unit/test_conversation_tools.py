@@ -17,12 +17,12 @@ from ayo_copilot.conversation.case import (
     Phase,
     Transition,
     TurnChanges,
+    clean_text,
 )
 from ayo_copilot.conversation.tools import (
     TOOL_NAMES,
     TOOLS,
     ToolOutcome,
-    clean_text,
     execute_tool,
     log_event_tool,
     propose_transition_tool,

@@ -31,10 +31,10 @@ def write(directory: Path, name: str, text: str) -> None:
 def test_the_real_files_load_with_every_placeholder_resolved() -> None:
     prompts = load_prompts()
 
-    assert prompts.file_count == 6
+    assert prompts.file_count == 7
     assert set(prompts.phases) == set(PROMPT_PHASES)
     assert "closed" not in prompts.phases
-    for text in (prompts.base, *prompts.phases.values()):
+    for text in (prompts.base, prompts.glossary, *prompts.phases.values()):
         assert text.strip() == text and text
         assert "$" not in text
         assert "DRAFT" not in text and "<!--" not in text and "-->" not in text
@@ -45,7 +45,7 @@ def test_the_real_files_load_with_every_placeholder_resolved() -> None:
 
 
 def test_every_real_file_carries_the_draft_note() -> None:
-    for name in ("base", *PROMPT_PHASES):
+    for name in ("base", "glossary", *PROMPT_PHASES):
         text = (PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
         assert text.startswith("<!--\nDRAFT to make the engine work end to end.")
 
@@ -130,7 +130,14 @@ def test_unknown_placeholder_names_the_allowed_ones(prompts_dir: Path) -> None:
     )
 
 
-def test_base_allows_no_placeholder(prompts_dir: Path) -> None:
-    write(prompts_dir, "base", "Fase $phase")
-    with pytest.raises(PromptError, match=r"base\.md uses unknown placeholders \$phase"):
+@pytest.mark.parametrize("name", ["base", "glossary"])
+def test_base_and_glossary_allow_no_placeholder(prompts_dir: Path, name: str) -> None:
+    write(prompts_dir, name, "Fase $phase")
+    with pytest.raises(PromptError, match=rf"{name}\.md uses unknown placeholders \$phase"):
         load_prompts(prompts_dir)
+
+
+def test_glossary_names_every_phase() -> None:
+    glossary = load_prompts().glossary
+    for phase in ("understand", "challenge", "analyse", "action", "followup", "closed"):
+        assert f"- {phase} (" in glossary

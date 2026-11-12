@@ -9,6 +9,7 @@ Field values, event content and action text are customer content: they are left 
 every `repr`.
 """
 
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Literal
@@ -38,6 +39,12 @@ ANNOTATION_TYPES: tuple[EventType, ...] = (
 
 ActionStatus = Literal["pending", "done"]
 ACTION_STATUSES: tuple[ActionStatus, ...] = ("pending", "done")
+
+
+def clean_text(value: str) -> str:
+    """Remove control characters (keeping newlines and tabs) and surrounding whitespace."""
+    kept = (ch for ch in value if ch in "\n\t" or unicodedata.category(ch) != "Cc")
+    return "".join(kept).strip()
 
 
 @dataclass

@@ -8,9 +8,9 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E3 done (2026-11-12, commit "Add the conversation settings and draft prompt files (E3)",
-not pushed).** Next is **E4**: write its brief and wait for approval before coding.
-Pending OK, not part of E4: applying migration 0003 to the Neon dev branch.
+**E4 done (2026-11-12, commit "Add the context assembly, retrieval query and reply (E4)",
+not pushed).** Next is **E5**: write its brief and wait for approval before coding.
+Pending OK, not part of E5: applying migration 0003 to the Neon dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -54,6 +54,19 @@ Pending OK, not part of E4: applying migration 0003 to the Neon dev branch.
 15. **`FIELD_MAX_CHARS` is applied when rendering** the case record (E4); the
     `record_field` schema keeps its fixed 500 so the tool specs stay settings-free (the
     check imports them).
+16. **Phase glossary is a prompt file** (agreed 2026-11-12): `glossary.md`, no
+    placeholders, the last part of every system prompt; the startup log says `files=7`.
+17. **Hypotheses in the case record** (agreed 2026-11-12): the data model does not link a
+    discarded hypothesis to the one it discards, so the record lists "Hipótesis
+    registradas" and "Hipótesis descartadas" (one line each) and the model compares them;
+    no schema change.
+18. **Retrieval query order** (agreed 2026-11-12): `what`, `where`, the latest user
+    message, evidence and hypotheses (newest first), cut at 2000 characters, so the oldest
+    annotations are lost first (the spec lists the user message last).
+19. **Messages after a phase change** (agreed 2026-11-12): the next call gets the new
+    phase's stored messages (none yet) plus the current user message, and a line in the
+    system prompt saying the phase just changed; E6 drops the turn's earlier tool exchange
+    on a hop, so no call carries tool calls for tools it does not offer.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **E1** Migration 0003 (five tables), migration and constraint tests, `db_pool`
@@ -63,7 +76,7 @@ Pending OK, not part of E4: applying migration 0003 to the Neon dev branch.
   semantic validation, handlers on the snapshot); unit tests.
 - [x] **E3** `ConversationSettings`, `.env.example`; draft prompt files (Spanish); the
   `string.Template` loader failing at startup; unit tests.
-- [ ] **E4** Context assembly (system prompt parts, delimited data, field hygiene, message
+- [x] **E4** Context assembly (system prompt parts, delimited data, field hygiene, message
   window), query builder, reply composition; unit tests.
 - [ ] **E5** Repository: load snapshot, `resolve_case` (race-safe), commit a turn with the
   optimistic version check, read a session; integration tests.
@@ -134,3 +147,19 @@ Pending OK, not part of E4: applying migration 0003 to the Neon dev branch.
   unclosed comment, stray `$`, unknown placeholder (exact message), `$$`, braces; no
   content in errors or reprs; startup loads and logs, and fails on a broken directory.
   Full suite green (1208 passed).
+- **E4 (2026-11-12).** `conversation/context.py`: `build_system_prompt` (base, phase
+  prompt plus a phase-changed line, Spanish date line from a fixed table, case record in
+  `<registro_caso>`, knowledge in `<referencia>` or the empty / failed notice only when a
+  `Knowledge` is passed, glossary), `case_record` (four facts always, "(sin registrar)",
+  cut to `field_max_chars`; evidence verbatim with indented continuation lines; recorded
+  and discarded hypotheses, the latter one line of at most 160; validated causes; actions
+  with id or "nueva", owner, due date, status, overdue from `today`), `knowledge_block`
+  (`[n] «title» (source_key) · sección: heading`), `neutralize` (cleaned, block tags inside
+  values get `TAG_GUARD` instead of `<`), `build_messages` (current phase's stored messages
+  plus the user message, capped, first message `user`). `conversation/query.py`:
+  `build_query`. `conversation/reply.py`: `compose_reply`, `FALLBACK_REPLY`. `clean_text`
+  moved to `case.py`. `prompts/glossary.md` and `PromptSet.glossary` (loader, tests,
+  README updated). Tests: `test_conversation_context.py`, `_query.py`, `_reply.py`
+  (part order, sections, cut and cleaning, injection only inside the reference block,
+  tags in user text neutralized, message window, query order and cut, fallback). Full
+  suite green (1239 passed).

@@ -133,7 +133,10 @@ src/ayo_copilot/
   conversation/phases.py   TRANSITIONS, exit criteria (missing_for), describe_missing / describe_targets
   conversation/tools.py    TOOLS (one ToolDef per tool: spec, phases, handler), tools_for_phase, execute_tool
   conversation/prompt_files.py  load_prompts (string.Template, once at startup) -> PromptSet
-  conversation/prompts/    draft prompt files (Spanish): base.md + one per phase
+  conversation/prompts/    draft prompt files (Spanish): base.md, one per phase, glossary.md
+  conversation/context.py  build_system_prompt (parts, delimited data blocks), build_messages (window)
+  conversation/query.py    build_query: the retrieval query from the case state
+  conversation/reply.py    compose_reply and the fallback message
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)

@@ -179,7 +179,7 @@ def test_startup_loads_the_prompts_and_logs_their_version(
         prompts = client.app_state["prompts"]
 
     assert set(prompts.phases) == {"understand", "challenge", "analyse", "action", "followup"}
-    assert f"prompts: version=draft-7 files=6 sha256={prompts.sha256[:12]}" in caplog.text
+    assert f"prompts: version=draft-7 files=7 sha256={prompts.sha256[:12]}" in caplog.text
     assert "copiloto" not in caplog.text
 
 
