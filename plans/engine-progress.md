@@ -8,11 +8,10 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E5 done (2026-11-12, commit "Add the conversation storage (E5)"; E1-E5 pushed).** Next is
-**E6**: write its brief and wait for approval before coding. The brief must settle
-retrieval around a phase change (proposed: once per phase per turn, at the start and after
-a hop into a retrieving phase; knowledge dropped on a hop into a phase that does not).
-Pending OK, not part of E6: applying migration 0003 to the Neon dev branch.
+**E6 done (2026-11-14, commit "Add the turn engine (E6)"; not pushed).** Next is **E7**:
+write its brief and wait for approval before coding. E7 maps the engine's exceptions to
+HTTP (decision 22). Pending OK, not part of E7: applying migration 0003 to the Neon dev
+branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -76,6 +75,16 @@ Pending OK, not part of E6: applying migration 0003 to the Neon dev branch.
     just before it when the run opens with a reply (the turn that changed phase), then
     caps and trims to a leading user message. `load_snapshot` loads the last
     `CONTEXT_MAX_MESSAGES + 1` messages for that extra one.
+21. **Retrieval around a phase change** (agreed 2026-11-14): once per phase per turn, at the
+    start and after a hop into a phase of `RETRIEVAL_PHASES`, with the query built from the
+    snapshot at that moment (so it holds what the turn recorded). A hop into a phase that
+    does not retrieve drops the knowledge block. The trace lists every retrieval's chunks,
+    deduplicated by chunk id; `retrieval_error` is the fixed code `embedding_failed`. Only
+    `EmbeddingError` is caught; a database error fails the turn.
+22. **The engine raises, E7 maps** (agreed 2026-11-14): `TurnEngine.handle_turn(problem_id,
+    user_text)` takes a resolved case (the channel layer is E7) and raises `CaseNotFound`,
+    `CaseClosed`, `CaseChanged` or the provider's `LLMError`; engine tests 8, 9 and 12 assert
+    the exception and the empty database, E7's contract tests the HTTP status.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **E1** Migration 0003 (five tables), migration and constraint tests, `db_pool`
@@ -89,7 +98,7 @@ Pending OK, not part of E6: applying migration 0003 to the Neon dev branch.
   window), query builder, reply composition; unit tests.
 - [x] **E5** Repository: load snapshot, `resolve_case` (race-safe), commit a turn with the
   optimistic version check, read a session; integration tests.
-- [ ] **E6** Turn engine: model loop, phase hops, caps and timeout, retrieval and its
+- [x] **E6** Turn engine: model loop, phase hops, caps and timeout, retrieval and its
   failure path, trace, per-phase model; engine tests 1-13.
 - [ ] **E7** Channel protocol, web adapter, `/web` router and its key dependency, OpenAPI,
   contract and auth tests, `docs/openapi.json`, `ui/src/api/schema.d.ts`.
@@ -200,3 +209,20 @@ Pending OK, not part of E6: applying migration 0003 to the Neon dev branch.
   partitioning + HNSW later, once recall can be measured) and a prepared brief for the
   halfvec and row-storage measurement. Pointer in `plans/search-progress.md` open items.
   Docs only; nothing measured or run.
+- **E6 (2026-11-14).** `conversation/engine.py`: `TurnEngine` (pool, LLM, embedder,
+  settings, prompts, injected `now` and `monotonic`), `handle_turn` -> `TurnResult`,
+  `CaseClosed`. Loads the snapshot, rejects a closed case before any call, retrieves
+  (decision 21), loops: system prompt per call (with `phase_changed_from` after a hop),
+  window plus this phase's tool exchange, `tools_for_phase`, `model` from
+  `LLM_MODEL_BY_PHASE`; tool calls through `execute_tool` with the hop cap; a hop drops
+  the exchange and rebuilds the window (decision 19). `MAX_TOOL_ROUNDS` (the last round's
+  tool calls still run) and `TURN_TIMEOUT_SECONDS` (before every call after the first)
+  cap the turn with the fallback; the commit keeps what was accepted. Trace: token and
+  cost sums (None when unreported), models (decision 6), tool names with outcome,
+  retrieved ids. One `INFO` line per turn, metadata only. Tests:
+  `tests/integration/test_conversation_engine.py` (22: engine tests 1-13, plus unknown
+  case, no hops allowed, timeout, common tenant searched once, hop into and out of
+  `analyse`, trace without usage; sentinel content absent from the trace JSON and the
+  logs). No separate unit file: the only pure parts are the trace sums, covered there.
+  A mutation check (hop exchange kept, hop cap off, timeout off, retrieval off) failed
+  tests each time. Full suite green (1282 passed).

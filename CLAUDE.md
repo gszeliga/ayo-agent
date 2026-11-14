@@ -140,6 +140,7 @@ src/ayo_copilot/
   conversation/query.py    build_query: the retrieval query from the case state
   conversation/reply.py    compose_reply and the fallback message
   conversation/store.py    resolve_case (race-safe), load_snapshot, commit_turn (version check), read_session
+  conversation/engine.py   TurnEngine.handle_turn: model loop, phase hops, caps, retrieval, trace, commit
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
