@@ -188,3 +188,9 @@ Pending OK, not part of E6: applying migration 0003 to the Neon dev branch.
   numbers, trace JSON without content, stale version and a 2-thread commit race with no
   partial writes, session view); unit tests for the window after a hop and a reopening.
   Full suite green (1260 passed).
+- **Side step (2026-11-14), not an E step.** `scripts/db_shell.sh`: psql on the local DB,
+  `DATABASE_URL` or `MIGRATIONS_DATABASE_URL` (shell first, then `.env`, never sourced),
+  URL split into `PG*` variables (password out of `ps`). Remote is read-only by default via
+  `PGOPTIONS` on the direct endpoint (the pooler rejects startup options); `--write` asks
+  for the host. No tests, at the user's request (a personal tool). Checked by hand on the
+  Neon dev branch: read-only holds even with `psql -X`, wrong confirmation refuses.

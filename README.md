@@ -44,6 +44,20 @@ because the pooled one runs PgBouncer. Environment variables win over `.env`, so
 command can still use the local database:
 `DATABASE_URL=postgresql://ayo:ayo@localhost:5433/ayo ALLOW_REMOTE_DATABASE=false uv run ...`
 
+### A psql shell
+
+```sh
+scripts/db_shell.sh                  # local dev DB (localhost:5433)
+scripts/db_shell.sh remote           # DATABASE_URL (shell, then .env), read-only
+scripts/db_shell.sh migrations       # MIGRATIONS_DATABASE_URL, read-only
+scripts/db_shell.sh remote --write   # read-write; asks you to type the host first
+scripts/db_shell.sh remote -- -c 'select count(*) from documents'   # extra psql args after --
+```
+
+Needs `psql`. The URL goes to psql as `PG*` variables, so the password never shows in `ps`.
+Read-only is enforced by the server (`default_transaction_read_only` as a startup option)
+and uses the direct endpoint, because Neon's pooler rejects startup options.
+
 ## Endpoints
 
 All under `/admin` need the `X-API-Key` header. `/docs` has every status, error `type`
@@ -512,7 +526,7 @@ src/ayo_copilot/   the app: API (app.py, routers/, schemas.py, errors.py), setti
                    database access (db/), ingestion pipeline (ingestion/), language
                    model access (llm/, not used by any endpoint yet)
 migrations/        Alembic migrations
-scripts/           dev_db.sh, export_openapi.py
+scripts/           dev_db.sh, db_shell.sh, export_openapi.py
 docs/              openapi.json, decisions/ (architecture decision records)
 tests/             unit/, api/, integration/, live/, fixtures/ (Spanish Markdown)
 ```

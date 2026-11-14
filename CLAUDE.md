@@ -77,6 +77,7 @@ uv run pytest -m "not integration"        # no Docker, no database
 uv run pytest -m live                     # real Voyage + OpenRouter calls (needs the keys)
 uv run ruff check . && uv run ruff format --check .
 scripts/dev_db.sh up|down                 # local dev DB: pgvector/pgvector:0.8.7-pg18-trixie on localhost:5433
+scripts/db_shell.sh [local|remote|migrations] [--write] [-- psql args]   # psql; remote is read-only by default
 uv run alembic upgrade head               # migrations (uses MIGRATIONS_DATABASE_URL, else DATABASE_URL)
 uv run ayo-copilot                        # run the API on 127.0.0.1:8000
 uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
@@ -144,7 +145,7 @@ src/ayo_copilot/
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
                        0002 = documents.chunk_count/size_bytes/*_config + list index
                        0003 = problems, problem_events, actions, conversation_links, turn_traces
-scripts/               dev_db.sh, export_openapi.py
+scripts/               dev_db.sh, db_shell.sh (psql; no tests, a personal tool), export_openapi.py
 docs/                  openapi.json (generated, committed), decisions/
 eval/llm/              ayo-llm-check reports (git-ignored) and example-report.json (scripted)
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
