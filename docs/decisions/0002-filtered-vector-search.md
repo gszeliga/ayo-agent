@@ -2,6 +2,8 @@
 
 - Status: accepted (2026-11-10)
 - Date: 2026-11-10
+- Updated: 2026-11-14 (TOAST and reprocessing corrections, revisit order, prepared
+  halfvec measurement; the decision is unchanged)
 
 ## Context
 
@@ -84,8 +86,8 @@ chunk that passes the filters, then top-k):
 | 20,000 (no filter) | 180-260 ms |
 
 About 9-12 µs per searched chunk, mostly reading the vectors: 1024 floats are 4 KB,
-stored out of line (TOAST), and fetched and decompressed per row. The distance itself is
-cheap. A Voyage query embedding (about 100-300 ms) takes longer than all of these but
+stored out of line (TOAST, uncompressed: `vector` has `external` storage), and fetched
+with one TOAST lookup per row. The distance itself is cheap. A Voyage query embedding (about 100-300 ms) takes longer than all of these but
 the unfiltered case.
 
 What counts is the number of chunks **one search covers**, not the size of the
@@ -141,8 +143,87 @@ Options then, from least to most effort:
    recall against exact search with the evaluation harness (`ayo-eval compare`) before
    switching.
 2. **Smaller vectors**: `halfvec` (2 bytes per value instead of 4) halves storage and read
-   cost with almost no loss in similarity accuracy; Voyage can also return 512
-   dimensions. Either needs a migration and reprocessing every document.
+   cost with almost no loss in similarity accuracy, and the search stays exact. It needs
+   a migration, but no reprocessing: `using embedding::halfvec(1024)` converts the stored
+   vectors. Voyage can also return 512 dimensions, which does need every document
+   re-embedded. Measure first: see "Prepared measurement" below.
 3. **Per-tenant indexes or table partitioning**, so each search's index holds only the
    tenants it may return. That removes the filtering problem at its root, at more
-   maintenance cost.
+   maintenance cost. Of the three, this is the only one that would make HNSW safe under
+   tenant filters: storage changes (option 2) make exact search cheaper, not HNSW exact.
+   Partitioning needs a `tenant` column on `chunks`; `doc_ids` filters and
+   `include_outdated` would stay on exact search.
+
+The order agreed on 2026-11-14: measure option 2 first (it keeps results exact and
+reproducible), and plan partitioning with HNSW only when real tenants near the limit and
+the evaluation harness can measure recall.
+
+## Prepared measurement: halfvec and row storage
+
+A brief, written 2026-11-14, for the first step when this ADR is revisited. Not started.
+Like every step, it is re-briefed against the code of that day and approved before work.
+
+**Why.** Exact search spends its time reading vectors, not computing distances. On the
+Neon dev branch (49 chunks, read-only queries, 2026-11-14): `chunk_text` averages 542
+bytes (max 879) and sits in the row uncompressed; every `embedding` (4,100 bytes) is in
+TOAST, which is 392 kB against a 56 kB heap. So each searched chunk costs a TOAST lookup
+plus 4 KB. A `halfvec(1024)` is 2,056 bytes: with `STORAGE main` it could stay in the row,
+turning the search into a sequential heap read. A row of about 2.6 KB is over the 2 KB
+TOAST threshold, though, so whether it stays in the row has to be measured, not assumed.
+Compressing `chunk_text` in the application was considered and rejected: the text is not
+what the search reads, and it would cost SQL readability, `char_length` in
+`search_chunks` and a future full-text (hybrid) search. Postgres can compress it per
+column if needed (lz4).
+
+**What it delivers.** Timings and storage figures, added to this ADR as a new section, and
+a recommendation: migrate to `halfvec` or not, and with which storage settings. No
+migration, no app change, no change to `search_chunks`.
+
+**Files.** One script, `scripts/bench_vector_storage.py` (or under `eval/`), committed so
+the figures can be reproduced; this ADR.
+
+**Where.** A throwaway database on the local dev DB (`scripts/dev_db.sh up`), created and
+dropped by the script, like the 2026-11-10 runs. Never Neon: it writes test data. No
+billed calls.
+
+**Data.** The same layout as the evidence above (10 chunks per document, 20 tenants), at
+1,000, 5,000 and 20,000 chunks. Realistic chunk text: Spanish text of 300-900 bytes per
+chunk (from `tests/fixtures/`), because the text's size decides what stays in the row.
+Random unit vectors are fine for timing. They are not fine for judging halfvec's
+precision, so precision is checked separately (below).
+
+**Variants.**
+
+| | Column | Storage | `chunk_text` |
+|---|---|---|---|
+| A | `vector(1024)` | `external` (today) | default |
+| B | `halfvec(1024)` | `external` | default |
+| C | `halfvec(1024)` | `main` | default |
+| D | `halfvec(1024)` | `main` | `compression lz4` |
+| E | `vector(1024)` | `main` | default |
+
+E separates the effect of size from the effect of TOAST.
+
+**Measured, per variant and size.**
+- The `search_chunks` query as it is (materialized CTE, top 5 and top 20), with the query
+  cast to the column type: `EXPLAIN (ANALYZE, BUFFERS)`, median of at least 5 runs after a
+  warm-up, plus one cold run (after a restart) for the worst case.
+- Filtered (one tenant, about 20% of the chunks) and unfiltered.
+- Storage: `pg_relation_size` of heap and TOAST, average `pg_column_size(embedding)`, and
+  whether the vectors are in the row (TOAST size near zero).
+- Precision: the top-20 from `halfvec` against the top-20 from `vector` for the same
+  queries (overlap, and the largest distance difference). Run on real embeddings: the
+  local DB's own documents if any were ingested with Voyage, otherwise the vectors already
+  stored on the Neon dev branch, copied out with a read-only query. Embedding new queries
+  with Voyage would be billed: give the call count and wait for the OK.
+
+**Decision rule** (proposed, to confirm at the brief). Migrate to `halfvec` if the
+fastest variant cuts the filtered 20,000-chunk search by at least 30% and the precision
+check finds the same top-20 (or differences only between near-ties, under 1e-3).
+
+**If it is adopted, a separate step** (not part of this one): a migration
+(`alter column ... type halfvec(1024) using ...`, the chosen storage, the HNSW index
+rebuilt with `halfvec_cosine_ops` or dropped), the query cast in `search_chunks`, the
+startup dimension check (`embedding_dimensions` reads `atttypmod`, which `halfvec` also
+uses; the type should be checked too), test helpers that insert vectors, and the Neon dev
+branch migration with the user's OK.

@@ -67,6 +67,8 @@ Parked (decision 10): S3, S4 and S5.
   compare) and the final report.
 
 ## Open items
+- When ADR 0002 is revisited (about 20,000 chunks per search), start with the prepared
+  halfvec measurement in `docs/decisions/0002-filtered-vector-search.md` (2026-11-14).
 - The evaluation harness (S3-S5): parked until the case format is agreed with ayo
   (decision 10).
 - `/admin/search` (like `/admin/settings` and `/admin/health`) is listed under both its own

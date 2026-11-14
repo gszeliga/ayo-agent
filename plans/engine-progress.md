@@ -194,3 +194,9 @@ Pending OK, not part of E6: applying migration 0003 to the Neon dev branch.
   `PGOPTIONS` on the direct endpoint (the pooler rejects startup options); `--write` asks
   for the host. No tests, at the user's request (a personal tool). Checked by hand on the
   Neon dev branch: read-only holds even with `psql -X`, wrong confirmation refuses.
+- **Side note (2026-11-14), not an E step.** ADR 0002 updated after a discussion of search
+  cost: two corrections (vectors are TOAST-ed uncompressed; `halfvec` needs a migration
+  but no reprocessing), the agreed revisit order (measure `halfvec` first; tenant
+  partitioning + HNSW later, once recall can be measured) and a prepared brief for the
+  halfvec and row-storage measurement. Pointer in `plans/search-progress.md` open items.
+  Docs only; nothing measured or run.
