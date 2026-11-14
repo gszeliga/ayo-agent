@@ -66,6 +66,8 @@ class TurnResult:
     version: int
     turn_no: int
     capped: bool
+    # Every tool call of the turn, in order: name and outcome only.
+    tools_used: tuple[ToolCallTrace, ...]
     changes: TurnChanges = field(repr=False)
 
 
@@ -232,6 +234,7 @@ class TurnEngine:
             version=committed.version,
             turn_no=committed.turn_no,
             capped=capped,
+            tools_used=trace.tool_calls,
             changes=changes,
         )
 

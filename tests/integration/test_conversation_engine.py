@@ -14,7 +14,6 @@ from psycopg_pool import ConnectionPool
 
 from ayo_copilot.config import Settings
 from ayo_copilot.conversation import engine as engine_module
-from ayo_copilot.conversation.case import TurnChanges
 from ayo_copilot.conversation.context import KNOWLEDGE_FAILED, REFERENCE_TAG
 from ayo_copilot.conversation.engine import (
     RETRIEVAL_EMBEDDING_FAILED,
@@ -29,13 +28,10 @@ from ayo_copilot.conversation.store import (
     CaseChanged,
     CaseNotFound,
     ChannelKey,
-    TurnCommit,
-    commit_turn,
     load_snapshot,
     resolve_case,
 )
-from ayo_copilot.conversation.tools import execute_tool, tools_for_phase
-from ayo_copilot.db.conversations import TraceRecord
+from ayo_copilot.conversation.tools import tools_for_phase
 from ayo_copilot.db.repository import ChunkRecord, DocumentRecord, replace_chunks, upsert_document
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
 from ayo_copilot.ingestion.service import current_configs
@@ -49,27 +45,14 @@ from ayo_copilot.llm.fake import (
     tool_calls_response,
 )
 from ayo_copilot.llm.types import LLMResponse, Message, ToolSpec, Usage
+from tests.integration.support import CASE_FACTS as FACTS
+from tests.integration.support import advance_case
 
 pytestmark = pytest.mark.integration
 
 TENANT = "cliente-acme"
 NOW = datetime(2026, 11, 12, 9, 30, tzinfo=UTC)
 PROMPTS = load_prompts()
-FACTS = {
-    "what": "Merma del 4 % en el envasado",
-    "where": "Línea 2, llenadora",
-    "since": "Desde el lunes 9",
-    "standard": "Merma máxima del 1,5 %",
-}
-# The tool calls that take a fresh case from `understand` to each later phase, in order.
-ADVANCE: list[tuple[str, dict[str, str]]] = [
-    *[("record_field", {"field": k, "value": v}) for k, v in FACTS.items()],
-    ("propose_transition", {"target_state": "challenge", "reasoning": "hechos completos"}),
-    ("log_event", {"event_type": "evidence", "content": "El sensor de nivel marca 3 mm de más"}),
-    ("propose_transition", {"target_state": "analyse", "reasoning": "hay evidencia"}),
-    ("log_event", {"event_type": "validated_cause", "content": "Sensor descalibrado"}),
-    ("propose_transition", {"target_state": "action", "reasoning": "causa validada"}),
-]
 
 
 def make_settings(**overrides: Any) -> Settings:
@@ -102,30 +85,6 @@ def make_engine(
 def new_case(pool: ConnectionPool, tenant: str = TENANT) -> UUID:
     key = ChannelKey("web", "web", str(uuid4()))
     return resolve_case(pool, key, tenant=tenant, created_by="u1").problem_id
-
-
-def advance(pool: ConnectionPool, problem_id: UUID, phase: str) -> None:
-    """Commit one turn that moves the case to `phase` (with the facts and annotations its
-    exit criteria need)."""
-    snapshot = load_snapshot(pool, problem_id, message_limit=12)
-    changes = TurnChanges()
-    for name, arguments in ADVANCE:
-        if snapshot.case.state == phase:
-            break
-        outcome = execute_tool(snapshot, changes, tool_call(name, arguments))
-        assert outcome.ok, outcome.result
-    assert snapshot.case.state == phase
-    commit_turn(
-        pool,
-        TurnCommit(
-            snapshot=snapshot,
-            phase_before="understand",
-            user_message="Preparación del caso",
-            reply="Hecho",
-            changes=changes,
-            trace=TraceRecord(prompts_version="draft-1", llm_calls=1, duration_ms=1),
-        ),
-    )
 
 
 def fetch(pool: ConnectionPool, query: str, *params: object) -> list[tuple]:
@@ -609,7 +568,7 @@ def test_retrieval_in_analyse_searches_own_and_common_tenant_only(
     db_pool: ConnectionPool, search_spy: list[dict[str, Any]]
 ) -> None:
     problem_id = new_case(db_pool)
-    advance(db_pool, problem_id, "analyse")
+    advance_case(db_pool, problem_id, "analyse")
     own = store_chunks(db_pool, TENANT, ["Calibración del sensor de nivel de la llenadora"])
     common = store_chunks(db_pool, "ayo", ["Método de los cinco porqués"])
     store_chunks(db_pool, "cliente-otro", ["Secreto industrial del cliente otro"])
@@ -640,7 +599,7 @@ def test_common_tenant_case_searches_it_once(
     db_pool: ConnectionPool, search_spy: list[dict[str, Any]]
 ) -> None:
     problem_id = new_case(db_pool, tenant="ayo")
-    advance(db_pool, problem_id, "analyse")
+    advance_case(db_pool, problem_id, "analyse")
     llm = FakeLLMProvider([text_response("Sigamos.")])
 
     make_engine(db_pool, llm).handle_turn(problem_id, "¿Qué método uso?")
@@ -650,7 +609,7 @@ def test_common_tenant_case_searches_it_once(
 
 def test_embedding_failure_continues_without_knowledge(db_pool: ConnectionPool) -> None:
     problem_id = new_case(db_pool)
-    advance(db_pool, problem_id, "analyse")
+    advance_case(db_pool, problem_id, "analyse")
     embedder = FailingEmbedder()
     llm = FakeLLMProvider([text_response("No puedo consultar la base ahora.")])
 
@@ -669,7 +628,7 @@ def test_hop_into_a_retrieving_phase_retrieves_once(
     db_pool: ConnectionPool, search_spy: list[dict[str, Any]]
 ) -> None:
     problem_id = new_case(db_pool)
-    advance(db_pool, problem_id, "challenge")
+    advance_case(db_pool, problem_id, "challenge")
     store_chunks(db_pool, TENANT, ["Calibración del sensor de nivel"])
     llm = FakeLLMProvider(
         [
@@ -696,7 +655,7 @@ def test_hop_out_of_a_retrieving_phase_drops_the_knowledge(
     db_pool: ConnectionPool, search_spy: list[dict[str, Any]]
 ) -> None:
     problem_id = new_case(db_pool)
-    advance(db_pool, problem_id, "analyse")
+    advance_case(db_pool, problem_id, "analyse")
     store_chunks(db_pool, TENANT, ["Calibración del sensor de nivel"])
     llm = FakeLLMProvider(
         [
@@ -727,7 +686,7 @@ def test_trace_and_log_hold_metrics_and_no_content(
     db_pool: ConnectionPool, caplog: pytest.LogCaptureFixture
 ) -> None:
     problem_id = new_case(db_pool)
-    advance(db_pool, problem_id, "analyse")
+    advance_case(db_pool, problem_id, "analyse")
     chunk_ids = store_chunks(db_pool, TENANT, [f"Fragmento {SENTINEL}"])
     llm = FakeLLMProvider(
         [

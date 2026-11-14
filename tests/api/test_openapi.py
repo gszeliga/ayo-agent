@@ -98,7 +98,13 @@ def test_info_comes_from_the_package(spec: dict[str, Any]) -> None:
     assert spec["info"]["title"] == "AYO Plant Copilot API"
     assert spec["info"]["version"] == version("ayo-copilot")
     assert "X-API-Key" in spec["info"]["description"]
-    assert {tag["name"] for tag in spec["tags"]} == {"documents", "search", "settings", "health"}
+    assert {tag["name"] for tag in spec["tags"]} == {
+        "documents",
+        "search",
+        "settings",
+        "copilot",
+        "health",
+    }
 
 
 def test_docs_pages_are_served() -> None:
@@ -472,3 +478,48 @@ def test_search_response_declares_its_nullable_fields(spec: dict[str, Any]) -> N
     assert result["chunk_id"]["format"] == "uuid"
     for name in ("SearchResponse", "SearchHitResult"):
         assert "examples" not in schemas[name], f"{name} must rely on field examples"
+
+
+def test_copilot_operations_document_their_contract(spec: dict[str, Any]) -> None:
+    send = spec["paths"]["/copilot/messages"]["post"]
+    session = spec["paths"]["/copilot/sessions/{session_id}"]["get"]
+
+    assert send["operationId"] == "send_copilot_message"
+    assert session["operationId"] == "get_copilot_session"
+    assert set(send["responses"]) == {"200", "401", "409", "422", "502", "503"}
+    assert set(session["responses"]) == {"200", "401", "404", "422"}
+    for operation in (send, session):
+        assert operation["tags"] == ["copilot"]
+        assert operation["security"] == [{"CopilotApiKey": []}]
+    examples = send["responses"]["502"]["content"]["application/json"]["examples"]
+    assert set(examples) == {
+        "llm_unavailable",
+        "llm_rate_limited",
+        "llm_credits",
+        "llm_auth",
+        "llm_error",
+    }
+    (parameter,) = session["parameters"]
+    assert parameter["schema"]["format"] == "uuid"
+
+
+def test_copilot_key_is_its_own_scheme(spec: dict[str, Any]) -> None:
+    scheme = spec["components"]["securitySchemes"]["CopilotApiKey"]
+    assert (scheme["type"], scheme["in"], scheme["name"]) == ("apiKey", "header", "X-API-Key")
+
+
+def test_copilot_request_declares_its_bounds(spec: dict[str, Any]) -> None:
+    schema = spec["components"]["schemas"]["CopilotMessageRequest"]
+    properties = schema["properties"]
+
+    assert set(schema["required"]) == {"session_id", "tenant", "text"}
+    assert schema["additionalProperties"] is False
+    assert properties["session_id"]["format"] == "uuid"
+    assert properties["tenant"]["pattern"] == TENANT_PATTERN
+    assert properties["text"]["minLength"] == 1
+
+
+def test_copilot_session_declares_its_nullable_facts(spec: dict[str, Any]) -> None:
+    facts = spec["components"]["schemas"]["CopilotSessionFields"]["properties"]
+    for name in ("what", "where", "since", "standard"):
+        assert {"type": "null"} in facts[name]["anyOf"], name

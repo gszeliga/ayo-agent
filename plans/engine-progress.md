@@ -8,10 +8,9 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E6 done (2026-11-14, commit "Add the turn engine (E6)"; not pushed).** Next is **E7**:
-write its brief and wait for approval before coding. E7 maps the engine's exceptions to
-HTTP (decision 22). Pending OK, not part of E7: applying migration 0003 to the Neon dev
-branch.
+**E7 done (2026-11-14, commit "Add the copilot endpoints (E7)"; E1-E6 pushed, E7 not).**
+Next is **E8**: write its brief and wait for approval before coding. Pending OK, not part
+of E8: applying migration 0003 to the Neon dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -85,6 +84,15 @@ branch.
     user_text)` takes a resolved case (the channel layer is E7) and raises `CaseNotFound`,
     `CaseClosed`, `CaseChanged` or the provider's `LLMError`; engine tests 8, 9 and 12 assert
     the exception and the empty database, E7's contract tests the HTTP status.
+23. **`/copilot`, not `/web`** (agreed 2026-11-14): the spec's router is renamed, "web"
+    being too generic. `POST /copilot/messages`, `GET /copilot/sessions/{session_id}`,
+    operation ids `send_copilot_message` and `get_copilot_session`, tag `copilot`, scheme
+    `CopilotApiKey` (same `X-API-Key` header and `ADMIN_API_KEY` value for now), module
+    `routers/copilot.py`. The channel keeps its name: links are still `channel_type='web'`
+    and the adapter is `WebAdapter` (decision 4). Decision 9 applies to `/copilot`.
+24. **A failed first message leaves its empty case** (2026-11-14, as in the spec's design):
+    `resolve_case` commits the case and link before the turn, so a `409`/`502`/`503` on
+    the first message stores no turn but keeps the empty case; the retry continues it.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **E1** Migration 0003 (five tables), migration and constraint tests, `db_pool`
@@ -100,7 +108,7 @@ branch.
   optimistic version check, read a session; integration tests.
 - [x] **E6** Turn engine: model loop, phase hops, caps and timeout, retrieval and its
   failure path, trace, per-phase model; engine tests 1-13.
-- [ ] **E7** Channel protocol, web adapter, `/web` router and its key dependency, OpenAPI,
+- [x] **E7** Channel protocol, web adapter, `/copilot` router (decision 23) and its key dependency, OpenAPI,
   contract and auth tests, `docs/openapi.json`, `ui/src/api/schema.d.ts`.
 - [ ] **E8** Scripted golden path through all five phases; README sections.
 - [ ] **E9** `ayo-llm-check` imports the real tool specs; `update_action` scenario (no calls).
@@ -226,3 +234,25 @@ branch.
   logs). No separate unit file: the only pure parts are the trace sums, covered there.
   A mutation check (hop exchange kept, hop cap off, timeout off, retrieval off) failed
   tests each time. Full suite green (1282 passed).
+- **E7 (2026-11-14).** `conversation/channels.py`: `IncomingMessage`, `ChannelAdapter`,
+  `WebAdapter` (link key `web`/`web`/session id; `deliver` builds the response body),
+  `handle_message` (`resolve_case`, then the turn). `routers/copilot.py` (decision 23):
+  `require_copilot_key`, `get_turn_engine` (per request, from the app's resources, so
+  tests override the provider or the engine), `POST /copilot/messages` (text over
+  `MAX_USER_MESSAGE_CHARS` -> 422 `string_too_long` in FastAPI's shape; `tenant_mismatch`
+  422; `case_closed` / `case_changed` 409; `LLM_FAILURES` table: 502 per class, 503
+  `llm_not_configured`, fixed messages, one warning line with the type, status and reason
+  only), `GET /copilot/sessions/{session_id}` (404 `session_not_found`, `overdue` from the
+  engine's clock). `schemas.py`: `CopilotMessageRequest` (extra forbidden), `ToolUse`,
+  `CopilotMessageResponse`, `CopilotSession` and its parts (facts with per-field examples,
+  nullable). `TurnResult.tools_used` (from the trace). `app.py`: tag, description, error
+  table rows. `advance_case` moved to `tests/integration/support.py`. Tests:
+  `tests/api/test_copilot.py` (29: case and link, continuation, response after a hop,
+  trimming, six invalid bodies storing nothing, the limit itself, tenant mismatch, closed,
+  a forced concurrent turn, eight LLM error classes with no provider text in the body or
+  logs and no turn stored, 503 without the key, retrieval failure still 200, session view,
+  `overdue` across midnight in Madrid, empty facts, 404, 422, upper-case session ids),
+  `test_copilot_auth.py` (4), 14 contract cases plus the `case_changed` body, OpenAPI
+  checks (operations, scheme, bounds, nullable facts). `docs/openapi.json`,
+  `ui/src/api/schema.d.ts` regenerated; `pnpm check` passes (its `ECONNRESET` log line
+  predates this step). Full suite green (1334 passed).

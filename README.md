@@ -60,8 +60,8 @@ and uses the direct endpoint, because Neon's pooler rejects startup options.
 
 ## Endpoints
 
-All under `/admin` need the `X-API-Key` header. `/docs` has every status, error `type`
-and example.
+All under `/admin` and `/copilot` need the `X-API-Key` header. `/docs` has every status,
+error `type` and example.
 
 | Method and path | Purpose |
 |---|---|
@@ -78,6 +78,8 @@ and example.
 | `GET /admin/tenants` | Tenants with document and chunk counts |
 | `GET /admin/settings` | Current indexing settings and document counts by status |
 | `GET /admin/health` | Status of the database and the embedding provider |
+| `POST /copilot/messages` | Send a session's message to the copilot; get its reply and the phase |
+| `GET /copilot/sessions/{session_id}` | A session's case: phase, facts, annotations, actions, messages |
 | `GET /health` | Liveness, no key |
 
 ## Uploading a document
@@ -250,6 +252,39 @@ another model (or an unknown one) are skipped and counted in `skipped.embedder_m
 reprocess them. A change of the chunking settings alone skips nothing. If the embedding
 provider fails, the answer is `502 embedding_failed` and nothing is searched. Neither the
 query nor the results are logged: only tenants, counts and durations.
+
+## Talking to the copilot
+
+The copilot guides a plant team through five phases: **understand** the problem (what,
+where, since when, the standard), **challenge** it with evidence, **analyse** the cause,
+agree **actions**, then **follow up** until the case is closed. Code checks each phase's
+exit criteria; the model proposes the change. Needs `OPENROUTER_API_KEY` (else `503
+llm_not_configured`). Every message is a billed model call (one to `MAX_TOOL_ROUNDS`).
+
+```sh
+SESSION=$(uuidgen)   # the client generates the session id; keep it for the conversation
+curl -s -X POST http://127.0.0.1:8000/copilot/messages \
+  -H "X-API-Key: $ADMIN_API_KEY" -H 'Content-Type: application/json' \
+  -d "{\"session_id\": \"$SESSION\", \"tenant\": \"cliente-acme\",
+       \"text\": \"Tenemos un 4 % de merma en la llenadora de la línea 2\"}"
+curl -s http://127.0.0.1:8000/copilot/sessions/$SESSION -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+- The first message of a `session_id` opens a case for its `tenant`; later ones continue
+  it. Another tenant on the same session is `422 tenant_mismatch`.
+- The answer has the `reply`, the `phase` after the turn, `phase_changed` and the
+  `tools_used` (names and whether they were accepted, never their values).
+- A turn is atomic: on `409` (`case_closed`, or `case_changed` when another message of the
+  session was committed meanwhile), `502` (the model failed) or `503`, nothing of the turn
+  is stored and the message can be sent again. A failed first message still leaves its
+  empty case and link, so the retry continues it.
+- A knowledge-base failure does not fail the turn: the copilot says it could not
+  consult it. Retrieval runs in `RETRIEVAL_PHASES` (default `analyse`) over the case's
+  tenant plus `COMMON_TENANT` (default `ayo`).
+- The session view is for inspection while testing: no prompts, traces or retrieved text.
+  `overdue` compares due dates with today in `APP_TIMEZONE`.
+- The channel stored for these conversations is `web`; Slack or Google Chat will be other
+  channels behind the same engine.
 
 ## Tenants
 

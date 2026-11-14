@@ -17,8 +17,12 @@ from psycopg_pool import ConnectionPool
 
 from ayo_copilot.app import create_app
 from ayo_copilot.config import Settings
-from ayo_copilot.dependencies import get_embedder
+from ayo_copilot.conversation.engine import TurnEngine
+from ayo_copilot.dependencies import get_embedder, get_llm_provider
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
+from ayo_copilot.llm.errors import LLMUnavailableError
+from ayo_copilot.llm.fake import FakeLLMProvider, text_response
+from ayo_copilot.llm.types import LLMResponse
 
 pytestmark = pytest.mark.integration
 
@@ -45,6 +49,8 @@ def client(db_pool: ConnectionPool, migrated_database_url: str):
         admin_api_key=API_KEY,
         embedding_provider="fake",
         max_upload_bytes=MAX_UPLOAD_BYTES,
+        # No model key: a copilot message without an overridden provider is a 503.
+        openrouter_api_key=None,
     )
     app = create_app(settings, docs_enabled=True)
     with TestClient(app) as client:
@@ -73,6 +79,8 @@ SETTINGS = ("get", "/admin/settings")
 BULK_DELETE = ("post", "/admin/documents/delete")
 SERVICE_HEALTH = ("get", "/admin/health")
 SEARCH = ("post", "/admin/search")
+COPILOT_SEND = ("post", "/copilot/messages")
+COPILOT_SESSION = ("get", "/copilot/sessions/{session_id}")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -87,6 +95,8 @@ OPERATIONS = [
     SETTINGS,
     SERVICE_HEALTH,
     SEARCH,
+    COPILOT_SEND,
+    COPILOT_SESSION,
 ]
 
 
@@ -184,6 +194,50 @@ def search(client: TestClient, body: Any, headers: dict[str, str] | None = None)
 def search_uploaded(client: TestClient, **body: Any):
     post(client, SMALL_DOC)
     return search(client, {"query": "presión de la junta", **body})
+
+
+SESSION_ID = "3f1c2a9e-7b4d-4e8a-9c61-0d5b2f7a8e14"
+COPILOT_MESSAGE = {"session_id": SESSION_ID, "tenant": "cliente-acme", "text": "Hay merma"}
+
+
+class RaisingLLM:
+    def complete(self, **kwargs: Any) -> LLMResponse:
+        raise LLMUnavailableError("upstream said: over quota", status=503)
+
+
+def with_llm(client: TestClient, *responses: LLMResponse) -> None:
+    fake = FakeLLMProvider(responses)
+    client.app.dependency_overrides[get_llm_provider] = lambda: fake
+
+
+def copilot_send(client: TestClient, body: Any, headers: dict[str, str] | None = None):
+    return client.post(
+        "/copilot/messages",
+        json=body,
+        headers={"X-API-Key": API_KEY} if headers is None else headers,
+    )
+
+
+def copilot_sent(client: TestClient, **body: Any):
+    """A first message of the session, answered by a scripted model."""
+    with_llm(client, text_response("¿En qué línea pasa?"))
+    return copilot_send(client, {**COPILOT_MESSAGE, **body})
+
+
+def copilot_closed(client: TestClient):
+    copilot_sent(client)
+    with client.app_state["pool"].connection() as conn:
+        conn.execute("update problems set state = 'closed', closed_at = now()")
+    return copilot_send(client, COPILOT_MESSAGE)
+
+
+def copilot_failing(client: TestClient):
+    client.app.dependency_overrides[get_llm_provider] = RaisingLLM
+    return copilot_send(client, COPILOT_MESSAGE)
+
+
+def session(client: TestClient, session_id: str = SESSION_ID, headers=None):
+    return get(client, f"/copilot/sessions/{session_id}", headers=headers)
 
 
 # name -> (operation, expected status, how to trigger it)
@@ -324,6 +378,42 @@ CASES = {
     "search 401 no key": (SEARCH, 401, lambda c: search(c, {"query": "q"}, headers={})),
     "search 422 blank query": (SEARCH, 422, lambda c: search(c, {"query": " "})),
     "search 422 empty tenants": (SEARCH, 422, lambda c: search(c, {"query": "q", "tenants": []})),
+    "copilot send 200": (COPILOT_SEND, 200, copilot_sent),
+    "copilot send 401 no key": (
+        COPILOT_SEND,
+        401,
+        lambda c: copilot_send(c, COPILOT_MESSAGE, headers={}),
+    ),
+    "copilot send 409 closed": (COPILOT_SEND, 409, copilot_closed),
+    "copilot send 422 blank": (
+        COPILOT_SEND,
+        422,
+        lambda c: copilot_send(c, {**COPILOT_MESSAGE, "text": " "}),
+    ),
+    "copilot send 422 too long": (
+        COPILOT_SEND,
+        422,
+        lambda c: copilot_send(c, {**COPILOT_MESSAGE, "text": "a" * 4001}),
+    ),
+    "copilot send 422 tenant mismatch": (
+        COPILOT_SEND,
+        422,
+        lambda c: (copilot_sent(c), copilot_send(c, {**COPILOT_MESSAGE, "tenant": "otro"}))[1],
+    ),
+    "copilot send 502 model failed": (COPILOT_SEND, 502, copilot_failing),
+    "copilot send 503 no model key": (
+        COPILOT_SEND,
+        503,
+        lambda c: copilot_send(c, COPILOT_MESSAGE),
+    ),
+    "copilot session 200": (COPILOT_SESSION, 200, lambda c: (copilot_sent(c), session(c))[1]),
+    "copilot session 401 no key": (COPILOT_SESSION, 401, lambda c: session(c, headers={})),
+    "copilot session 404": (COPILOT_SESSION, 404, lambda c: session(c)),
+    "copilot session 422 malformed id": (
+        COPILOT_SESSION,
+        422,
+        lambda c: session(c, "session-1"),
+    ),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}, SEARCH: {502}}
@@ -373,11 +463,11 @@ def test_every_documented_status_is_triggered(
     assert triggered | EXTRA_TRIGGERED.get(operation, set()) == documented
 
 
-def test_every_admin_operation_has_contract_cases(strict_spec: dict[str, Any]) -> None:
+def test_every_protected_operation_has_contract_cases(strict_spec: dict[str, Any]) -> None:
     documented = {
         (method, path)
         for path, item in strict_spec["paths"].items()
-        if path.startswith("/admin")
+        if path.startswith(("/admin", "/copilot"))
         for method in item
     }
 
@@ -438,3 +528,30 @@ def test_search_provider_failure_matches_its_documented_schema(
 def test_fake_embedder_is_used(client: TestClient) -> None:
     # Guards the fixture: no case above may reach a real provider.
     assert isinstance(client.app_state["embedder"].inner, FakeEmbedder)
+
+
+def test_copilot_conflict_matches_its_documented_schema(
+    client: TestClient, strict_spec: dict[str, Any], db_pool: ConnectionPool
+) -> None:
+    copilot_sent(client)
+    state = client.app_state
+
+    class OtherTurnFirst:
+        """Commits another turn of the same session before answering."""
+
+        def complete(self, **kwargs: Any) -> LLMResponse:
+            with db_pool.connection() as conn:
+                (problem_id,) = conn.execute("select id from problems").fetchone()
+            other = FakeLLMProvider([text_response("Respuesta del otro")])
+            TurnEngine(
+                db_pool, other, state["embedder"], state["settings"], state["prompts"]
+            ).handle_turn(problem_id, "Mensaje del otro")
+            return text_response("Mi respuesta")
+
+    client.app.dependency_overrides[get_llm_provider] = OtherTurnFirst
+
+    response = copilot_send(client, COPILOT_MESSAGE)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"][0]["type"] == "case_changed"
+    OAS31Validator(documented_schema(strict_spec, 409, COPILOT_SEND)).validate(response.json())

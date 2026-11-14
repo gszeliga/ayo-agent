@@ -109,6 +109,7 @@ src/ayo_copilot/
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, Search*, errors
   dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider / get_prompts (request.state)
   routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, search, tenants, settings, health (provisional X-API-Key auth, size limits)
+  routers/copilot.py   /copilot: send a message, get a session (own key dependency), LLM errors -> 502/503
   documents.py         admin read/write operations on stored documents (own transactions)
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
   search.py            search(): embed_query, then exact vector search in one read-only transaction
@@ -141,6 +142,7 @@ src/ayo_copilot/
   conversation/reply.py    compose_reply and the fallback message
   conversation/store.py    resolve_case (race-safe), load_snapshot, commit_turn (version check), read_session
   conversation/engine.py   TurnEngine.handle_turn: model loop, phase hops, caps, retrieval, trace, commit
+  conversation/channels.py IncomingMessage, ChannelAdapter, WebAdapter, handle_message (resolve case + turn)
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
@@ -188,8 +190,9 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
   (`ui/src/paths.test.ts`). Tests build the app with
   `create_app(docs_enabled=True)` so they never read `.env` (CORS is then off).
 - `{doc_id}` path parameters use `DOC_ID_PATTERN` (malformed -> 422, unknown -> 404
-  `document_not_found`). Every `/admin` route needs the key: `tests/api/test_admin_auth.py`
-  enumerates them from the OpenAPI document, so never hide an `/admin` route from it.
+  `document_not_found`). Every `/admin` and `/copilot` route needs the key:
+  `tests/api/test_admin_auth.py` and `test_copilot_auth.py` enumerate them from the OpenAPI
+  document, so never hide such a route from it. The contract test covers both prefixes.
 - UI (`ui/`): TypeScript strict, ESLint type-aware + Prettier (width 100, no semicolons,
   single quotes); `pnpm check` must pass. TypeScript stays on 5.x until typescript-eslint
   and openapi-typescript support 7. Theme colours only through the tokens in

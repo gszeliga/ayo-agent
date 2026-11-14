@@ -20,7 +20,7 @@ from ayo_copilot.ingestion.embedding import (
     build_embedder,
 )
 from ayo_copilot.llm.build import build_llm_provider, describe_llm_provider
-from ayo_copilot.routers import admin
+from ayo_copilot.routers import admin, copilot
 from ayo_copilot.schemas import HealthResponse
 
 logger = logging.getLogger(__name__)
@@ -31,13 +31,14 @@ POOL_OPEN_TIMEOUT_SECONDS = 30.0
 API_DESCRIPTION = """\
 Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through
 structured problem solving. This API loads the plant knowledge (procedures, manuals) the
-copilot retrieves from, and searches it the way the copilot will.
+copilot retrieves from, and searches it the way the copilot will; the `/copilot`
+endpoints talk to the copilot itself.
 
 ## Authentication
 
-The `/admin` endpoints need the header `X-API-Key`. In this page, click **Authorize** and
-paste the key, then use **Try it out**. The key is **provisional**: one shared key, to be
-replaced by real user identity and per-tenant permissions.
+The `/admin` and `/copilot` endpoints need the header `X-API-Key`. In this page, click
+**Authorize** and paste the key, then use **Try it out**. The key is **provisional**: one
+shared key, to be replaced by real user identity and per-tenant permissions.
 
 ## Errors
 
@@ -58,6 +59,11 @@ is `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` an
 | `source_key_invalid` | 422 | `["body", "source_key"]` (`["body", "file"]` if derived) |
 | FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |
 | `document_not_found` | 404 | `["path", "doc_id"]` |
+| `session_not_found` | 404 | `["path", "session_id"]` |
+| `tenant_mismatch` | 422 | `["body", "tenant"]` |
+| `case_closed`, `case_changed` | 409 | `[]` |
+| `llm_unavailable`, `llm_rate_limited`, `llm_credits`, `llm_auth`, `llm_error` | 502 | `[]` |
+| `llm_not_configured` | 503 | `[]` |
 | `document_changed` | 409 | `[]` |
 | `embedding_failed` | 502 | `[]` |
 
@@ -81,6 +87,11 @@ OPENAPI_TAGS = [
         "name": "settings",
         "description": "The current indexing settings and how the stored documents compare"
         " with them. Read-only; no secrets.",
+    },
+    {
+        "name": "copilot",
+        "description": "Talk to the copilot: send a session's messages, and inspect the"
+        " session's case.",
     },
     {
         "name": "health",
@@ -130,7 +141,7 @@ def _make_lifespan(
             # their last outcome; the monitor checks the provider itself, on demand.
             tracked = TrackedEmbedder(embedder)
             # No request and no key check here: without OPENROUTER_API_KEY the app still
-            # starts, and only a model call fails (LLMConfigError). No endpoint uses it yet.
+            # starts, and only a model call fails (LLMConfigError, a 503 on /copilot).
             llm = build_llm_provider(resolved)
             logger.info("%s", describe_llm_provider(llm, resolved))
             try:
@@ -240,6 +251,7 @@ def create_app(settings: Settings | None = None, *, docs_enabled: bool | None = 
         logger.info("CORS allowed origins: %s", ", ".join(cors_origins))
     install_error_handlers(app)
     app.include_router(admin.router)
+    app.include_router(copilot.router)
 
     @app.get(
         "/health",
