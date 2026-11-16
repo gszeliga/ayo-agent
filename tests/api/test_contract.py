@@ -81,6 +81,7 @@ SERVICE_HEALTH = ("get", "/admin/health")
 SEARCH = ("post", "/admin/search")
 COPILOT_SEND = ("post", "/copilot/messages")
 COPILOT_SESSION = ("get", "/copilot/sessions/{session_id}")
+LIST_CASES = ("get", "/admin/cases")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -97,6 +98,7 @@ OPERATIONS = [
     SEARCH,
     COPILOT_SEND,
     COPILOT_SESSION,
+    LIST_CASES,
 ]
 
 
@@ -414,6 +416,20 @@ CASES = {
         422,
         lambda c: session(c, "session-1"),
     ),
+    "cases list 200 empty": (LIST_CASES, 200, lambda c: get(c, "/admin/cases")),
+    "cases list 200 items": (
+        LIST_CASES,
+        200,
+        lambda c: (copilot_sent(c), get(c, "/admin/cases"))[1],
+    ),
+    "cases list 200 closed": (
+        LIST_CASES,
+        200,
+        lambda c: (copilot_closed(c), get(c, "/admin/cases", closed=True))[1],
+    ),
+    "cases list 401 no key": (LIST_CASES, 401, lambda c: get(c, "/admin/cases", headers={})),
+    "cases list 422 phase": (LIST_CASES, 422, lambda c: get(c, "/admin/cases", phase="done")),
+    "cases list 422 limit": (LIST_CASES, 422, lambda c: get(c, "/admin/cases", limit=500)),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}, SEARCH: {502}}

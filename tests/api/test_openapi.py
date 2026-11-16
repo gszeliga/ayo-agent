@@ -103,6 +103,7 @@ def test_info_comes_from_the_package(spec: dict[str, Any]) -> None:
         "search",
         "settings",
         "copilot",
+        "cases",
         "health",
     }
 

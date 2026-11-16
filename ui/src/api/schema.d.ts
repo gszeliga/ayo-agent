@@ -1,6 +1,41 @@
 // Generated from docs/openapi.json by `pnpm gen:api` (openapi-typescript). Do not edit.
 
 export interface paths {
+    "/admin/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List cases
+         * @description List the copilot's cases, from every channel, one page at a time,
+         *     newest update first.
+         *
+         *     Filter by `tenant`, `phase`, `closed` (`true` only closed cases, `false` only open ones)
+         *     and `q`, a case-insensitive substring of what happens (`what`; `%` and `_` match
+         *     themselves). `total` counts every match and the order is stable across pages, even on
+         *     ties. A case opened by a first message that failed is listed too, with no turns.
+         *
+         *     `web_session_id` is the web session to keep talking in; a case from another channel has
+         *     none.
+         *
+         *     | Status | Meaning |
+         *     |---|---|
+         *     | `200` | A page, possibly empty. |
+         *     | `401` | `X-API-Key` missing or wrong. |
+         *     | `422` | A query parameter is out of range or not allowed (FastAPI validation). |
+         */
+        get: operations["list_cases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/documents": {
         parameters: {
             query?: never;
@@ -525,6 +560,111 @@ export interface components {
              * @example PRO-014 Control de sellado
              */
             title?: string | null;
+        };
+        /**
+         * CaseListItem
+         * @description One case of the listing, from any channel. Content is limited to the title.
+         */
+        CaseListItem: {
+            /**
+             * Case Id
+             * Format: uuid
+             * @description The case.
+             * @example 8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52
+             */
+            case_id: string;
+            /**
+             * Closed At
+             * @description When it was closed (UTC); null while open.
+             * @example null
+             */
+            closed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the case was opened (UTC).
+             * @example 2026-11-12T09:30:58Z
+             */
+            created_at: string;
+            /**
+             * Overdue Actions
+             * @description Pending actions past their due date, in `APP_TIMEZONE` (the same rule as `overdue` in the session view).
+             * @example 1
+             */
+            overdue_actions: number;
+            /**
+             * Pending Actions
+             * @description Actions not done yet.
+             * @example 2
+             */
+            pending_actions: number;
+            /**
+             * Phase
+             * @description The current phase: `understand` (the four facts), `challenge` (evidence), `analyse` (the cause), `action` (actions with owner and date), `followup` (tracking them) or `closed`.
+             * @example analyse
+             * @enum {string}
+             */
+            phase: "understand" | "challenge" | "analyse" | "action" | "followup" | "closed";
+            /**
+             * Tenant
+             * @description The case's tenant.
+             * @example cliente-acme
+             */
+            tenant: string;
+            /**
+             * Title
+             * @description What happens (`what`), on one line and cut to 80 characters; null until the copilot records it.
+             * @example Merma del 4 % en el envasado de la línea 2
+             */
+            title: string | null;
+            /**
+             * Turns
+             * @description Committed turns.
+             * @example 4
+             */
+            turns: number;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When the last turn was committed, else when it was opened (UTC).
+             * @example 2026-11-13T16:02:11Z
+             */
+            updated_at: string;
+            /**
+             * Web Session Id
+             * @description The web session linked to the case, to keep talking through `POST /copilot/messages`; null for a case opened from another channel.
+             * @example 3f1c2a9e-7b4d-4e8a-9c61-0d5b2f7a8e14
+             */
+            web_session_id: string | null;
+        };
+        /**
+         * CasePage
+         * @description A page of cases.
+         */
+        CasePage: {
+            /**
+             * Items
+             * @description The items of this page, possibly empty.
+             */
+            items: components["schemas"]["CaseListItem"][];
+            /**
+             * Limit
+             * @description Page size requested.
+             * @example 25
+             */
+            limit: number;
+            /**
+             * Offset
+             * @description Number of matching items skipped.
+             * @example 0
+             */
+            offset: number;
+            /**
+             * Total
+             * @description Number of items matching the filters, across all pages.
+             * @example 42
+             */
+            total: number;
         };
         /**
          * Chunk
@@ -1813,6 +1953,57 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_cases: {
+        parameters: {
+            query?: {
+                /** @description Only this tenant's cases. */
+                tenant?: string | null;
+                /** @description Only cases in this phase. */
+                phase?: ("understand" | "challenge" | "analyse" | "action" | "followup" | "closed") | null;
+                /** @description `true`: only closed cases; `false`: only open ones; absent: both. */
+                closed?: boolean | null;
+                /** @description Case-insensitive substring of what happens (`what`). The app's own logs never carry it, but the server's access log records the query string. */
+                q?: string | null;
+                /** @description Page size, 1 to 100. */
+                limit?: number;
+                /** @description Number of matching cases to skip. */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of cases. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CasePage"];
+                };
+            };
+            /** @description `X-API-Key` is missing or wrong. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `phase`), `bool_parsing` (`closed`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`), `string_too_long` (`q`) or `string_pattern_mismatch` (`tenant`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_documents: {
         parameters: {
             query?: {

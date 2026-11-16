@@ -8,13 +8,14 @@ never logged; traces are content-free by construction (`TraceRecord`).
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from ayo_copilot.conversation.case import Action, ActionStatus, Case, Event, Phase
+from ayo_copilot.db.repository import escape_like
 
 # Longest tool name kept in a trace (the model may ask for any name; ours are shorter).
 TRACE_TOOL_NAME_MAX = 64
@@ -367,3 +368,77 @@ def list_traces(conn: Connection, problem_id: UUID) -> list[StoredTrace]:
         )
         for row in rows
     ]
+
+
+# --- Listing cases (admin) -------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CaseRow:
+    """One case of the admin listing: ids, phase, counts and times; `what` is content."""
+
+    id: UUID
+    tenant: str
+    state: Phase
+    what: str | None
+    turns: int
+    pending_actions: int
+    overdue_actions: int
+    created_at: datetime
+    updated_at: datetime
+    closed_at: datetime | None
+    # The web thread linked to the case, if any (the earliest such link).
+    web_session_id: str | None
+
+    def __repr__(self) -> str:
+        return f"CaseRow(id={self.id}, tenant={self.tenant!r}, state={self.state!r})"
+
+
+def list_cases(
+    conn: Connection,
+    *,
+    today: date,
+    tenant: str | None = None,
+    phase: Phase | None = None,
+    closed: bool | None = None,
+    q: str | None = None,
+    limit: int,
+    offset: int,
+) -> tuple[list[CaseRow], int]:
+    """One page of cases, newest update first (ties by id, so pages are stable), and the
+    number matching the filters. `q` is a case-insensitive substring of `what`, matched
+    literally; overdue means pending with a due date before `today`."""
+    conditions: list[str] = []
+    params: dict[str, object] = {"today": today, "limit": limit, "offset": offset}
+    if tenant is not None:
+        conditions.append("p.tenant = %(tenant)s")
+        params["tenant"] = tenant
+    if phase is not None:
+        conditions.append("p.state = %(phase)s")
+        params["phase"] = phase
+    if closed is not None:
+        conditions.append("p.state = 'closed'" if closed else "p.state <> 'closed'")
+    if q:
+        conditions.append("p.what ilike %(pattern)s escape '\\'")
+        params["pattern"] = f"%{escape_like(q)}%"
+    where = f"where {' and '.join(conditions)}" if conditions else ""
+    total_row = conn.execute(f"select count(*) from problems p {where}", params).fetchone()
+    assert total_row is not None
+    rows = conn.execute(
+        f"""
+        select p.id, p.tenant, p.state, p.what,
+          (select count(*) from turn_traces t where t.problem_id = p.id),
+          (select count(*) from actions a where a.problem_id = p.id and a.status = 'pending'),
+          (select count(*) from actions a
+            where a.problem_id = p.id and a.status = 'pending' and a.due_date < %(today)s),
+          p.created_at, p.updated_at, p.closed_at,
+          (select l.external_thread_id from conversation_links l
+            where l.problem_id = p.id and l.channel_type = 'web'
+            order by l.created_at, l.id limit 1)
+        from problems p {where}
+        order by p.updated_at desc, p.id
+        limit %(limit)s offset %(offset)s
+        """,
+        params,
+    ).fetchall()
+    return [CaseRow(*row) for row in rows], total_row[0]

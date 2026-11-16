@@ -155,25 +155,24 @@ class UploadLimitRoute(APIRoute):
         return limited_handler
 
 
+# Shared with the other `/admin` routers (`routers/cases.py`).
+UNAUTHORIZED_RESPONSE: dict[str, object] = {
+    "model": ErrorResponse,
+    "description": "`X-API-Key` is missing or wrong.",
+    "content": _examples(
+        invalid_api_key=(
+            "Missing or wrong key",
+            _error("invalid_api_key", ["header", "x-api-key"], "invalid or missing API key"),
+        )
+    ),
+}
+
 router = APIRouter(
     prefix="/admin",
     tags=["documents"],
     dependencies=[Depends(require_admin_key)],
     route_class=UploadLimitRoute,
-    responses={
-        401: {
-            "model": ErrorResponse,
-            "description": "`X-API-Key` is missing or wrong.",
-            "content": _examples(
-                invalid_api_key=(
-                    "Missing or wrong key",
-                    _error(
-                        "invalid_api_key", ["header", "x-api-key"], "invalid or missing API key"
-                    ),
-                )
-            ),
-        }
-    },
+    responses={401: UNAUTHORIZED_RESPONSE},
 )
 
 INDEXED = {

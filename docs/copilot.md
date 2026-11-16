@@ -44,6 +44,29 @@ curl -s http://127.0.0.1:8000/copilot/sessions/$SESSION -H "X-API-Key: $ADMIN_AP
 - The channel stored for these conversations is `web`; Slack or Google Chat will be other
   channels behind the same engine.
 
+## Inspecting cases
+
+`GET /admin/cases` lists the copilot's cases from every channel, newest update first,
+behind the admin key:
+
+```sh
+curl -s "http://127.0.0.1:8000/admin/cases?tenant=cliente-acme&closed=false" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+- Filters: `tenant`, `phase`, `closed` (`true` or `false`) and `q`, a case-insensitive
+  substring of `what` (`%` and `_` match themselves). Pages with `limit` (1-100, default
+  25) and `offset`; `total` counts every match.
+- A case has no title of its own: `title` is `what` on one line, cut to 80 characters, and
+  null until the copilot records it.
+- Each row has the turn count, the pending and overdue action counts (overdue as in the
+  session view), the open, last-update and closing times, and `web_session_id`: the web
+  session to keep talking in, null for a case opened from another channel.
+- A case left by a failed first message is listed too, with no turns.
+- The app's own logs never carry `q`, but uvicorn's access log (on in `ayo-copilot`)
+  records each request line, query string included, as it already does for the
+  documents list's `q`. Not resolved yet.
+
 ## The flow of a turn
 
 1. The channel finds the session's case (or opens one with its link) and loads a

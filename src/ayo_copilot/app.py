@@ -20,7 +20,7 @@ from ayo_copilot.ingestion.embedding import (
     build_embedder,
 )
 from ayo_copilot.llm.build import build_llm_provider, describe_llm_provider
-from ayo_copilot.routers import admin, copilot
+from ayo_copilot.routers import admin, cases, copilot
 from ayo_copilot.schemas import HealthResponse
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ API_DESCRIPTION = """\
 Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through
 structured problem solving. This API loads the plant knowledge (procedures, manuals) the
 copilot retrieves from, and searches it the way the copilot will; the `/copilot`
-endpoints talk to the copilot itself.
+endpoints talk to the copilot itself, and `/admin/cases` inspects its cases.
 
 ## Authentication
 
@@ -92,6 +92,10 @@ OPENAPI_TAGS = [
         "name": "copilot",
         "description": "Talk to the copilot: send a session's messages, and inspect the"
         " session's case.",
+    },
+    {
+        "name": "cases",
+        "description": "Inspect the copilot's cases, whatever channel opened them.",
     },
     {
         "name": "health",
@@ -252,6 +256,7 @@ def create_app(settings: Settings | None = None, *, docs_enabled: bool | None = 
     install_error_handlers(app)
     app.include_router(admin.router)
     app.include_router(copilot.router)
+    app.include_router(cases.router)
 
     @app.get(
         "/health",

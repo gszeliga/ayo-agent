@@ -40,7 +40,7 @@ For a Neon dev branch or a psql shell, see [docs/operations.md](docs/operations.
 |---|---|
 | [docs/knowledge-base.md](docs/knowledge-base.md) | Uploading, reading, renaming, replacing, reprocessing and deleting documents; tenants; indexing settings; chunking |
 | [docs/search.md](docs/search.md) | Searching the knowledge base: the request, the filters, how results are ranked |
-| [docs/copilot.md](docs/copilot.md) | Talking to the copilot; the flow of a turn, the phase rules, the tools, the trace; editing the prompt files |
+| [docs/copilot.md](docs/copilot.md) | Talking to the copilot; inspecting its cases; the flow of a turn, the phase rules, the tools, the trace; editing the prompt files |
 | [docs/configuration.md](docs/configuration.md) | Every setting, by group; browser clients (CORS) |
 | [docs/operations.md](docs/operations.md) | A Neon dev branch, the psql shell, the service status |
 | [docs/development.md](docs/development.md) | Tests, the API contract, the tool-calling check (`ayo-llm-check`) |
@@ -70,6 +70,7 @@ error `type` and example.
 | `GET /admin/health` | Status of the database and the embedding provider |
 | `POST /copilot/messages` | Send a session's message to the copilot; get its reply and the phase |
 | `GET /copilot/sessions/{session_id}` | A session's case: phase, facts, annotations, actions, messages |
+| `GET /admin/cases` | The copilot's cases from every channel (filter by tenant, phase, open or closed, text) |
 | `GET /health` | Liveness, no key |
 
 The `X-API-Key` authentication is provisional: one shared key, to be replaced by real

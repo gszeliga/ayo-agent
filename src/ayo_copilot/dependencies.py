@@ -1,6 +1,8 @@
 """Request dependencies. The lifespan puts these objects in `request.state`; tests can
 swap them with `app.dependency_overrides`."""
 
+from datetime import UTC, date, datetime
+
 from fastapi import Request
 from psycopg_pool import ConnectionPool
 
@@ -36,3 +38,9 @@ def get_llm_provider(request: Request) -> LLMProvider:
 def get_prompts(request: Request) -> PromptSet:
     """The prompt files, rendered at startup."""
     return request.state.prompts
+
+
+def get_today(request: Request) -> date:
+    """Today in `APP_TIMEZONE`, for overdue actions; tests override it."""
+    settings: Settings = request.state.settings
+    return datetime.now(UTC).astimezone(settings.timezone()).date()

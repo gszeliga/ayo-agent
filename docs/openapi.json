@@ -62,6 +62,196 @@
         "title": "Body_upload_document",
         "type": "object"
       },
+      "CaseListItem": {
+        "description": "One case of the listing, from any channel. Content is limited to the title.",
+        "properties": {
+          "case_id": {
+            "description": "The case.",
+            "examples": [
+              "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+            ],
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was closed (UTC); null while open.",
+            "examples": [
+              null
+            ],
+            "title": "Closed At"
+          },
+          "created_at": {
+            "description": "When the case was opened (UTC).",
+            "examples": [
+              "2026-11-12T09:30:58Z"
+            ],
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "overdue_actions": {
+            "description": "Pending actions past their due date, in `APP_TIMEZONE` (the same rule as `overdue` in the session view).",
+            "examples": [
+              1
+            ],
+            "minimum": 0.0,
+            "title": "Overdue Actions",
+            "type": "integer"
+          },
+          "pending_actions": {
+            "description": "Actions not done yet.",
+            "examples": [
+              2
+            ],
+            "minimum": 0.0,
+            "title": "Pending Actions",
+            "type": "integer"
+          },
+          "phase": {
+            "description": "The current phase: `understand` (the four facts), `challenge` (evidence), `analyse` (the cause), `action` (actions with owner and date), `followup` (tracking them) or `closed`.",
+            "enum": [
+              "understand",
+              "challenge",
+              "analyse",
+              "action",
+              "followup",
+              "closed"
+            ],
+            "examples": [
+              "analyse"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "tenant": {
+            "description": "The case's tenant.",
+            "examples": [
+              "cliente-acme"
+            ],
+            "title": "Tenant",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What happens (`what`), on one line and cut to 80 characters; null until the copilot records it.",
+            "examples": [
+              "Merma del 4 % en el envasado de la línea 2"
+            ],
+            "title": "Title"
+          },
+          "turns": {
+            "description": "Committed turns.",
+            "examples": [
+              4
+            ],
+            "minimum": 0.0,
+            "title": "Turns",
+            "type": "integer"
+          },
+          "updated_at": {
+            "description": "When the last turn was committed, else when it was opened (UTC).",
+            "examples": [
+              "2026-11-13T16:02:11Z"
+            ],
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "web_session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The web session linked to the case, to keep talking through `POST /copilot/messages`; null for a case opened from another channel.",
+            "examples": [
+              "3f1c2a9e-7b4d-4e8a-9c61-0d5b2f7a8e14"
+            ],
+            "title": "Web Session Id"
+          }
+        },
+        "required": [
+          "case_id",
+          "tenant",
+          "title",
+          "phase",
+          "turns",
+          "pending_actions",
+          "overdue_actions",
+          "created_at",
+          "updated_at",
+          "closed_at",
+          "web_session_id"
+        ],
+        "title": "CaseListItem",
+        "type": "object"
+      },
+      "CasePage": {
+        "description": "A page of cases.",
+        "properties": {
+          "items": {
+            "description": "The items of this page, possibly empty.",
+            "items": {
+              "$ref": "#/components/schemas/CaseListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size requested.",
+            "examples": [
+              25
+            ],
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Number of matching items skipped.",
+            "examples": [
+              0
+            ],
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Number of items matching the filters, across all pages.",
+            "examples": [
+              42
+            ],
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CasePage",
+        "type": "object"
+      },
       "Chunk": {
         "description": "One stored chunk of a document.",
         "properties": {
@@ -2314,12 +2504,245 @@
     }
   },
   "info": {
-    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from, and searches it the way the copilot will; the `/copilot`\nendpoints talk to the copilot itself.\n\n## Authentication\n\nThe `/admin` and `/copilot` endpoints need the header `X-API-Key`. In this page, click\n**Authorize** and paste the key, then use **Try it out**. The key is **provisional**: one\nshared key, to be replaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |\n| `document_not_found` | 404 | `[\"path\", \"doc_id\"]` |\n| `session_not_found` | 404 | `[\"path\", \"session_id\"]` |\n| `tenant_mismatch` | 422 | `[\"body\", \"tenant\"]` |\n| `case_closed`, `case_changed` | 409 | `[]` |\n| `llm_unavailable`, `llm_rate_limited`, `llm_credits`, `llm_auth`, `llm_error` | 502 | `[]` |\n| `llm_not_configured` | 503 | `[]` |\n| `document_changed` | 409 | `[]` |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
+    "description": "Backend of the AYO Plant Copilot, an AI agent that guides industrial plant teams through\nstructured problem solving. This API loads the plant knowledge (procedures, manuals) the\ncopilot retrieves from, and searches it the way the copilot will; the `/copilot`\nendpoints talk to the copilot itself, and `/admin/cases` inspects its cases.\n\n## Authentication\n\nThe `/admin` and `/copilot` endpoints need the header `X-API-Key`. In this page, click\n**Authorize** and paste the key, then use **Try it out**. The key is **provisional**: one\nshared key, to be replaced by real user identity and per-tenant permissions.\n\n## Errors\n\nEvery error has the same body, the shape FastAPI uses for request validation errors:\n\n```json\n{\"detail\": [{\"type\": \"file_empty\", \"loc\": [\"body\", \"file\"], \"msg\": \"file is empty\"}]}\n```\n\nBranch on `type`, a stable code; `msg` is for humans. `loc` names the input at fault, or\nis `[]`. Only FastAPI's own validation errors (such as `missing`) add `input` and `ctx`.\n\n| `type` | Status | `loc` |\n|---|---|---|\n| `invalid_api_key` | 401 | `[\"header\", \"x-api-key\"]` |\n| `file_too_large` | 413 | `[\"body\", \"file\"]` |\n| `file_extension`, `file_encoding`, `file_empty`, `file_no_content` | 422 | `[\"body\", \"file\"]` |\n| `source_key_invalid` | 422 | `[\"body\", \"source_key\"]` (`[\"body\", \"file\"]` if derived) |\n| FastAPI codes (`missing`, `string_pattern_mismatch`, `literal_error`, ...) | 422 | the field |\n| `document_not_found` | 404 | `[\"path\", \"doc_id\"]` |\n| `session_not_found` | 404 | `[\"path\", \"session_id\"]` |\n| `tenant_mismatch` | 422 | `[\"body\", \"tenant\"]` |\n| `case_closed`, `case_changed` | 409 | `[]` |\n| `llm_unavailable`, `llm_rate_limited`, `llm_credits`, `llm_auth`, `llm_error` | 502 | `[]` |\n| `llm_not_configured` | 503 | `[]` |\n| `document_changed` | 409 | `[]` |\n| `embedding_failed` | 502 | `[]` |\n\nRequests the framework rejects use the same body: a malformed body is `400 bad_request`,\nan unknown path `404 not_found`, a wrong method `405 method_not_allowed`, and an\nunexpected failure `500 internal_error`.\n",
     "title": "AYO Plant Copilot API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/cases": {
+      "get": {
+        "description": "List the copilot's cases, from every channel, one page at a time,\nnewest update first.\n\nFilter by `tenant`, `phase`, `closed` (`true` only closed cases, `false` only open ones)\nand `q`, a case-insensitive substring of what happens (`what`; `%` and `_` match\nthemselves). `total` counts every match and the order is stable across pages, even on\nties. A case opened by a first message that failed is listed too, with no turns.\n\n`web_session_id` is the web session to keep talking in; a case from another channel has\nnone.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page, possibly empty. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | A query parameter is out of range or not allowed (FastAPI validation). |",
+        "operationId": "list_cases",
+        "parameters": [
+          {
+            "description": "Only this tenant's cases.",
+            "in": "query",
+            "name": "tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this tenant's cases.",
+              "examples": [
+                "acme"
+              ],
+              "title": "Tenant"
+            }
+          },
+          {
+            "description": "Only cases in this phase.",
+            "in": "query",
+            "name": "phase",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "understand",
+                    "challenge",
+                    "analyse",
+                    "action",
+                    "followup",
+                    "closed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases in this phase.",
+              "examples": [
+                "analyse"
+              ],
+              "title": "Phase"
+            }
+          },
+          {
+            "description": "`true`: only closed cases; `false`: only open ones; absent: both.",
+            "in": "query",
+            "name": "closed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`true`: only closed cases; `false`: only open ones; absent: both.",
+              "examples": [
+                false
+              ],
+              "title": "Closed"
+            }
+          },
+          {
+            "description": "Case-insensitive substring of what happens (`what`). The app's own logs never carry it, but the server's access log records the query string.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Case-insensitive substring of what happens (`what`). The app's own logs never carry it, but the server's access log records the query string.",
+              "examples": [
+                "merma"
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Page size, 1 to 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Page size, 1 to 100.",
+              "examples": [
+                25
+              ],
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of matching cases to skip.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Number of matching cases to skip.",
+              "examples": [
+                0
+              ],
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePage"
+                }
+              }
+            },
+            "description": "A page of cases."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "less_than_equal": {
+                    "summary": "Page too large",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "le": 100
+                          },
+                          "input": "500",
+                          "loc": [
+                            "query",
+                            "limit"
+                          ],
+                          "msg": "Input should be less than or equal to 100",
+                          "type": "less_than_equal"
+                        }
+                      ]
+                    }
+                  },
+                  "literal_error": {
+                    "summary": "Unknown phase",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "expected": "'understand', 'challenge', 'analyse', 'action', 'followup' or 'closed'"
+                          },
+                          "input": "done",
+                          "loc": [
+                            "query",
+                            "phase"
+                          ],
+                          "msg": "Input should be 'understand', 'challenge', 'analyse', 'action', 'followup' or 'closed'",
+                          "type": "literal_error"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `phase`), `bool_parsing` (`closed`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`), `string_too_long` (`q`) or `string_pattern_mismatch` (`tenant`)."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "List cases",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
     "/admin/documents": {
       "get": {
         "description": "List the stored documents, one page at a time, newest change first.\n\nFilter by `tenant`, by `q`, a case-insensitive substring of the title or the source key\n(`%` and `_` match themselves), and by `status`. `total` counts every match, so a client\ncan page with `offset` until it has `total` items; the order is stable across pages, even\non ties.\n\nEach item carries a `status` computed now against the current settings: `outdated` means\nthe chunking or embedding settings changed since the document was indexed (or were never\nrecorded). `status=outdated` lists exactly the documents that `GET /admin/settings` counts\nas outdated, whatever their `outdated_reason`.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page, possibly empty. |\n| `401` | `X-API-Key` missing or wrong. |\n| `422` | A query parameter is out of range or not allowed (FastAPI validation). |",
@@ -4806,6 +5229,10 @@
     {
       "description": "Talk to the copilot: send a session's messages, and inspect the session's case.",
       "name": "copilot"
+    },
+    {
+      "description": "Inspect the copilot's cases, whatever channel opened them.",
+      "name": "cases"
     },
     {
       "description": "Liveness of the service (public), and the status of the database and the embedding provider (behind the key).",

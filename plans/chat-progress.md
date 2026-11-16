@@ -7,7 +7,7 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1 done (2026-11-16). Next: C2, brief first.
+C1 and C2 done (2026-11-16). Next: C3, brief first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -39,7 +39,7 @@ C1 done (2026-11-16). Next: C2, brief first.
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
   this file; the spec saved untracked.
-- [ ] **C2** `GET /admin/cases` (`list_cases`): `tenant`, `phase`, `state=open|closed`, `q`
+- [x] **C2** `GET /admin/cases` (`list_cases`): `tenant`, `phase`, `state=open|closed`, `q`
   (on `what`, never logged), `limit`/`offset` in the `Page` shape, newest update first.
   Rows: `case_id`, tenant, `title`, phase, turns, pending and overdue action counts,
   `created_at`/`updated_at`/`closed_at`, `web_session_id` (null for other channels).
@@ -59,6 +59,11 @@ C1 done (2026-11-16). Next: C2, brief first.
 
 ## Open items
 - Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK.
+- **Query strings in the access log** (found in C2, 2026-11-16): uvicorn's access log is on
+  in `ayo-copilot` (its default) and logs the request line with the query string, so
+  `GET /admin/cases?q=` (case content) and `GET /admin/documents?q=` reach the logs. A
+  proxy in front would log them too. Possible fix: a filter on `uvicorn.access` that drops
+  the query string; not done, waiting for the user's call.
 
 ## Progress log
 - **C1 (2026-11-16).** `schemas.py`: `case_id` (UUID, `CASE_ID_EXAMPLE`) in
@@ -69,3 +74,17 @@ C1 done (2026-11-16). Next: C2, brief first.
   Tests (`tests/api/test_copilot.py`): the first and second message and the session view
   return the same `case_id`, equal to the stored link's `problem_id`; the session view's
   key set includes it. The contract tests validate the new field against the schema.
+- **C2 (2026-11-16).** `GET /admin/cases` (`list_cases`, tag `cases`) in the new
+  `routers/cases.py` (prefix `/admin/cases`, admin key; the shared 401 response is now
+  `admin.UNAUTHORIZED_RESPONSE`). `cases.read_case_page` (repeatable read, read only) over
+  `db/conversations.list_cases` (`CaseRow`: count and page in two statements; turns from
+  `turn_traces`, pending and overdue counts and the earliest web link by subqueries; order
+  `updated_at desc, id`). `dependencies.get_today` (today in `APP_TIMEZONE`, overridden in
+  tests). `schemas`: `case_title` (whitespace collapsed, 80 characters with `…`, None when
+  blank), `CaseListItem`, `CasePage`. README table, `docs/copilot.md` "Inspecting cases",
+  OpenAPI tag, `docs/openapi.json` and `schema.d.ts`. Tests: `tests/api/test_cases.py` (18:
+  empty, every row field, title cut and null, another channel or no link, closed time,
+  order with ties, pagination, each filter and combinations, `%` and `_` literal, a case
+  opened through `/copilot`, seven 422s, `q` absent from the app's logs); contract cases
+  for 200 (empty, items, closed), 401 and 422. Found: the access log records query strings
+  (open item). Full suite green (1408 passed), `pnpm check` green.

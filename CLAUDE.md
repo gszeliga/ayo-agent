@@ -12,7 +12,7 @@ working rules, update this file in that step's commit.
 - **Active (2026-11-16): test chat and case inspector.** Spec
   `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
   log in `plans/chat-progress.md`. **Read both first.** The cases API (C1-C7) comes before
-  the UI; C1 is done.
+  the UI; C1-C2 are done.
 - **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
@@ -117,10 +117,12 @@ src/ayo_copilot/
                        CORS middleware, lifespan: prompts, pool, embedder, LLM provider, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, Search*, errors
-  dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider / get_prompts (request.state)
+  dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider / get_prompts (request.state), get_today
   routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, search, tenants, settings, health (provisional X-API-Key auth, size limits)
   routers/copilot.py   /copilot: send a message, get a session (own key dependency), LLM errors -> 502/503
+  routers/cases.py     /admin/cases: list cases from every channel (admin key)
   documents.py         admin read/write operations on stored documents (own transactions)
+  cases.py             admin read operations on the copilot's cases (own transactions)
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
   search.py            search(): embed_query, then exact vector search in one read-only transaction
   openapi.py           render_openapi() for the committed contract docs/openapi.json

@@ -11,6 +11,7 @@ from pydantic_core import PydanticCustomError
 from ayo_copilot.config import MAX_SEARCH_TOP_K, Settings
 from ayo_copilot.conversation.case import Phase
 from ayo_copilot.conversation.store import SessionView
+from ayo_copilot.db.conversations import CaseRow
 from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusCounts, TenantRow
 from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
@@ -1110,3 +1111,77 @@ class CopilotSession(BaseModel):
                 for message in view.messages
             ],
         )
+
+
+# --- Cases (admin) -----------------------------------------------------------------------
+
+# A case has no title of its own: the listing shows `what`, cut to this length.
+CASE_TITLE_MAX_CHARS = 80
+
+
+def case_title(what: str | None) -> str | None:
+    """`what` on one line, cut to `CASE_TITLE_MAX_CHARS` with an ellipsis; None if unset."""
+    text = " ".join((what or "").split())
+    if not text:
+        return None
+    if len(text) <= CASE_TITLE_MAX_CHARS:
+        return text
+    return text[: CASE_TITLE_MAX_CHARS - 1].rstrip() + "…"
+
+
+class CaseListItem(BaseModel):
+    """One case of the listing, from any channel. Content is limited to the title."""
+
+    case_id: UUID = Field(description="The case.", examples=[CASE_ID_EXAMPLE])
+    tenant: str = Field(description="The case's tenant.", examples=["cliente-acme"])
+    title: str | None = Field(
+        description=f"What happens (`what`), on one line and cut to {CASE_TITLE_MAX_CHARS}"
+        " characters; null until the copilot records it.",
+        examples=["Merma del 4 % en el envasado de la línea 2"],
+    )
+    phase: Phase = Field(
+        description=f"The current phase: {_PHASE_DESCRIPTION}", examples=["analyse"]
+    )
+    turns: int = Field(ge=0, description="Committed turns.", examples=[4])
+    pending_actions: int = Field(ge=0, description="Actions not done yet.", examples=[2])
+    overdue_actions: int = Field(
+        ge=0,
+        description="Pending actions past their due date, in `APP_TIMEZONE` (the same rule as"
+        " `overdue` in the session view).",
+        examples=[1],
+    )
+    created_at: datetime = Field(
+        description="When the case was opened (UTC).", examples=["2026-11-12T09:30:58Z"]
+    )
+    updated_at: datetime = Field(
+        description="When the last turn was committed, else when it was opened (UTC).",
+        examples=["2026-11-13T16:02:11Z"],
+    )
+    closed_at: datetime | None = Field(
+        description="When it was closed (UTC); null while open.", examples=[None]
+    )
+    web_session_id: UUID | None = Field(
+        description="The web session linked to the case, to keep talking through"
+        " `POST /copilot/messages`; null for a case opened from another channel.",
+        examples=[SESSION_ID_EXAMPLE],
+    )
+
+    @classmethod
+    def from_row(cls, row: CaseRow) -> "CaseListItem":
+        return cls(
+            case_id=row.id,
+            tenant=row.tenant,
+            title=case_title(row.what),
+            phase=row.state,
+            turns=row.turns,
+            pending_actions=row.pending_actions,
+            overdue_actions=row.overdue_actions,
+            created_at=_utc(row.created_at),
+            updated_at=_utc(row.updated_at),
+            closed_at=_utc(row.closed_at),
+            web_session_id=None if row.web_session_id is None else UUID(row.web_session_id),
+        )
+
+
+class CasePage(Page[CaseListItem]):
+    """A page of cases."""
