@@ -23,7 +23,7 @@ from ayo_copilot.conversation.engine import (
 from ayo_copilot.conversation.phases import describe_missing, missing_for
 from ayo_copilot.conversation.prompt_files import load_prompts
 from ayo_copilot.conversation.query import build_query
-from ayo_copilot.conversation.reply import FALLBACK_REPLY
+from ayo_copilot.conversation.reply import CLOSED_REPLY, FALLBACK_REPLY
 from ayo_copilot.conversation.store import (
     CaseChanged,
     CaseNotFound,
@@ -753,6 +753,68 @@ def test_closed_case_rejects_new_messages(db_pool: ConnectionPool) -> None:
 
     assert llm.calls == []
     assert fetch(db_pool, "select count(*) from problem_events") == [(0,)]
+
+
+def case_in_followup(pool: ConnectionPool) -> tuple[UUID, int]:
+    """A case in `followup` with one pending action (added by an engine turn); returns the
+    case and the action's id."""
+    problem_id = new_case(pool)
+    advance_case(pool, problem_id, "action")
+    action = {"description": "Recalibrar el sensor", "owner": "Ana", "due_date": "2026-11-20"}
+    llm = FakeLLMProvider(
+        [
+            tool_calls_response(
+                tool_call("add_action", action, call_id="c_add"),
+                tool_call("propose_transition", {"target_state": "followup", "reasoning": "x"}),
+            ),
+            text_response("Plan acordado."),
+        ]
+    )
+    make_engine(pool, llm).handle_turn(problem_id, "Ana, para el 20")
+    ((action_id,),) = fetch(pool, "select id from actions where problem_id = %s", problem_id)
+    return problem_id, action_id
+
+
+def closing_calls(action_id: int) -> list:
+    return [
+        tool_call("update_action", {"action_id": action_id, "status": "done"}, call_id="c_up"),
+        tool_call("propose_transition", {"target_state": "closed", "reasoning": "hecho"}),
+    ]
+
+
+def test_closing_the_case_ends_the_turn_without_another_call(db_pool: ConnectionPool) -> None:
+    problem_id, action_id = case_in_followup(db_pool)
+    llm = FakeLLMProvider([tool_calls_response(*closing_calls(action_id), text="Cierro el caso.")])
+
+    result = make_engine(db_pool, llm).handle_turn(problem_id, "Ya está hecha")
+
+    assert len(llm.calls) == 1
+    assert (result.phase_before, result.phase_after) == ("followup", "closed")
+    assert result.reply == "Cierro el caso."
+    ((state, closed_at),) = fetch(
+        db_pool, "select state, closed_at from problems where id = %s", problem_id
+    )
+    assert state == "closed" and closed_at is not None
+    assert fetch(db_pool, "select status from actions where id = %s", action_id) == [("done",)]
+    trace = traces(db_pool, problem_id)[-1]
+    assert (trace["phase_before"], trace["phase_after"]) == ("followup", "closed")
+    assert trace["llm_calls"] == 1 and not trace["capped"]
+    assert [t["name"] for t in trace["tool_calls"]] == ["update_action", "propose_transition"]
+
+
+def test_closing_without_text_replies_with_the_closing_message(db_pool: ConnectionPool) -> None:
+    problem_id, action_id = case_in_followup(db_pool)
+    llm = FakeLLMProvider([tool_calls_response(*closing_calls(action_id))])
+
+    result = make_engine(db_pool, llm).handle_turn(problem_id, "Ya está hecha")
+
+    assert result.reply == CLOSED_REPLY
+    assert fetch(
+        db_pool,
+        "select content from problem_events where problem_id = %s and role = 'assistant'"
+        " order by id desc limit 1",
+        problem_id,
+    ) == [(CLOSED_REPLY,)]
 
 
 # --- 13. the per-phase model ------------------------------------------------------------

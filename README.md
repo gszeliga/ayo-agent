@@ -281,6 +281,9 @@ curl -s http://127.0.0.1:8000/copilot/sessions/$SESSION -H "X-API-Key: $ADMIN_AP
 - A knowledge-base failure does not fail the turn: the copilot says it could not
   consult it. Retrieval runs in `RETRIEVAL_PHASES` (default `analyse`) over the case's
   tenant plus `COMMON_TENANT` (default `ayo`).
+- A turn that closes the case ends there, with no further model call; if the model said
+  nothing, the reply is a fixed closing message. A closed case takes no more messages
+  (`409 case_closed`): a new problem needs a new `session_id`.
 - The session view is for inspection while testing: no prompts, traces or retrieved text.
   `overdue` compares due dates with today in `APP_TIMEZONE`.
 - The channel stored for these conversations is `web`; Slack or Google Chat will be other

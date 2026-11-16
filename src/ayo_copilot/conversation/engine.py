@@ -186,6 +186,8 @@ class TurnEngine:
                     Message(role="tool", content=outcome.content(), tool_call_id=call.id)
                 )
             if snapshot.case.state != phase:
+                if snapshot.case.state == "closed":
+                    break  # a closed case gets no further call: the turn ends here
                 hops += 1
                 hopped_from = phase
                 exchange = []
@@ -197,7 +199,7 @@ class TurnEngine:
                 capped = True
                 break
 
-        reply = compose_reply(texts, capped=capped)
+        reply = compose_reply(texts, capped=capped, closed=snapshot.case.state == "closed")
         duration_ms = round((self._monotonic() - started) * 1000)
         trace = _trace(settings, responses, outcomes, retrieval, capped, duration_ms)
         committed = commit_turn(

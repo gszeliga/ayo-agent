@@ -8,9 +8,11 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E7 done (2026-11-14, commit "Add the copilot endpoints (E7)"; E1-E6 pushed, E7 not).**
-Next is **E8**: write its brief and wait for approval before coding. Pending OK, not part
-of E8: applying migration 0003 to the Neon dev branch.
+**E7 fix done (2026-11-16, commit "End the turn when the case closes (E7 fix)"); E1-E6
+pushed, E7 and the fix not.** Next is **E8**, already briefed and approved: the golden
+path and the `store_chunks` move to `tests/integration/support.py` were written before
+the fix and set aside (not committed); resume them, expecting the closing turn to make one
+call. Pending OK, not part of E8: applying migration 0003 to the Neon dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -93,6 +95,12 @@ of E8: applying migration 0003 to the Neon dev branch.
 24. **A failed first message leaves its empty case** (2026-11-14, as in the spec's design):
     `resolve_case` commits the case and link before the turn, so a `409`/`502`/`503` on
     the first message stores no turn but keeps the empty case; the retry continues it.
+25. **Closing a case ends the turn** (agreed 2026-11-16, found by E8's golden path): an
+    accepted move to `closed` breaks the model loop (there is no `closed` prompt and no
+    tools, so the next call raised and every close was a 500). The reply is the model's
+    text; without any, `CLOSED_REPLY` ("Caso cerrado. Si el problema vuelve a aparecer,
+    abre una conversación nueva."), not the generic fallback. Done as its own step before
+    E8.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **E1** Migration 0003 (five tables), migration and constraint tests, `db_pool`
@@ -110,6 +118,7 @@ of E8: applying migration 0003 to the Neon dev branch.
   failure path, trace, per-phase model; engine tests 1-13.
 - [x] **E7** Channel protocol, web adapter, `/copilot` router (decision 23) and its key dependency, OpenAPI,
   contract and auth tests, `docs/openapi.json`, `ui/src/api/schema.d.ts`.
+- [x] **E7 fix** Closing a case ends the turn (decision 25).
 - [ ] **E8** Scripted golden path through all five phases; README sections.
 - [ ] **E9** `ayo-llm-check` imports the real tool specs; `update_action` scenario (no calls).
 - [ ] **E10** Live conversation test and `eval/conversations/` transcript writer (code only).
@@ -256,3 +265,12 @@ of E8: applying migration 0003 to the Neon dev branch.
   checks (operations, scheme, bounds, nullable facts). `docs/openapi.json`,
   `ui/src/api/schema.d.ts` regenerated; `pnpm check` passes (its `ECONNRESET` log line
   predates this step). Full suite green (1334 passed).
+- **E7 fix (2026-11-16).** Found while writing E8's golden path: the turn that closed a
+  case called the model again under `closed`, `build_system_prompt` raised `ValueError`,
+  so the turn failed (500) and nothing was stored; no case could be closed. Engine tests
+  1-13 never closed one. `engine.py`: after an accepted hop into `closed`, the loop ends
+  (no retrieval, no message rebuild, no call). `reply.py`: `CLOSED_REPLY`,
+  `compose_reply(..., closed=)` uses it when there is no text (a capped turn cannot also
+  close). Tests: two engine tests (one call only, `closed_at`, the action done, trace
+  `llm_calls=1`; the closing message stored as the reply), one reply unit test. Removing
+  the `break` fails both engine tests. README: one line under "Talking to the copilot".
