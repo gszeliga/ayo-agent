@@ -42,7 +42,7 @@ For a Neon dev branch or a psql shell, see [docs/operations.md](docs/operations.
 | [docs/search.md](docs/search.md) | Searching the knowledge base: the request, the filters, how results are ranked |
 | [docs/copilot.md](docs/copilot.md) | Talking to the copilot; inspecting its cases; the flow of a turn, the phase rules, the tools, the trace; editing the prompt files |
 | [docs/configuration.md](docs/configuration.md) | Every setting, by group; browser clients (CORS) |
-| [docs/operations.md](docs/operations.md) | A Neon dev branch, the psql shell, the service status |
+| [docs/operations.md](docs/operations.md) | A Neon dev branch, the psql shell, the service status, what the logs hold |
 | [docs/development.md](docs/development.md) | Tests, the API contract, the tool-calling check (`ayo-llm-check`) |
 | [ui/README.md](ui/README.md) | The admin UI |
 | [docs/decisions/](docs/decisions/) | Architecture decision records |

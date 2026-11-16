@@ -63,9 +63,8 @@ curl -s "http://127.0.0.1:8000/admin/cases?tenant=cliente-acme&closed=false" \
   session view), the open, last-update and closing times, and `web_session_id`: the web
   session to keep talking in, null for a case opened from another channel.
 - A case left by a failed first message is listed too, with no turns.
-- The app's own logs never carry `q`, but uvicorn's access log (on in `ayo-copilot`)
-  records each request line, query string included, as it already does for the
-  documents list's `q`. Not resolved yet.
+- `q` is never logged: the access log drops query strings (see
+  [Logs](operations.md#logs)).
 
 ## The flow of a turn
 

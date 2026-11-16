@@ -74,7 +74,8 @@ working rules, update this file in that step's commit.
 - Secrets live only in the gitignored `.env` (also ignored: `ayodb.connect`, `voyage.ai`).
   Never print, log, commit or paste them into the chat. Show URLs with the password
   redacted (`sed -E 's#://[^@]*@#://***@#g'`) or print only the host.
-- Never log document content (customer data) or API keys. Logs carry `doc_id`, tenant,
+- Never log document content (customer data) or API keys. Query strings can carry content
+  (`?q=`): the access log drops them (`access_log.py`); keep it that way. Logs carry `doc_id`, tenant,
   counts and durations.
 
 ## Commands
@@ -112,7 +113,8 @@ Migrations on Neon must use the direct endpoint (host without `-pooler`).
 
 ```
 src/ayo_copilot/
-  __init__.py          main(): logging.basicConfig + uvicorn (factory=True)
+  __init__.py          main(): logging.basicConfig + uvicorn (factory=True, log_config)
+  access_log.py        DropQueryString: uvicorn's access log without query strings
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        CORS middleware, lifespan: prompts, pool, embedder, LLM provider, DB_LOG_LEVEL, dimension check
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}

@@ -54,3 +54,13 @@ request for a single word (5 s timeout, no retries), and the result is kept for 
 failure included; `refresh=true` checks again, and nothing is checked in the background.
 `last_success_at`, `last_error_at` and `last_error` describe the last real embedding calls
 (uploads, reprocesses) since the service started. The public `/health` stays liveness only.
+
+## Logs
+
+`ayo-copilot` logs to the console: the app's own lines (ids, tenants, counts, durations,
+never document or conversation content) and uvicorn's access log, one line per request
+with the client, method, path and status. **The access log drops the query string**
+(`src/ayo_copilot/access_log.py`), because a query can carry content: `GET
+/admin/cases?q=...` searches case text, and is logged as `"GET /admin/cases HTTP/1.1" 200`.
+A proxy or platform in front of the service keeps its own access log; configure it not to
+record query strings either.

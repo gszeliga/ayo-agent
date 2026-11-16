@@ -7,7 +7,7 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1 and C2 done (2026-11-16). Next: C3, brief first.
+C1, C2 and the access-log side step done (2026-11-16). Next: C3, brief first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -59,11 +59,8 @@ C1 and C2 done (2026-11-16). Next: C3, brief first.
 
 ## Open items
 - Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK.
-- **Query strings in the access log** (found in C2, 2026-11-16): uvicorn's access log is on
-  in `ayo-copilot` (its default) and logs the request line with the query string, so
-  `GET /admin/cases?q=` (case content) and `GET /admin/documents?q=` reach the logs. A
-  proxy in front would log them too. Possible fix: a filter on `uvicorn.access` that drops
-  the query string; not done, waiting for the user's call.
+- A proxy or platform in front of the service (deployment, D1) keeps its own access log:
+  it must not record query strings either (`docs/operations.md`, "Logs").
 
 ## Progress log
 - **C1 (2026-11-16).** `schemas.py`: `case_id` (UUID, `CASE_ID_EXAMPLE`) in
@@ -88,3 +85,14 @@ C1 and C2 done (2026-11-16). Next: C3, brief first.
   opened through `/copilot`, seven 422s, `q` absent from the app's logs); contract cases
   for 200 (empty, items, closed), 401 and 422. Found: the access log records query strings
   (open item). Full suite green (1408 passed), `pnpm check` green.
+- **Side step (2026-11-16), not a C step, agreed with the user after C2.** The access log
+  drops query strings: `access_log.DropQueryString` cuts the path of uvicorn's access
+  record (`client, method, path, version, status`) at `?` and passes any other record
+  shape unchanged; `uvicorn_log_config()` is a copy of uvicorn's `LOGGING_CONFIG` with the
+  filter on the access handler only; `main()` passes it as `log_config`. Covers
+  `/admin/documents?q=` too. Docs: `docs/operations.md` "Logs" (and a proxy must not log
+  them either), `docs/copilot.md`, the `q` description, CLAUDE.md safety rule. Tests:
+  `tests/unit/test_access_log.py` (12: paths with and without a query, other record shapes,
+  the config and uvicorn's default untouched, `main()` passing it, and a subprocess that
+  applies the config and writes an access line without the query; checked by hand that
+  uvicorn's default config does log it).

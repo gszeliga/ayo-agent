@@ -125,8 +125,8 @@ def list_cases(
         str | None,
         Query(
             max_length=200,
-            description="Case-insensitive substring of what happens (`what`). The app's"
-            " own logs never carry it, but the server's access log records the query string.",
+            description="Case-insensitive substring of what happens (`what`). Never logged"
+            " (the access log drops query strings).",
             examples=["merma"],
         ),
     ] = None,

@@ -1962,7 +1962,7 @@ export interface operations {
                 phase?: ("understand" | "challenge" | "analyse" | "action" | "followup" | "closed") | null;
                 /** @description `true`: only closed cases; `false`: only open ones; absent: both. */
                 closed?: boolean | null;
-                /** @description Case-insensitive substring of what happens (`what`). The app's own logs never carry it, but the server's access log records the query string. */
+                /** @description Case-insensitive substring of what happens (`what`). Never logged (the access log drops query strings). */
                 q?: string | null;
                 /** @description Page size, 1 to 100. */
                 limit?: number;

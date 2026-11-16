@@ -260,7 +260,7 @@ def test_search_text_is_not_logged(
     with caplog.at_level("DEBUG"):
         list_cases(client, q="confidencial")
 
-    # The app's own loggers; the request line of an HTTP access log is the server's
-    # (see the open item on access logs in plans/chat-progress.md).
+    # The app's own loggers; uvicorn's access log drops query strings
+    # (tests/unit/test_access_log.py). The test client logs full URLs, so it is excluded.
     app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
     assert not any("confidencial" in message for message in app_messages)
