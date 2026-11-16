@@ -289,6 +289,70 @@ curl -s http://127.0.0.1:8000/copilot/sessions/$SESSION -H "X-API-Key: $ADMIN_AP
 - The channel stored for these conversations is `web`; Slack or Google Chat will be other
   channels behind the same engine.
 
+### The flow of a turn
+
+1. The channel finds the session's case (or opens one with its link) and loads a
+   snapshot: the four facts, the annotations, the actions and the latest messages.
+   A closed case stops here with `409 case_closed`.
+2. In a phase of `RETRIEVAL_PHASES`, the knowledge base is searched once with a query
+   built from the case (what, where, the message, the latest evidence and hypotheses).
+3. The model is called with the system prompt (base, phase prompt, today's date, the case
+   record, the knowledge found, the glossary), the messages of the current visit to the
+   phase (at most `CONTEXT_MAX_MESSAGES`) and the phase's tools.
+4. Each tool call is checked and applied to the snapshot in memory, and its result goes
+   back to the model, which is called again until it answers without tools. If a
+   transition is accepted, the next call runs under the new phase's prompt and tools
+   (searching again if that phase retrieves). Closing the case ends the turn.
+5. `MAX_TOOL_ROUNDS` calls and `TURN_TIMEOUT_SECONDS` cap the turn: the reply then ends
+   with a fallback message, and what was accepted is kept.
+6. One transaction stores the user message, the annotations, the actions, the new phase,
+   the reply and the trace, if the case's version has not changed since the snapshot
+   (else `409 case_changed`, nothing stored). A model failure stores nothing either.
+
+### The phase rules
+
+The model proposes a phase change with `propose_transition`; the code accepts it only if
+the exit criteria hold, and otherwise answers with what is missing.
+
+| From | To | When |
+|---|---|---|
+| `understand` | `challenge` | the four facts are recorded: what, where, since, standard |
+| `challenge` | `analyse` | at least one evidence is recorded |
+| `analyse` | `action` | a validated cause is recorded |
+| `action` | `followup` | at least one action, each with an owner and a due date |
+| `followup` | `action` | always (to reopen the plan) |
+| `followup` | `closed` | at least one action and none pending; sets `closed_at` |
+
+Only the targets of the current phase are offered (the tool's enum is generated from this
+table), so the model cannot even name a skip. At most `MAX_PHASE_HOPS` (default 1) change
+is accepted per turn; a second one gets `phase_hop_limit`.
+
+### The tools
+
+| Tool | Phases | What it does |
+|---|---|---|
+| `record_field` | understand, challenge | Records or corrects one of the four facts. |
+| `log_event` | challenge, analyse | Records evidence, a hypothesis or a discarded hypothesis; in `analyse` also a validated cause. |
+| `add_action` | action, followup | Adds an action with its owner and due date (`YYYY-MM-DD`); it gets its id when the turn is committed. |
+| `update_action` | action, followup | Sets a stored action to `pending` or `done`, by the id in the case record. |
+| `propose_transition` | every phase but closed | Proposes the next phase, with a reason. |
+
+A call that cannot be applied is not executed; the model gets
+`{"ok": false, "error": "<code>", "detail": "..."}` and can correct itself. The codes:
+`unknown_tool`, `tool_not_offered`, `invalid_json`, `invalid_arguments` (the JSON
+Schema), `invalid_date`, `action_not_found`, `criteria_not_met` (with `missing`) and
+`phase_hop_limit`. The response's `tools_used` lists each call with `ok`.
+
+### The turn trace
+
+Every committed turn writes one row to `turn_traces`: turn number, phase before and
+after, the models used, `PROMPTS_VERSION`, the number of model calls, token and cost sums
+(empty when the provider did not report them), each tool call's name, outcome and error
+code, the retrieved chunk ids with their similarity and document, the retrieval error
+(`embedding_failed`) if any, whether a cap stopped the turn, and the duration. It never
+holds content: no prompts, messages, tool arguments, results or retrieved text. The logs
+follow the same rule (one line per turn with the same metadata).
+
 ## Tenants
 
 ```sh
@@ -472,9 +536,9 @@ Never commit `.env`.
 | `EMBEDDING_TIMEOUT_SECONDS` | `30` | Timeout per embedding request. |
 | `EMBEDDING_MAX_RETRIES` | `3` | Retries on `429`, `5xx`, timeouts and connection errors, with exponential backoff and jitter. Other errors fail at once. |
 
-Language model settings (through [OpenRouter](https://openrouter.ai)). **No endpoint uses
-the model yet.** None of them is required: the app starts and everything else works without
-a key, which is only needed when a model is called.
+Language model settings (through [OpenRouter](https://openrouter.ai)), used by the
+copilot endpoints. None of them is required: the app starts and everything else works
+without a key, which is only needed when a model is called.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -492,8 +556,8 @@ a key, which is only needed when a model is called.
 | `LLM_REASONING_EFFORT` | *(unset: the model's default)* | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. Reasoning tokens are billed as output; `none` turns reasoning off where the model allows it. |
 | `LLM_APP_URL`, `LLM_APP_TITLE` | *(unset)* | Optional OpenRouter attribution headers (`HTTP-Referer`, `X-OpenRouter-Title`). |
 
-Conversation engine settings. **Not used by any endpoint yet** (the engine is being built).
-None is required. Invalid values (an unknown phase, a time zone that does not exist,
+Conversation engine settings, used by the copilot endpoints (see "Talking to the
+copilot"). None is required. Invalid values (an unknown phase, a time zone that does not exist,
 malformed JSON) stop the app at startup.
 
 | Variable | Default | Description |

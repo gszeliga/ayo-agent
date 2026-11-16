@@ -8,11 +8,10 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E7 fix done (2026-11-16, commit "End the turn when the case closes (E7 fix)"); E1-E6
-pushed, E7 and the fix not.** Next is **E8**, already briefed and approved: the golden
-path and the `store_chunks` move to `tests/integration/support.py` were written before
-the fix and set aside (not committed); resume them, expecting the closing turn to make one
-call. Pending OK, not part of E8: applying migration 0003 to the Neon dev branch.
+**E8 done (2026-11-16, commit "Add the scripted golden path and the README sections (E8)");
+E1-E6 pushed, E7, its fix and E8 not.** Next is **E9**: write its brief and wait for
+approval before coding. Pending OK, not part of E9: applying migration 0003 to the Neon
+dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -119,7 +118,7 @@ call. Pending OK, not part of E8: applying migration 0003 to the Neon dev branch
 - [x] **E7** Channel protocol, web adapter, `/copilot` router (decision 23) and its key dependency, OpenAPI,
   contract and auth tests, `docs/openapi.json`, `ui/src/api/schema.d.ts`.
 - [x] **E7 fix** Closing a case ends the turn (decision 25).
-- [ ] **E8** Scripted golden path through all five phases; README sections.
+- [x] **E8** Scripted golden path through all five phases; README sections.
 - [ ] **E9** `ayo-llm-check` imports the real tool specs; `update_action` scenario (no calls).
 - [ ] **E10** Live conversation test and `eval/conversations/` transcript writer (code only).
 - [ ] **E11** **Billed**: live test, the three manual conversations, check rerun for both
@@ -274,3 +273,22 @@ call. Pending OK, not part of E8: applying migration 0003 to the Neon dev branch
   close). Tests: two engine tests (one call only, `closed_at`, the action done, trace
   `llm_calls=1`; the closing message stored as the reply), one reply unit test. Removing
   the `break` fails both engine tests. README: one line under "Talking to the copilot".
+- **E8 (2026-11-16).** `tests/api/test_copilot_golden_path.py`: one session over HTTP
+  (scripted model, real database, fake embedder), nine turns from a vague message to
+  `closed`: a question only; two facts; the other two plus understand -> challenge in one
+  turn (second call under the challenge prompt, tools and phase-changed line); a
+  hypothesis and a premature move to `analyse` refused (`criteria_not_met`, `missing:
+  ["evidence"]`); the hypothesis discarded, evidence and challenge -> analyse with
+  retrieval after the hop (own and `ayo` chunks in the reference block, another
+  customer's absent); a validated cause and analyse -> action (retrieval at the start,
+  none after the hop); one action plus an `add_action` without owner refused
+  (`invalid_arguments`; the brief's "action without owner -> `incomplete_actions`" cannot
+  happen, the schema requires the owner); a second action and action -> followup; both
+  actions done and followup -> closed in one call (decision 25), then `409 case_closed`
+  with no call. Final checks: facts, version 9, `closed_at`, events by type and each
+  message's phase, actions, nine traces (phases, call counts, token sums, retrieval only
+  in the two analyse turns, tool outcomes, no content in the JSON), the session view.
+  `store_chunks` moved from the engine test to `tests/integration/support.py` (settings
+  optional). README: "The flow of a turn", "The phase rules", "The tools", "The turn
+  trace" under "Talking to the copilot"; the two "not used by any endpoint yet" lines
+  fixed. No production code changed. Full suite green (1338 passed).

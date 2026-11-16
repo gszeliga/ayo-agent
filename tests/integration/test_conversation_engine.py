@@ -32,10 +32,7 @@ from ayo_copilot.conversation.store import (
     resolve_case,
 )
 from ayo_copilot.conversation.tools import tools_for_phase
-from ayo_copilot.db.repository import ChunkRecord, DocumentRecord, replace_chunks, upsert_document
 from ayo_copilot.ingestion.embedding import EmbeddingError, FakeEmbedder
-from ayo_copilot.ingestion.service import current_configs
-from ayo_copilot.ingestion.signatures import make_doc_id
 from ayo_copilot.llm.errors import LLMUnavailableError
 from ayo_copilot.llm.fake import (
     FakeLLMProvider,
@@ -46,7 +43,7 @@ from ayo_copilot.llm.fake import (
 )
 from ayo_copilot.llm.types import LLMResponse, Message, ToolSpec, Usage
 from tests.integration.support import CASE_FACTS as FACTS
-from tests.integration.support import advance_case
+from tests.integration.support import advance_case, store_chunks
 
 pytestmark = pytest.mark.integration
 
@@ -60,7 +57,6 @@ def make_settings(**overrides: Any) -> Settings:
 
 
 SETTINGS = make_settings()
-CHUNKER, EMBEDDER = current_configs(SETTINGS)
 
 
 def make_engine(
@@ -106,38 +102,6 @@ def facts_calls() -> list:
         tool_call("record_field", {"field": k, "value": v}, call_id=f"call_{k}")
         for k, v in FACTS.items()
     ]
-
-
-def store_chunks(pool: ConnectionPool, tenant: str, texts: Sequence[str]) -> list[UUID]:
-    """A document of `tenant` whose chunks hold `texts`, embedded with the fake embedder."""
-    embedder = FakeEmbedder(dimensions=SETTINGS.embedding_dimensions)
-    source_key = f"{tenant}-guia.md"
-    document = DocumentRecord(
-        doc_id=make_doc_id(tenant, source_key),
-        tenant=tenant,
-        source_key=source_key,
-        title=f"Guía de {tenant}",
-        markdown="# Guía\n",
-        content_hash="h",
-        chunk_signature="c",
-        embed_signature="e",
-        chunk_count=len(texts),
-        chunker_config=CHUNKER,
-        embedder_config=EMBEDDER,
-    )
-    chunks = [
-        ChunkRecord(index=i, heading="Guía", text=text, embedding=vector)
-        for i, (text, vector) in enumerate(zip(texts, embedder.embed_documents(texts), strict=True))
-    ]
-    with pool.connection() as conn, conn.transaction():
-        replace_chunks(conn, upsert_document(conn, document), chunks)
-    rows = fetch(
-        pool,
-        "select c.id from chunks c join documents d on d.id = c.document_id"
-        " where d.tenant = %s order by c.chunk_index",
-        tenant,
-    )
-    return [row[0] for row in rows]
 
 
 class FailingEmbedder:

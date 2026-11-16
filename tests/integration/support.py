@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
     from psycopg_pool import ConnectionPool
 
+    from ayo_copilot.config import Settings
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PGVECTOR_IMAGE = "pgvector/pgvector:0.8.7-pg18-trixie"
 
@@ -109,3 +111,56 @@ def advance_case(pool: "ConnectionPool", problem_id: "UUID", phase: str) -> None
             trace=TraceRecord(prompts_version="draft-1", llm_calls=1, duration_ms=1),
         ),
     )
+
+
+def store_chunks(
+    pool: "ConnectionPool",
+    tenant: str,
+    texts: Sequence[str],
+    *,
+    settings: "Settings | None" = None,
+) -> list["UUID"]:
+    """A document of `tenant` whose chunks hold `texts`, embedded with the fake embedder
+    and stored with the configs of `settings` (default: the fake embedder's), so a search
+    with those settings finds them."""
+    from ayo_copilot.config import Settings
+    from ayo_copilot.db.repository import (
+        ChunkRecord,
+        DocumentRecord,
+        replace_chunks,
+        upsert_document,
+    )
+    from ayo_copilot.ingestion.embedding import FakeEmbedder
+    from ayo_copilot.ingestion.service import current_configs
+    from ayo_copilot.ingestion.signatures import make_doc_id
+
+    settings = settings or Settings(_env_file=None, admin_api_key="k", embedding_provider="fake")
+    chunker_config, embedder_config = current_configs(settings)
+    embedder = FakeEmbedder(dimensions=settings.embedding_dimensions)
+    source_key = f"{tenant}-guia.md"
+    document = DocumentRecord(
+        doc_id=make_doc_id(tenant, source_key),
+        tenant=tenant,
+        source_key=source_key,
+        title=f"Guía de {tenant}",
+        markdown="# Guía\n",
+        content_hash="h",
+        chunk_signature="c",
+        embed_signature="e",
+        chunk_count=len(texts),
+        chunker_config=chunker_config,
+        embedder_config=embedder_config,
+    )
+    chunks = [
+        ChunkRecord(index=i, heading="Guía", text=text, embedding=vector)
+        for i, (text, vector) in enumerate(zip(texts, embedder.embed_documents(texts), strict=True))
+    ]
+    with pool.connection() as conn, conn.transaction():
+        replace_chunks(conn, upsert_document(conn, document), chunks)
+    with pool.connection() as conn:
+        rows = conn.execute(
+            "select c.id from chunks c join documents d on d.id = c.document_id"
+            " where d.tenant = %s order by c.chunk_index",
+            (tenant,),
+        ).fetchall()
+    return [row[0] for row in rows]
