@@ -668,6 +668,7 @@ export interface components {
          * CopilotMessageResponse
          * @description The copilot's reply and where the case stands after the turn.
          * @example {
+         *       "case_id": "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52",
          *       "phase": "challenge",
          *       "phase_changed": true,
          *       "previous_phase": "understand",
@@ -687,6 +688,13 @@ export interface components {
          *     }
          */
         CopilotMessageResponse: {
+            /**
+             * Case Id
+             * Format: uuid
+             * @description The case behind the session: the same for every message of the session.
+             * @example 8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52
+             */
+            case_id: string;
             /**
              * Phase
              * @description The phase after the turn: `understand` (the four facts), `challenge` (evidence), `analyse` (the cause), `action` (actions with owner and date), `followup` (tracking them) or `closed`.
@@ -743,6 +751,13 @@ export interface components {
              * @description The actions, oldest first.
              */
             actions: components["schemas"]["CopilotSessionAction"][];
+            /**
+             * Case Id
+             * Format: uuid
+             * @description The case behind the session.
+             * @example 8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52
+             */
+            case_id: string;
             /**
              * Events
              * @description The annotations, oldest first.

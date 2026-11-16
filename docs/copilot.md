@@ -25,7 +25,10 @@ curl -s http://127.0.0.1:8000/copilot/sessions/$SESSION -H "X-API-Key: $ADMIN_AP
 - The first message of a `session_id` opens a case for its `tenant`; later ones continue
   it. Another tenant on the same session is `422 tenant_mismatch`.
 - The answer has the `reply`, the `phase` after the turn, `phase_changed` and the
-  `tools_used` (names and whether they were accepted, never their values).
+  `tools_used` (names and whether they were accepted, never their values), plus the
+  `case_id` behind the session. A session is the web channel's thread; the case is the
+  problem it leads to, which other channels (Slack, Google Chat) will reach through
+  their own threads. The session view carries the same `case_id`.
 - A turn is atomic: on `409` (`case_closed`, or `case_changed` when another message of the
   session was committed meanwhile), `502` (the model failed) or `503`, nothing of the turn
   is stored and the message can be sent again. A failed first message still leaves its

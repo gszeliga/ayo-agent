@@ -863,6 +863,7 @@ class SearchResponse(BaseModel):
 # The longest `user_id` a channel may send; stored as the case's `created_by`.
 MAX_USER_ID_CHARS = 200
 SESSION_ID_EXAMPLE = "3f1c2a9e-7b4d-4e8a-9c61-0d5b2f7a8e14"
+CASE_ID_EXAMPLE = "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
 
 _PHASE_DESCRIPTION = (
     "`understand` (the four facts), `challenge` (evidence), `analyse` (the cause),"
@@ -943,6 +944,7 @@ class CopilotMessageResponse(BaseModel):
             "examples": [
                 {
                     "session_id": SESSION_ID_EXAMPLE,
+                    "case_id": CASE_ID_EXAMPLE,
                     "reply": "Entendido. ¿Qué datos tenéis de la llenadora desde el lunes?",
                     "phase": "challenge",
                     "previous_phase": "understand",
@@ -958,6 +960,10 @@ class CopilotMessageResponse(BaseModel):
     )
 
     session_id: UUID = Field(description="The session, as sent.", examples=[SESSION_ID_EXAMPLE])
+    case_id: UUID = Field(
+        description="The case behind the session: the same for every message of the session.",
+        examples=[CASE_ID_EXAMPLE],
+    )
     reply: str = Field(
         description="The copilot's answer, in Spanish. When a phase changed, it already"
         " opens the new phase.",
@@ -1051,6 +1057,7 @@ class CopilotSession(BaseModel):
     text."""
 
     session_id: UUID = Field(description="The session.", examples=[SESSION_ID_EXAMPLE])
+    case_id: UUID = Field(description="The case behind the session.", examples=[CASE_ID_EXAMPLE])
     tenant: str = Field(description="The case's tenant.", examples=["cliente-acme"])
     phase: Phase = Field(
         description=f"The current phase: {_PHASE_DESCRIPTION}", examples=["analyse"]
@@ -1066,6 +1073,7 @@ class CopilotSession(BaseModel):
     def from_view(cls, session_id: UUID, view: SessionView) -> "CopilotSession":
         return cls(
             session_id=session_id,
+            case_id=view.problem_id,
             tenant=view.tenant,
             phase=view.phase,
             version=view.version,

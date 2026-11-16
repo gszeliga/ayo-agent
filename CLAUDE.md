@@ -9,6 +9,10 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
+- **Active (2026-11-16): test chat and case inspector.** Spec
+  `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
+  log in `plans/chat-progress.md`. **Read both first.** The cases API (C1-C7) comes before
+  the UI; C1 is done.
 - **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
@@ -54,7 +58,7 @@ working rules, update this file in that step's commit.
   README and `docs/development.md` or `docs/operations.md`. A new topic doc is listed in
   the README's "Where to find what" (`tests/unit/test_docs_links.py` checks the links).
 - After the step: update the active milestone's progress file (now
-  `plans/engine-progress.md`), make **exactly one commit** (code + tests + log together),
+  `plans/chat-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.

@@ -65,6 +65,7 @@ class WebAdapter:
     def deliver(self, incoming: IncomingMessage, result: TurnResult) -> dict[str, Any]:
         return {
             "session_id": incoming.external_thread_id,
+            "case_id": result.problem_id,
             "reply": result.reply,
             "phase": result.phase_after,
             "previous_phase": result.phase_before,

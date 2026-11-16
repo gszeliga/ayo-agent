@@ -301,6 +301,7 @@
         "description": "The copilot's reply and where the case stands after the turn.",
         "examples": [
           {
+            "case_id": "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52",
             "phase": "challenge",
             "phase_changed": true,
             "previous_phase": "understand",
@@ -320,6 +321,15 @@
           }
         ],
         "properties": {
+          "case_id": {
+            "description": "The case behind the session: the same for every message of the session.",
+            "examples": [
+              "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+            ],
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
           "phase": {
             "description": "The phase after the turn: `understand` (the four facts), `challenge` (evidence), `analyse` (the cause), `action` (actions with owner and date), `followup` (tracking them) or `closed`.",
             "enum": [
@@ -397,6 +407,7 @@
         },
         "required": [
           "session_id",
+          "case_id",
           "reply",
           "phase",
           "previous_phase",
@@ -417,6 +428,15 @@
             },
             "title": "Actions",
             "type": "array"
+          },
+          "case_id": {
+            "description": "The case behind the session.",
+            "examples": [
+              "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+            ],
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
           },
           "events": {
             "description": "The annotations, oldest first.",
@@ -492,6 +512,7 @@
         },
         "required": [
           "session_id",
+          "case_id",
           "tenant",
           "phase",
           "version",

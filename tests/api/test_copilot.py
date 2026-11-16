@@ -119,8 +119,10 @@ def test_first_message_opens_a_case_and_the_next_continues_it(
     second = send(client, message(session_id, "En la línea 2"))
 
     assert first.status_code == 200, first.text
+    case_id = str(problem_of(db_pool, session_id))
     assert first.json() == {
         "session_id": str(session_id),
+        "case_id": case_id,
         "reply": "¿En qué línea?",
         "phase": "understand",
         "previous_phase": "understand",
@@ -129,6 +131,8 @@ def test_first_message_opens_a_case_and_the_next_continues_it(
         "tools_used": [],
     }
     assert second.json()["turn"] == 2
+    assert second.json()["case_id"] == case_id
+    assert get_session(client, session_id).json()["case_id"] == case_id
     assert fetch(db_pool, "select tenant, created_by, version from problems") == [
         (TENANT, "operario-17", 2)
     ]
@@ -418,6 +422,7 @@ def test_session_view_shows_the_case(
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["session_id"] == str(session_id)
+    assert body["case_id"] == str(problem_id)
     assert (body["tenant"], body["phase"], body["version"], body["turns"]) == (
         TENANT,
         "action",
@@ -441,6 +446,7 @@ def test_session_view_shows_the_case(
     ]
     assert set(body) == {
         "session_id",
+        "case_id",
         "tenant",
         "phase",
         "version",
