@@ -1,6 +1,7 @@
 """The session transcript: turns paired with their traces, annotations attributed to their
 turn, metrics and totals, the final case, and the file it is written to."""
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -187,3 +188,39 @@ def test_written_under_a_timestamped_name_and_never_overwritten(tmp_path: Path) 
     with pytest.raises(FileExistsError):
         write_transcript("# y\n", session_id=SESSION, out_dir=out, now=NOW)
     assert path.read_text() == "# x\n"
+
+
+@pytest.mark.parametrize(
+    ("call", "text"),
+    [
+        (ToolCallTrace("record_field", True), "record_field ok"),
+        (
+            ToolCallTrace("propose_transition", True, target="analyse"),
+            "propose_transition → analyse ok",
+        ),
+        (
+            ToolCallTrace(
+                "propose_transition",
+                False,
+                "criteria_not_met",
+                target="analyse",
+                missing=("evidence",),
+            ),
+            "propose_transition → analyse refused (criteria_not_met: evidence)",
+        ),
+        (
+            ToolCallTrace("propose_transition", False, "phase_hop_limit", target="action"),
+            "propose_transition → action refused (phase_hop_limit)",
+        ),
+        (
+            ToolCallTrace("propose_transition", False, "invalid_arguments"),
+            "propose_transition refused (invalid_arguments)",
+        ),
+    ],
+)
+def test_tool_calls_show_the_proposed_phase(call: ToolCallTrace, text: str) -> None:
+    traces = [TRACES[0], replace(TRACES[1], trace=replace(TRACES[1].trace, tool_calls=(call,)))]
+
+    rendered = render_transcript(SESSION, view(MESSAGES, EVENTS), traces, written_at=NOW)
+
+    assert f"- Tools: {text}\n" in rendered

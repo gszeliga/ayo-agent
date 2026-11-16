@@ -15,7 +15,7 @@ to the model. Logs and traces carry the tool name and `error_code`, never the re
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any
 
@@ -192,6 +192,10 @@ class ToolOutcome:
     ok: bool
     error_code: str | None
     result: Mapping[str, Any] = field(repr=False)
+    # `propose_transition` only, once its arguments are valid: the phase proposed, and
+    # what the case lacks for it on `criteria_not_met`. Codes, never content.
+    target: Phase | None = None
+    missing: tuple[str, ...] = ()
 
     def content(self) -> str:
         """The result as the tool message's content."""
@@ -312,22 +316,32 @@ def _propose_transition(
     snapshot: CaseSnapshot, changes: TurnChanges, args: dict[str, Any], allow_transition: bool
 ) -> ToolOutcome:
     name = "propose_transition"
+    target: Phase = args["target_state"]
     if not allow_transition:
-        return _error(
-            name,
-            "phase_hop_limit",
-            "the phase already changed in this turn; it can change again on the next message",
+        return replace(
+            _error(
+                name,
+                "phase_hop_limit",
+                "the phase already changed in this turn; it can change again on the next message",
+            ),
+            target=target,
         )
     source: Phase = snapshot.case.state
-    target: Phase = args["target_state"]
     if not is_allowed(source, target):  # the enum already prevents it; kept as a guard
-        return _error(name, "transition_not_allowed", f"{source} cannot move to {target}")
+        return replace(
+            _error(name, "transition_not_allowed", f"{source} cannot move to {target}"),
+            target=target,
+        )
     missing = missing_for(snapshot, target)
     if missing:
-        return _error(name, "criteria_not_met", describe_missing(missing), missing=missing)
+        return replace(
+            _error(name, "criteria_not_met", describe_missing(missing), missing=missing),
+            target=target,
+            missing=tuple(missing),
+        )
     snapshot.case.state = target
     changes.transitions.append(Transition(source, target))
-    return _success(name, previous_phase=source, phase=target)
+    return replace(_success(name, previous_phase=source, phase=target), target=target)
 
 
 # --- The tool table -------------------------------------------------------------

@@ -96,6 +96,10 @@ def test_traces_read_back_as_written(
         ("record_field", True, None),
         ("propose_transition", False, "criteria_not_met"),
     ]
+    assert [(t.target, t.missing) for t in second.trace.tool_calls] == [
+        (None, ()),
+        ("challenge", ("what", "since", "standard")),
+    ]
     assert second.trace.llm_calls == 2 and second.trace.cost is None
     assert first.created_at is not None
 
@@ -124,7 +128,9 @@ def test_cli_writes_the_transcript_of_a_session(
     text = path.read_text()
     assert text.index("## Turn 1 · understand") < text.index("## Turn 2 · understand")
     assert "> Tenemos merma" in text and "> Anotado. ¿Desde cuándo?" in text
-    assert "propose_transition refused (criteria_not_met)" in text
+    assert (
+        "propose_transition → challenge refused (criteria_not_met: what, since, standard)" in text
+    )
     assert "| where | Línea 2 |" in text
 
 

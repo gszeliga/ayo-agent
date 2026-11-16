@@ -512,6 +512,73 @@ def test_hop_cap_refuses_without_checking_criteria() -> None:
     assert snapshot.case.state == "followup" and changes.is_empty
 
 
+# --- What a transition leaves for the trace -------------------------------------------
+
+
+def test_transition_outcomes_carry_their_target_and_missing_codes() -> None:
+    proposal = {"target_state": "challenge", "reasoning": "Texto libre del modelo"}
+    snapshot, changes = new_snapshot("understand"), TurnChanges()
+
+    refused = run(snapshot, changes, "propose_transition", proposal)
+    capped = run(snapshot, changes, "propose_transition", proposal, allow_transition=False)
+    for name, value in FACTS.items():
+        run(snapshot, changes, "record_field", {"field": name, "value": value})
+    accepted = run(snapshot, changes, "propose_transition", proposal)
+
+    assert (refused.error_code, refused.target, refused.missing) == (
+        "criteria_not_met",
+        "challenge",
+        ("what", "where", "since", "standard"),
+    )
+    assert (capped.error_code, capped.target, capped.missing) == (
+        "phase_hop_limit",
+        "challenge",
+        (),
+    )
+    assert (accepted.ok, accepted.target, accepted.missing) == (True, "challenge", ())
+    # The free-text reasoning goes nowhere near the outcome's trace fields.
+    assert "Texto libre" not in repr(accepted)
+
+
+@pytest.mark.parametrize(
+    ("phase", "name", "arguments", "code"),
+    [
+        (
+            "understand",
+            "propose_transition",
+            {"target_state": "analyse", "reasoning": "x"},
+            "invalid_arguments",
+        ),
+        (
+            "closed",
+            "propose_transition",
+            {"target_state": "action", "reasoning": "x"},
+            "tool_not_offered",
+        ),
+        ("understand", "record_field", {"field": "what", "value": FACTS["what"]}, None),
+        ("understand", "record_field", {"field": "nope", "value": "x"}, "invalid_arguments"),
+    ],
+)
+def test_no_target_without_a_valid_proposal(
+    phase: Phase, name: str, arguments: dict[str, Any], code: str | None
+) -> None:
+    outcome = run(new_snapshot(phase), TurnChanges(), name, arguments)
+
+    assert outcome.error_code == code
+    assert (outcome.target, outcome.missing) == (None, ())
+
+
+def test_unparsable_transition_has_no_target() -> None:
+    outcome = execute_tool(
+        new_snapshot("understand"),
+        TurnChanges(),
+        invalid_tool_call("propose_transition", '{"target_state": "challenge"'),
+    )
+
+    assert outcome.error_code == "invalid_json"
+    assert outcome.target is None
+
+
 # --- Results ------------------------------------------------------------------------
 
 

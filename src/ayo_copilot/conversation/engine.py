@@ -298,7 +298,10 @@ def _trace(
         completion_tokens=_sum_tokens([u.completion_tokens for u in usages]),
         total_tokens=_sum_tokens([u.total_tokens for u in usages]),
         cost=_sum_cost([u.cost for u in usages]),
-        tool_calls=tuple(ToolCallTrace(o.name, o.ok, o.error_code) for o in outcomes),
+        tool_calls=tuple(
+            ToolCallTrace(o.name, o.ok, o.error_code, target=o.target, missing=o.missing)
+            for o in outcomes
+        ),
         retrieved=tuple(retrieval.retrieved.values()),
         retrieval_error=retrieval.error,
         capped=capped,

@@ -402,7 +402,13 @@ def assert_final_state(
         assert {UUID(r["chunk_id"]) for r in traces[index]["retrieved"]} == set(retrieved)
     assert traces[3]["tool_calls"] == [
         {"name": "log_event", "ok": True, "error_code": None},
-        {"name": "propose_transition", "ok": False, "error_code": "criteria_not_met"},
+        {
+            "name": "propose_transition",
+            "ok": False,
+            "error_code": "criteria_not_met",
+            "target": "analyse",
+            "missing": ["evidence"],
+        },
     ]
     stored = json.dumps(traces, ensure_ascii=False)
     for content in [*FACTS.values(), "3 mm", "bobina", "Ana", "cierro el caso", OWN_GUIDE]:

@@ -277,6 +277,51 @@ def test_rejected_transition_returns_the_missing_items(db_pool: ConnectionPool) 
     assert fetch(db_pool, "select state, what from problems") == [("understand", FACTS["what"])]
 
 
+def test_trace_records_each_proposal_with_its_target(db_pool: ConnectionPool) -> None:
+    problem_id = new_case(db_pool)
+    llm = FakeLLMProvider(
+        [
+            tool_calls_response(
+                tool_call(
+                    "propose_transition",
+                    {"target_state": "challenge", "reasoning": "razonamiento privado"},
+                ),
+            ),
+            tool_calls_response(
+                *facts_calls(),
+                tool_call(
+                    "propose_transition",
+                    {"target_state": "challenge", "reasoning": "razonamiento privado"},
+                    call_id="call_again",
+                ),
+            ),
+            text_response("Pasamos a contrastar con datos."),
+        ]
+    )
+
+    make_engine(db_pool, llm).handle_turn(problem_id, "Hay merma")
+
+    (trace,) = traces(db_pool, problem_id)
+    proposals = [t for t in trace["tool_calls"] if t["name"] == "propose_transition"]
+    assert proposals == [
+        {
+            "name": "propose_transition",
+            "ok": False,
+            "error_code": "criteria_not_met",
+            "target": "challenge",
+            "missing": ["what", "where", "since", "standard"],
+        },
+        {
+            "name": "propose_transition",
+            "ok": True,
+            "error_code": None,
+            "target": "challenge",
+            "missing": [],
+        },
+    ]
+    assert "razonamiento privado" not in str(trace)
+
+
 # --- 4. invalid JSON, then a valid retry ----------------------------------------------------
 
 

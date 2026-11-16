@@ -12,7 +12,7 @@ working rules, update this file in that step's commit.
 - **Active (2026-11-16): test chat and case inspector.** Spec
   `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
   log in `plans/chat-progress.md`. **Read both first.** The cases API (C1-C7) comes before
-  the UI; C1-C2 are done.
+  the UI; C1-C3 are done.
 - **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**

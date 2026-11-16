@@ -9,12 +9,13 @@ never logged; traces are content-free by construction (`TraceRecord`).
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
-from ayo_copilot.conversation.case import Action, ActionStatus, Case, Event, Phase
+from ayo_copilot.conversation.case import PHASES, Action, ActionStatus, Case, Event, Phase
 from ayo_copilot.db.repository import escape_like
 
 # Longest tool name kept in a trace (the model may ask for any name; ours are shorter).
@@ -28,9 +29,34 @@ class ToolCallTrace:
     name: str
     ok: bool
     error_code: str | None = None
+    # `propose_transition` only: the phase proposed (None when its arguments were invalid,
+    # and in traces written before it was recorded) and the missing item codes.
+    target: Phase | None = None
+    missing: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "name", self.name[:TRACE_TOOL_NAME_MAX])
+
+    def as_json(self) -> dict[str, object]:
+        data: dict[str, object] = {"name": self.name, "ok": self.ok, "error_code": self.error_code}
+        if self.target is not None:
+            data["target"] = self.target
+            data["missing"] = list(self.missing)
+        return data
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "ToolCallTrace":
+        """Read back a stored call; older rows lack `target` and `missing`, and a value
+        that is not a known phase reads as None."""
+        target = data.get("target")
+        missing = data.get("missing") or []
+        return cls(
+            data["name"],
+            data["ok"],
+            data.get("error_code"),
+            target=target if target in PHASES else None,
+            missing=tuple(str(item) for item in missing) if target in PHASES else (),
+        )
 
 
 @dataclass(frozen=True)
@@ -308,9 +334,7 @@ def insert_trace(
             "completion_tokens": trace.completion_tokens,
             "total_tokens": trace.total_tokens,
             "cost": trace.cost,
-            "tool_calls": Jsonb(
-                [{"name": t.name, "ok": t.ok, "error_code": t.error_code} for t in trace.tool_calls]
-            ),
+            "tool_calls": Jsonb([t.as_json() for t in trace.tool_calls]),
             "retrieved": Jsonb(
                 [
                     {"chunk_id": str(r.chunk_id), "similarity": r.similarity, "doc_id": r.doc_id}
@@ -354,9 +378,7 @@ def list_traces(conn: Connection, problem_id: UUID) -> list[StoredTrace]:
                 completion_tokens=row[8],
                 total_tokens=row[9],
                 cost=None if row[10] is None else float(row[10]),
-                tool_calls=tuple(
-                    ToolCallTrace(t["name"], t["ok"], t["error_code"]) for t in row[11]
-                ),
+                tool_calls=tuple(ToolCallTrace.from_json(t) for t in row[11]),
                 retrieved=tuple(
                     RetrievedTrace(UUID(r["chunk_id"]), r["similarity"], r["doc_id"])
                     for r in row[12]

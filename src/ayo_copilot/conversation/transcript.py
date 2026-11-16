@@ -14,7 +14,7 @@ from uuid import UUID
 
 from ayo_copilot.conversation.case import Event
 from ayo_copilot.conversation.store import SessionView
-from ayo_copilot.db.conversations import StoredTrace
+from ayo_copilot.db.conversations import StoredTrace, ToolCallTrace
 
 DEFAULT_OUT = Path("eval/conversations")
 
@@ -112,6 +112,18 @@ def _phase_path(traces: Sequence[StoredTrace]) -> list[str]:
     return path
 
 
+def _tool_call(call: ToolCallTrace) -> str:
+    """`record_field ok`, `propose_transition → analyse refused (criteria_not_met:
+    evidence)`."""
+    name = call.name if call.target is None else f"{call.name} → {call.target}"
+    if call.ok:
+        return f"{name} ok"
+    reason = call.error_code or "error"
+    if call.missing:
+        reason += f": {', '.join(call.missing)}"
+    return f"{name} refused ({reason})"
+
+
 def _turn(turn: _Turn) -> list[str]:
     stored, trace = turn.stored, turn.stored.trace
     phases = (
@@ -119,9 +131,7 @@ def _turn(turn: _Turn) -> list[str]:
         if stored.phase_before == stored.phase_after
         else f"{stored.phase_before} → {stored.phase_after}"
     )
-    tools = ", ".join(
-        f"{t.name} ok" if t.ok else f"{t.name} refused ({t.error_code})" for t in trace.tool_calls
-    )
+    tools = ", ".join(_tool_call(t) for t in trace.tool_calls)
     metrics = [
         f"calls {trace.llm_calls}",
         _tokens([trace.prompt_tokens], [trace.completion_tokens], [trace.total_tokens]),

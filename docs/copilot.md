@@ -125,7 +125,9 @@ Schema), `invalid_date`, `action_not_found`, `criteria_not_met` (with `missing`)
 Every committed turn writes one row to `turn_traces`: turn number, phase before and
 after, the models used, `PROMPTS_VERSION`, the number of model calls, token and cost sums
 (empty when the provider did not report them), each tool call's name, outcome and error
-code, the retrieved chunk ids with their similarity and document, the retrieval error
+code (for `propose_transition` also the proposed phase, and on `criteria_not_met` the
+missing items as codes such as `evidence` or `since`; traces written before 2026-11-16
+lack both), the retrieved chunk ids with their similarity and document, the retrieval error
 (`embedding_failed`) if any, whether a cap stopped the turn, and the duration. It never
 holds content: no prompts, messages, tool arguments, results or retrieved text. The logs
 follow the same rule (one line per turn with the same metadata).

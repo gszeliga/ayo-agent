@@ -7,7 +7,7 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1, C2 and the access-log side step done (2026-11-16). Next: C3, brief first.
+C1-C3 and the access-log side step done (2026-11-16). Next: C4, brief first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -43,7 +43,8 @@ C1, C2 and the access-log side step done (2026-11-16). Next: C3, brief first.
   (on `what`, never logged), `limit`/`offset` in the `Page` shape, newest update first.
   Rows: `case_id`, tenant, `title`, phase, turns, pending and overdue action counts,
   `created_at`/`updated_at`/`closed_at`, `web_session_id` (null for other channels).
-- [ ] **C3** The trace records the target of `propose_transition` (decision 6).
+- [x] **C3** The trace records the target of `propose_transition` (decision 6), and the
+  missing item codes on `criteria_not_met` (agreed in the C3 brief).
 - [ ] **C4** `GET /admin/cases/{case_id}` (`get_case`): facts, events, actions (API
   `overdue`), messages with `turn`, traces (phases, tool calls with outcome and target,
   model, tokens, cost, calls, latency, capped, retrieval error, chunks with `doc_id`,
@@ -96,3 +97,18 @@ C1, C2 and the access-log side step done (2026-11-16). Next: C3, brief first.
   the config and uvicorn's default untouched, `main()` passing it, and a subprocess that
   applies the config and writes an access line without the query; checked by hand that
   uvicorn's default config does log it).
+- **C3 (2026-11-16).** `tools.ToolOutcome` gains `target` and `missing`, set by
+  `_propose_transition` once its arguments are valid (accepted: the new phase;
+  `criteria_not_met`: the target and the `missing_for` codes; `phase_hop_limit` and
+  `transition_not_allowed`: the target); `invalid_json`, `invalid_arguments`,
+  `tool_not_offered` and every other tool have none. `db.ToolCallTrace` gains the same
+  fields with `as_json` (the keys only when there is a target) and `from_json` (older rows
+  read as None and `()`; a stored target that is not a phase reads as None). The engine
+  passes them into the trace; the `/copilot` `tools_used` is unchanged. The transcript
+  shows `propose_transition → analyse refused (criteria_not_met: evidence)`. The free-text
+  `reasoning` is still never stored. No migration. `docs/copilot.md` ("The turn trace").
+  Tests: tools (each outcome, invalid and unparsable proposals, other tools), store (round
+  trip, an old-shape row and an unknown target), engine (a refused then an accepted
+  proposal in one turn, reasoning absent from the trace), transcript (five renderings),
+  the transcript API test with the real codes, the golden path's stored refusal. Full suite
+  green (1434 passed).

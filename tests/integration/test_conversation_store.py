@@ -20,6 +20,7 @@ from ayo_copilot.conversation.store import (
     commit_turn,
     load_snapshot,
     read_session,
+    read_traces,
     resolve_case,
 )
 from ayo_copilot.conversation.tools import execute_tool
@@ -389,6 +390,69 @@ def test_trace_is_stored_without_content(db_pool: ConnectionPool) -> None:
         None,
         True,
         2345,
+    )
+
+
+def test_transition_target_and_missing_round_trip(db_pool: ConnectionPool) -> None:
+    problem_id = new_case(db_pool)
+    snapshot = load_snapshot(db_pool, problem_id, message_limit=12)
+    calls = (
+        ToolCallTrace("record_field", True),
+        ToolCallTrace(
+            "propose_transition",
+            False,
+            "criteria_not_met",
+            target="challenge",
+            missing=("since", "standard"),
+        ),
+        ToolCallTrace("propose_transition", False, "invalid_arguments"),
+        ToolCallTrace("propose_transition", True, target="challenge"),
+    )
+    commit_turn(db_pool, turn(snapshot, tool_calls=calls))
+
+    ((stored,),) = fetch(db_pool, "select tool_calls from turn_traces")
+    (read,) = read_traces(db_pool, problem_id)
+
+    assert stored == [
+        {"name": "record_field", "ok": True, "error_code": None},
+        {
+            "name": "propose_transition",
+            "ok": False,
+            "error_code": "criteria_not_met",
+            "target": "challenge",
+            "missing": ["since", "standard"],
+        },
+        {"name": "propose_transition", "ok": False, "error_code": "invalid_arguments"},
+        {
+            "name": "propose_transition",
+            "ok": True,
+            "error_code": None,
+            "target": "challenge",
+            "missing": [],
+        },
+    ]
+    assert read.trace.tool_calls == calls
+
+
+def test_traces_written_before_targets_read_back_without_them(db_pool: ConnectionPool) -> None:
+    problem_id = new_case(db_pool)
+    snapshot = load_snapshot(db_pool, problem_id, message_limit=12)
+    commit_turn(db_pool, turn(snapshot))
+    with db_pool.connection() as conn:
+        conn.execute(
+            "update turn_traces set tool_calls = %s::jsonb",
+            (
+                '[{"name": "propose_transition", "ok": false, "error_code": "criteria_not_met"},'
+                ' {"name": "propose_transition", "ok": true, "error_code": null,'
+                ' "target": "nowhere", "missing": ["what"]}]',
+            ),
+        )
+
+    (read,) = read_traces(db_pool, problem_id)
+
+    assert read.trace.tool_calls == (
+        ToolCallTrace("propose_transition", False, "criteria_not_met"),
+        ToolCallTrace("propose_transition", True),
     )
 
 
