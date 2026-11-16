@@ -292,3 +292,18 @@ dev branch.
   optional). README: "The flow of a turn", "The phase rules", "The tools", "The turn
   trace" under "Talking to the copilot"; the two "not used by any endpoint yet" lines
   fixed. No production code changed. Full suite green (1338 passed).
+- **Side step (2026-11-16), not an E step: README restructure.** At the user's request,
+  `README.md` (636 lines) became a 111-line entry point (what it is, quick start, "Where to
+  find what", the endpoint table, everyday commands, admin UI, layout) and six topic docs:
+  `docs/knowledge-base.md`, `search.md`, `copilot.md`, `configuration.md` (settings in
+  four groups, plus CORS), `operations.md`, `development.md`. Text moved verbatim except:
+  the `X-API-Key` explanation once (README Endpoints) with a reminder per doc; the stray
+  signature paragraph moved next to Reprocessing; "Editing the prompt files" moved from
+  Configuration to `copilot.md`; cross-references are links; `$H` defined where first
+  used in each doc; stale layout line and "as the copilot will" fixed; the README's Admin
+  UI section cut to a link (its feature list is in `ui/README.md`). The endpoint recipes
+  were not trimmed after all: most of their text is behaviour Swagger does not explain.
+  Checked that every other non-blank line of the old README is in a new file.
+  `tests/unit/test_docs_links.py`: relative links and anchors resolve (GitHub slugs, code
+  blocks ignored), every topic doc listed in the README; a broken anchor and a wrong file
+  name fail it. CLAUDE.md: the docs rule and the layout line.

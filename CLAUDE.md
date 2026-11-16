@@ -46,8 +46,12 @@ working rules, update this file in that step's commit.
 
 - **Baby steps.** One small step at a time. Before starting a step, write a short brief:
   what it delivers, files, design choices and deviations, tests. Wait for approval.
-- Keep `README.md` current: any step that adds or changes an endpoint, a setting or a
-  command updates it in the same commit.
+- Keep the docs current, in the same commit: `README.md` is the entry point (quick start,
+  the endpoint table, everyday commands, layout) and links to topic docs in `docs/`. A new
+  or changed endpoint goes in the README table and its topic doc (`knowledge-base.md`,
+  `search.md`, `copilot.md`); a setting in `docs/configuration.md`; a command in the
+  README and `docs/development.md` or `docs/operations.md`. A new topic doc is listed in
+  the README's "Where to find what" (`tests/unit/test_docs_links.py` checks the links).
 - After the step: update the active milestone's progress file (now
   `plans/engine-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
@@ -149,7 +153,8 @@ migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW co
                        0002 = documents.chunk_count/size_bytes/*_config + list index
                        0003 = problems, problem_events, actions, conversation_links, turn_traces
 scripts/               dev_db.sh, db_shell.sh (psql; no tests, a personal tool), export_openapi.py
-docs/                  openapi.json (generated, committed), decisions/
+docs/                  topic docs: knowledge-base, search, copilot, configuration, operations,
+                       development (.md); openapi.json (generated, committed), decisions/
 eval/llm/              ayo-llm-check reports (git-ignored) and example-report.json (scripted)
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; layout in ui/README.md
