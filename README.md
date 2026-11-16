@@ -87,6 +87,7 @@ uv run alembic upgrade head               # migrations
 uv run ayo-copilot                        # the API on http://127.0.0.1:8000
 uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
 uv run ayo-llm-check models --model ID    # a model's tool support and prices (free)
+uv run ayo-transcript SESSION_ID          # a copilot session as Markdown in eval/conversations/
 ```
 
 ## Admin UI

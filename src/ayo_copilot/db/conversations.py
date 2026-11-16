@@ -8,6 +8,7 @@ never logged; traces are content-free by construction (`TraceRecord`).
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from psycopg import Connection
@@ -56,6 +57,18 @@ class TraceRecord:
     retrieved: tuple[RetrievedTrace, ...] = ()
     retrieval_error: str | None = None
     capped: bool = False
+
+
+@dataclass(frozen=True)
+class StoredTrace:
+    """A committed turn's trace as read back: its number, phases and time, and the
+    metrics."""
+
+    turn_no: int
+    phase_before: Phase
+    phase_after: Phase
+    created_at: datetime
+    trace: TraceRecord
 
 
 @dataclass(frozen=True)
@@ -310,3 +323,47 @@ def insert_trace(
     ).fetchone()
     assert row is not None
     return row[0]
+
+
+# --- Reading traces ---------------------------------------------------------------------
+
+
+def list_traces(conn: Connection, problem_id: UUID) -> list[StoredTrace]:
+    """A case's turn traces, in turn order."""
+    rows = conn.execute(
+        """
+        select turn_no, phase_before, phase_after, created_at, model, prompts_version,
+          llm_calls, prompt_tokens, completion_tokens, total_tokens, cost, tool_calls,
+          retrieved, retrieval_error, capped, duration_ms
+        from turn_traces where problem_id = %s order by turn_no
+        """,
+        (problem_id,),
+    ).fetchall()
+    return [
+        StoredTrace(
+            turn_no=row[0],
+            phase_before=row[1],
+            phase_after=row[2],
+            created_at=row[3],
+            trace=TraceRecord(
+                model=row[4],
+                prompts_version=row[5],
+                llm_calls=row[6],
+                prompt_tokens=row[7],
+                completion_tokens=row[8],
+                total_tokens=row[9],
+                cost=None if row[10] is None else float(row[10]),
+                tool_calls=tuple(
+                    ToolCallTrace(t["name"], t["ok"], t["error_code"]) for t in row[11]
+                ),
+                retrieved=tuple(
+                    RetrievedTrace(UUID(r["chunk_id"]), r["similarity"], r["doc_id"])
+                    for r in row[12]
+                ),
+                retrieval_error=row[13],
+                capped=row[14],
+                duration_ms=row[15],
+            ),
+        )
+        for row in rows
+    ]

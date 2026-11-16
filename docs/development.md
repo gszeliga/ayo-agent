@@ -8,8 +8,8 @@ Tests, the API contract and the tool-calling check. Working conventions are in
 ```sh
 uv run pytest                        # everything except `live`; integration tests need Docker
 uv run pytest -m "not integration"   # no Docker, no database
-uv run pytest -m live                # real calls: Voyage (VOYAGE_API_KEY) and OpenRouter
-                                     # (OPENROUTER_API_KEY, LLM_MODEL; 3 tiny requests)
+uv run pytest -m live                # real, billed calls: Voyage (VOYAGE_API_KEY) and OpenRouter
+                                     # (OPENROUTER_API_KEY, LLM_MODEL): see "Live tests"
 uv run ruff check . && uv run ruff format --check .
 ```
 
@@ -17,7 +17,40 @@ Integration tests start their own Postgres container (testcontainers), separate 
 dev database, and are skipped with a clear message when Docker is not available. To use
 an existing server instead, set `TEST_DATABASE_URL` (a pgvector-enabled Postgres; each
 test run creates and drops its own databases). Neon URLs are refused. Tests never read
-`.env`, except the `live` ones, which take the API keys (and `LLM_MODEL`) from it. Why this setup: [ADR 0001](decisions/0001-test-database.md).
+`.env`, except the `live` ones, which take the API keys (and `LLM_MODEL`) from it. Why
+this setup: [ADR 0001](decisions/0001-test-database.md).
+
+### Live tests
+
+`-m live` runs every live test; pick one file to spend less. Each skips without its keys.
+
+| File | What it calls | Cost |
+|---|---|---|
+| `tests/live/test_voyage_live.py` | Voyage: a few tiny embeddings | negligible |
+| `tests/live/test_openrouter_live.py` | OpenRouter: 3 tiny requests | well under USD 0.001 |
+| `tests/live/test_conversation_live.py` | A real conversation: 8 fixed messages over HTTP, `LLM_MODEL`, Voyage, a test container database (needs Docker) | 8 to 48 model calls (usually 16 to 20) and a few embeddings |
+
+The conversation test asserts structure only: every message answered, a legal phase at
+every step, one trace per turn, only real tool names. A refused tool call is not a
+failure (the engine handles it); how well the model follows the phases is for a person to
+read in its transcript, written to `eval/conversations/` even when the test fails (the
+path is printed with `-s`).
+
+## Conversation transcripts
+
+```sh
+uv run ayo-transcript <session_id>             # -> eval/conversations/<UTC time>-<id prefix>.md
+uv run ayo-transcript <session_id> --out DIR
+```
+
+A readable Markdown file of one copilot session, built from the database (the session in
+`DATABASE_URL`, with the same remote guard as the app; it only reads): a header with the
+models, prompts version, phase path and totals; per turn the user message, the reply, the
+phases, each tool call with its outcome, the annotations recorded, calls, tokens, cost,
+duration, retrieval and caps; the final facts, annotations and actions. It holds the
+conversation's content, so it is only written to the git-ignored `eval/conversations/`
+(never logged or printed: the command prints the file's path). An existing file is never
+overwritten.
 
 ## API contract
 

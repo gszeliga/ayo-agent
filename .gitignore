@@ -20,3 +20,4 @@ data/
 # ayo-llm-check reports (one example is committed)
 eval/llm/*.json
 !eval/llm/example-report.json
+eval/conversations/

@@ -25,7 +25,7 @@ from ayo_copilot.conversation.case import (
     TurnChanges,
 )
 from ayo_copilot.db import conversations as db
-from ayo_copilot.db.conversations import TraceRecord
+from ayo_copilot.db.conversations import StoredTrace, TraceRecord
 
 
 class CaseTenantMismatch(Exception):
@@ -199,3 +199,10 @@ def read_session(pool: ConnectionPool, key: ChannelKey, *, today: date) -> Sessi
         actions=[SessionAction(action, action.is_overdue(today)) for action in actions],
         messages=messages,
     )
+
+
+def read_traces(pool: ConnectionPool, problem_id: UUID) -> list[StoredTrace]:
+    """The case's turn traces, in turn order (content-free)."""
+    with pool.connection() as conn, conn.transaction():
+        conn.execute("set transaction read only")
+        return db.list_traces(conn, problem_id)

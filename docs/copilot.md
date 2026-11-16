@@ -105,6 +105,10 @@ code, the retrieved chunk ids with their similarity and document, the retrieval 
 holds content: no prompts, messages, tool arguments, results or retrieved text. The logs
 follow the same rule (one line per turn with the same metadata).
 
+To read a whole conversation with its traces, write its transcript:
+`uv run ayo-transcript <session_id>` (see
+[Conversation transcripts](development.md#conversation-transcripts)).
+
 ## Editing the prompt files
 
 The conversation prompts are Markdown files in `src/ayo_copilot/conversation/prompts/`:

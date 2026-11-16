@@ -8,10 +8,11 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E9 done (2026-11-16, commit "Check models against the engine's real tools (E9)");
-E1-E8 and the README restructure pushed, E9 not.** Next is **E10**: write its brief and
-wait for approval before coding. Pending OK, not part of E10: applying migration 0003 to
-the Neon dev branch.
+**E10 done (2026-11-16, commit "Add the live conversation test and transcripts (E10)");
+E1-E8 and the README restructure pushed, E9 and E10 not.** Next is **E11** (billed): give
+call counts and a cost estimate and wait for the user's OK before any call. Pending OK,
+not part of E11 unless agreed: applying migration 0003 to the Neon dev branch (the manual
+conversations need a database with it: local or the dev branch).
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -120,7 +121,7 @@ the Neon dev branch.
 - [x] **E7 fix** Closing a case ends the turn (decision 25).
 - [x] **E8** Scripted golden path through all five phases; README sections.
 - [x] **E9** `ayo-llm-check` imports the real tool specs; `update_action` scenario (no calls).
-- [ ] **E10** Live conversation test and `eval/conversations/` transcript writer (code only).
+- [x] **E10** Live conversation test and `eval/conversations/` transcript writer (code only).
 - [ ] **E11** **Billed**: live test, the three manual conversations, check rerun for both
   models, final report. Call counts and a cost estimate first; wait for the user's OK.
 
@@ -325,3 +326,23 @@ the Neon dev branch.
   `challenge` `validated_cause` case is now a `schema_violation`; planned calls 60.
   `docs/development.md`, CLAUDE.md layout line. No billed calls. Full suite green
   (1368 passed).
+- **E10 (2026-11-16).** `conversation/transcript.py`: `render_transcript(session_id, view,
+  traces, written_at)` (header: models, prompts version, phase path, totals of calls,
+  tokens, cost, duration, caps, refused calls, retrieval errors; per turn the user message
+  and reply quoted, phases, tools with outcome, the annotations whose ids fall between the
+  turn's two messages, metrics; the final facts, annotations, actions; refuses a session
+  whose messages and traces do not pair up), `write_transcript` (timestamped name, never
+  overwrites). `db.list_traces` -> `StoredTrace`; `store.read_traces` (read only).
+  `conversation/transcript_cli.py`: `ayo-transcript SESSION_ID [--out DIR]` (app's remote
+  guard, exit 2 on invalid settings without the URL, 1 on an unknown session; prints only
+  the path). `.gitignore`: `eval/conversations/`. `tests/live/test_conversation_live.py`:
+  uploads `pro-014-control-sellado.md` (case tenant) and the new fixture
+  `metodo-cinco-porques.md` (`ayo`) with real Voyage, then 8 fixed messages; asserts 200,
+  non-empty reply, legal phases and transitions, one trace per turn, real tool names;
+  always writes the transcript (an earlier failure is not hidden). Not run (billed):
+  collected with `-m live`, and skips checked with an empty env file and dead base URLs
+  (no key, OpenRouter key without Voyage key). Tests: `tests/unit/test_conversation_transcript.py`
+  (9), `tests/api/test_copilot_transcript.py` (traces round trip, CLI writes a file,
+  unknown session, remote guard without the password). Docs: `docs/development.md` (live
+  tests table, transcripts), `docs/copilot.md`, README and CLAUDE.md commands and layout.
+  Full suite green (1381 passed).

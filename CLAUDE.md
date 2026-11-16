@@ -78,7 +78,7 @@ working rules, update this file in that step's commit.
 uv sync                                   # install
 uv run pytest                             # unit + API + integration (testcontainers); `live` deselected
 uv run pytest -m "not integration"        # no Docker, no database
-uv run pytest -m live                     # real Voyage + OpenRouter calls (needs the keys)
+uv run pytest -m live                     # real, BILLED Voyage + OpenRouter calls, incl. the live conversation (ask first)
 uv run ruff check . && uv run ruff format --check .
 scripts/dev_db.sh up|down                 # local dev DB: pgvector/pgvector:0.8.7-pg18-trixie on localhost:5433
 scripts/db_shell.sh [local|remote|migrations] [--write] [-- psql args]   # psql; remote is read-only by default
@@ -86,6 +86,7 @@ uv run alembic upgrade head               # migrations (uses MIGRATIONS_DATABASE
 uv run ayo-copilot                        # run the API on 127.0.0.1:8000
 uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
 uv run ayo-llm-check models --model ID     # OpenRouter listing: tools, context, prices, ZDR (free)
+uv run ayo-transcript SESSION_ID          # a session's transcript -> eval/conversations/ (reads only)
 uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)
 pnpm install && pnpm dev                  # http://localhost:5173 (API needs CORS_ALLOWED_ORIGINS=http://localhost:5173)
@@ -122,7 +123,7 @@ src/ayo_copilot/
                        LLMSettings (ayo-llm-check), ConversationSettings < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
-  db/conversations.py  hand-written SQL for cases, events, actions, links, traces (TraceRecord)
+  db/conversations.py  hand-written SQL for cases, events, actions, links, traces (TraceRecord, StoredTrace)
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
   ingestion/signatures.py  content/chunk/embed signatures, make_doc_id, CHUNKER_VERSION
   ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2), FakeEmbedder
@@ -144,9 +145,11 @@ src/ayo_copilot/
   conversation/context.py  build_system_prompt (parts, delimited data blocks), build_messages (window)
   conversation/query.py    build_query: the retrieval query from the case state
   conversation/reply.py    compose_reply and the fallback message
-  conversation/store.py    resolve_case (race-safe), load_snapshot, commit_turn (version check), read_session
+  conversation/store.py    resolve_case (race-safe), load_snapshot, commit_turn (version check), read_session, read_traces
   conversation/engine.py   TurnEngine.handle_turn: model loop, phase hops, caps, retrieval, trace, commit
   conversation/channels.py IncomingMessage, ChannelAdapter, WebAdapter, handle_message (resolve case + turn)
+  conversation/transcript.py     render_transcript (view + traces -> Markdown), write_transcript
+  conversation/transcript_cli.py ayo-transcript (read-only; eval/conversations/, git-ignored)
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
@@ -156,6 +159,7 @@ scripts/               dev_db.sh, db_shell.sh (psql; no tests, a personal tool),
 docs/                  topic docs: knowledge-base, search, copilot, configuration, operations,
                        development (.md); openapi.json (generated, committed), decisions/
 eval/llm/              ayo-llm-check reports (git-ignored) and example-report.json (scripted)
+eval/conversations/    transcripts (git-ignored: they hold conversation content)
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; layout in ui/README.md
   src/api/schema.d.ts  generated from docs/openapi.json (never edit)
