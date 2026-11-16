@@ -8,10 +8,10 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E8 done (2026-11-16, commit "Add the scripted golden path and the README sections (E8)");
-E1-E6 pushed, E7, its fix and E8 not.** Next is **E9**: write its brief and wait for
-approval before coding. Pending OK, not part of E9: applying migration 0003 to the Neon
-dev branch.
+**E9 done (2026-11-16, commit "Check models against the engine's real tools (E9)");
+E1-E8 and the README restructure pushed, E9 not.** Next is **E10**: write its brief and
+wait for approval before coding. Pending OK, not part of E10: applying migration 0003 to
+the Neon dev branch.
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -119,7 +119,7 @@ dev branch.
   contract and auth tests, `docs/openapi.json`, `ui/src/api/schema.d.ts`.
 - [x] **E7 fix** Closing a case ends the turn (decision 25).
 - [x] **E8** Scripted golden path through all five phases; README sections.
-- [ ] **E9** `ayo-llm-check` imports the real tool specs; `update_action` scenario (no calls).
+- [x] **E9** `ayo-llm-check` imports the real tool specs; `update_action` scenario (no calls).
 - [ ] **E10** Live conversation test and `eval/conversations/` transcript writer (code only).
 - [ ] **E11** **Billed**: live test, the three manual conversations, check rerun for both
   models, final report. Call counts and a cost estimate first; wait for the user's OK.
@@ -307,3 +307,21 @@ dev branch.
   `tests/unit/test_docs_links.py`: relative links and anchors resolve (GitHub slugs, code
   blocks ignored), every topic doc listed in the README; a broken anchor and a wrong file
   name fail it. CLAUDE.md: the docs rule and the layout line.
+- **E9 (2026-11-16).** `llm/check/scenarios.py`: the draft tools and the check's own
+  `FIELDS`/`EVENT_TYPES` removed; each scenario offers `tools_for_phase(phase)` (so
+  `challenge` also gets `record_field` and its `log_event` enum has no `validated_cause`;
+  `analyse` no longer gets `add_action`); `PHASES` and `FIELDS` are the engine's
+  (decision 2: `followup`); `rejected_transition` answers with the engine's result
+  (`criteria_not_met`, `describe_missing`, `missing`). New scenario
+  `followup_action_done` (two stored actions `[7]`, `[8]`; the user says 7 is done:
+  `update_action` 7 `done`, never 8, no `add_action`, no transition). Draft `followup`
+  system prompt. Prompts stay the check's own drafts (option (a) of the brief).
+  `evaluate.py` (announced, decision 8): `_field` reads integer arguments as text, never
+  booleans, so a `ValueRule` can name `action_id`. Report format unchanged
+  (`REPORT_VERSION`, `example-report.json` kept). Tests: ten scenarios, each with the
+  engine's tools; phases are the engine's; the rejected result equals `execute_tool`'s
+  for the same call; followup targets; seven cases for the new scenario; integer and
+  boolean rule matching (reverting the evaluator change fails three tests); the
+  `challenge` `validated_cause` case is now a `schema_violation`; planned calls 60.
+  `docs/development.md`, CLAUDE.md layout line. No billed calls. Full suite green
+  (1368 passed).

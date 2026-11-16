@@ -34,13 +34,16 @@ runs `pnpm gen:api` in `ui/` ([ui/README.md](../ui/README.md)).
 
 ## Checking models' tool calling (`ayo-llm-check`)
 
-The copilot will move a case between phases only through tool calls that our code
+The copilot moves a case between phases only through tool calls that our code
 validates, so a model must call tools reliably: valid JSON, allowed enum values, no
 invented tools, no tool call when it should ask instead. `ayo-llm-check` measures that for
-candidate models through OpenRouter. Its nine scenarios (`src/ayo_copilot/llm/check/scenarios.py`,
-in Spanish) and their system prompts and tools are **drafts that only exercise the
-machinery; they are not the production prompts**, which will be written with AYO
-consultants. The numbers compare tool-calling discipline, not the quality of the copilot.
+candidate models through OpenRouter. Its ten scenarios
+(`src/ayo_copilot/llm/check/scenarios.py`, in Spanish) offer **the engine's real tools**:
+in each scenario's phase, exactly the tools, schemas and enums the copilot offers there,
+and a rejected transition comes back with the engine's result. Their system prompts and
+texts are **drafts that only exercise the machinery; they are not the production
+prompts** (the engine's prompt files, to be written with AYO consultants). The numbers
+compare tool-calling discipline, not the quality of the copilot.
 
 **Key.** Create one at <https://openrouter.ai/settings/keys>, add credit (a run costs cents;
 free `:free` models are rate limited and usually excluded by `LLM_DATA_COLLECTION=deny`),
@@ -52,8 +55,8 @@ OpenRouter's own logging of prompts.
 # Exits 1 if a model is not listed or declares no tool support.
 uv run ayo-llm-check models --model mistralai/mistral-small-3.2-24b-instruct --model qwen/qwen3-32b
 
-# Real, billed calls: models x 9 scenarios x runs. Stops before calling if that is above
-# --max-calls (default 200) unless --yes. About USD 0.01 for this example.
+# Real, billed calls: models x 10 scenarios x runs (60 here). Stops before calling if
+# that is above --max-calls (default 200) unless --yes. Cents for this example.
 uv run ayo-llm-check run --models mistralai/mistral-small-3.2-24b-instruct,qwen/qwen3-32b --runs 3
 
 # Options: --scenarios greeting,enum_skip_ahead   --reasoning-effort none|low|...|default

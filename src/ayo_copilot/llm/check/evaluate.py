@@ -118,8 +118,13 @@ def _schema_errors(schema: Mapping[str, Any], arguments: Mapping[str, Any]) -> l
 
 
 def _field(call: ToolCall, name: str) -> str | None:
-    """A string argument, or None (absent, or not a string: values may be unhashable)."""
+    """A string argument, an integer one as text (`action_id` 7 is "7"), or None (absent,
+    a boolean, or another type: values may be unhashable)."""
     value = call.arguments.get(name) if call.arguments is not None else None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return str(value)
     return value if isinstance(value, str) else None
 
 

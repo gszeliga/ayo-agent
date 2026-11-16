@@ -119,7 +119,7 @@ def run_both() -> tuple[ScriptedProvider, list[RunResult]]:
 
 
 def test_planned_calls() -> None:
-    assert planned_calls([MODEL_A, MODEL_B], SCENARIOS, 3) == 54
+    assert planned_calls([MODEL_A, MODEL_B], SCENARIOS, 3) == 60
 
 
 def test_runs_every_model_scenario_and_run_in_order() -> None:

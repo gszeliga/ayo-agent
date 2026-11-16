@@ -1,6 +1,12 @@
+import json
+from uuid import uuid4
+
 import pytest
 from jsonschema import Draft202012Validator
 
+from ayo_copilot.conversation.case import PHASES as ENGINE_PHASES
+from ayo_copilot.conversation.case import Case, CaseSnapshot, TurnChanges
+from ayo_copilot.conversation.tools import execute_tool, tools_for_phase
 from ayo_copilot.llm.check.scenarios import PHASES, Scenario, build_scenarios
 from ayo_copilot.llm.provider import check_request
 
@@ -8,9 +14,20 @@ SCENARIOS = build_scenarios()
 BY_ID = {s.id: s for s in SCENARIOS}
 
 
-def test_nine_scenarios_with_unique_ids() -> None:
-    assert len(SCENARIOS) == 9
-    assert len(BY_ID) == 9
+def test_ten_scenarios_with_unique_ids() -> None:
+    assert len(SCENARIOS) == 10
+    assert len(BY_ID) == 10
+
+
+def test_phases_are_the_engines() -> None:
+    assert PHASES == ENGINE_PHASES
+    assert "follow_up" not in PHASES
+
+
+@pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.id)
+def test_each_scenario_offers_the_engines_tools_for_its_phase(scenario: Scenario) -> None:
+    """The same specs the engine sends: names, descriptions, schemas and enums."""
+    assert scenario.tools == tools_for_phase(scenario.phase)
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.id)
@@ -43,6 +60,7 @@ def test_transition_targets_change_per_scenario() -> None:
     assert transition_targets(BY_ID["enum_skip_ahead"]) == ["challenge"]
     assert transition_targets(BY_ID["rejected_transition"]) == ["analyse"]
     assert transition_targets(BY_ID["analyse_validated_cause"]) == ["action"]
+    assert transition_targets(BY_ID["followup_action_done"]) == ["action", "closed"]
 
 
 def test_rejected_transition_history_ends_with_the_tool_result() -> None:
@@ -53,7 +71,18 @@ def test_rejected_transition_history_ends_with_the_tool_result() -> None:
     assert [c.name for c in assistant.tool_calls] == ["propose_transition"]
     assert tool.role == "tool"
     assert tool.tool_call_id == assistant.tool_calls[0].id
-    assert "rejected" in (tool.content or "")
+    # Exactly what the engine answers to that call in `challenge` without evidence.
+    snapshot = CaseSnapshot(case=Case(id=uuid4(), tenant="cliente-acme", state="challenge"))
+    outcome = execute_tool(snapshot, TurnChanges(), assistant.tool_calls[0])
+    assert outcome.error_code == "criteria_not_met"
+    assert json.loads(tool.content or "") == outcome.result
+
+
+def test_followup_scenario_lists_the_actions_it_names() -> None:
+    scenario = BY_ID["followup_action_done"]
+
+    assert "[7]" in scenario.system and "[8]" in scenario.system
+    assert "update_action" in scenario.tool_names
 
 
 def test_scenarios_are_marked_as_drafts() -> None:

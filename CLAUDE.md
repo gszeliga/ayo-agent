@@ -133,7 +133,7 @@ src/ayo_copilot/
   llm/provider.py      LLMProvider protocol (sync), check_request
   llm/build.py         build_llm_provider (no request, no key check), describe_llm_provider (startup log)
   llm/fake.py          FakeLLMProvider (scripted, records calls) and response helpers
-  llm/check/           ayo-llm-check core: scenarios.py (DRAFT tools, prompts, nine scenarios),
+  llm/check/           ayo-llm-check core: scenarios.py (the engine's tools, DRAFT prompts, ten scenarios),
                        evaluate.py (verdicts), runner.py (runs, metrics, Wilson CIs), report.py,
                        catalog.py (models listing), cli.py (ayo-llm-check)
   conversation/case.py     CaseSnapshot (Case, Event, Action) and TurnChanges (what a turn accepted)

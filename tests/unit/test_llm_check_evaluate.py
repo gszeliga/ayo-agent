@@ -30,6 +30,10 @@ def transition(target: str) -> tuple[str, dict[str, Any]]:
     return ("propose_transition", {"target_state": target, "reasoning": "motivo"})
 
 
+def update(action_id: Any, status: str) -> tuple[str, dict[str, Any]]:
+    return ("update_action", {"action_id": action_id, "status": status})
+
+
 # --- Checks on every call ---------------------------------------------------
 
 
@@ -100,7 +104,7 @@ CASES: list[tuple[str, LLMResponse, tuple[str, ...]]] = [
     (
         "challenge_cause_without_data",
         calls(event("validated_cause"), text="¿Seguro?"),
-        ("wrong_arguments",),
+        ("schema_violation",),  # the engine's challenge enum has no validated_cause
     ),
     (
         "challenge_cause_without_data",
@@ -125,6 +129,17 @@ CASES: list[tuple[str, LLMResponse, tuple[str, ...]]] = [
         calls(transition("analyse"), text="¿Lo intento otra vez?"),
         ("wrong_tool",),
     ),
+    ("followup_action_done", calls(update(7, "done")), ()),
+    ("followup_action_done", calls(update(8, "done")), ("wrong_arguments",)),
+    ("followup_action_done", calls(update(7, "done"), update(8, "done")), ("wrong_arguments",)),
+    ("followup_action_done", calls(update(7, "pending")), ("wrong_arguments",)),
+    ("followup_action_done", calls(update(7, "done"), transition("closed")), ("wrong_tool",)),
+    (
+        "followup_action_done",
+        calls(("add_action", {"description": "x", "owner": "y", "due_date": "2026-11-30"})),
+        ("wrong_tool", "missing_tool"),
+    ),
+    ("followup_action_done", text_response("¡Bien! ¿Y la checklist?"), ("missing_tool",)),
 ]
 
 
@@ -151,3 +166,11 @@ def test_several_failure_reasons_in_one_run() -> None:
     assert verdict.failures == ("invalid_json", "wrong_tool", "missing_text")
     assert verdict.tool_calls == 2
     assert verdict.bad_argument_calls == 1
+
+
+def test_integer_arguments_match_rules_as_text_but_booleans_do_not() -> None:
+    """`action_id` is an integer; a rule lists it as text. `true` is not 1."""
+    assert evaluate(S["followup_action_done"], calls(update(7, "done"))).passed
+    verdict = evaluate(S["followup_action_done"], calls(update(True, "done")))
+    assert "schema_violation" in verdict.failures
+    assert "wrong_arguments" in verdict.failures

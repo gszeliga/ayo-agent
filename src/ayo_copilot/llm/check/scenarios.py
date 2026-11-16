@@ -1,101 +1,26 @@
-"""Draft scenarios for the tool-calling check.
+"""Scenarios for the tool-calling check.
 
-DRAFT: the system prompts, tool descriptions and tool schemas below only exercise the
-machinery and compare models on tool-calling discipline. They are NOT the production
-prompts or tools: those will be written with AYO consultants and finalized with the
-conversation engine. Scenario texts are in Spanish, like the users.
+The tools are the conversation engine's own: each scenario offers exactly what the engine
+offers in its phase (`tools_for_phase`), with the same schemas, descriptions and enums,
+and a rejected transition comes back with the engine's result shape. So the check
+measures the tools the copilot really uses.
+
+DRAFT: the system prompts and the scenario texts below only exercise the machinery and
+compare models on tool-calling discipline. They are NOT the production prompts: those
+are the engine's prompt files, to be written with AYO consultants. Scenario texts are in
+Spanish, like the users.
 """
 
-from collections.abc import Sequence
+import json
 from dataclasses import dataclass, field
 
+from ayo_copilot.conversation.case import FIELDS, PHASES
+from ayo_copilot.conversation.phases import describe_missing
+from ayo_copilot.conversation.tools import tools_for_phase
 from ayo_copilot.llm.fake import tool_call
 from ayo_copilot.llm.types import Message, ToolSpec
 
-PHASES = ("understand", "challenge", "analyse", "action", "follow_up")
-FIELDS = ("what", "where", "since", "standard")
-EVENT_TYPES = ("evidence", "hypothesis", "hypothesis_discarded", "validated_cause")
-
-
-# --- Draft tools ------------------------------------------------------------
-
-
-def record_field_tool() -> ToolSpec:
-    return ToolSpec(
-        name="record_field",
-        description=(
-            "Registra uno de los cuatro datos que definen el problema, solo cuando el usuario"
-            " lo ha dicho de forma clara: qué ocurre (what), dónde (where), desde cuándo"
-            " (since) y cuál es el estándar esperado (standard)."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "field": {"type": "string", "enum": list(FIELDS)},
-                "value": {"type": "string", "minLength": 1},
-            },
-            "required": ["field", "value"],
-            "additionalProperties": False,
-        },
-    )
-
-
-def log_event_tool() -> ToolSpec:
-    return ToolSpec(
-        name="log_event",
-        description=(
-            "Registra un hecho del análisis: una evidencia con datos (evidence), una hipótesis"
-            " (hypothesis), una hipótesis descartada por los datos (hypothesis_discarded) o una"
-            " causa validada con evidencia (validated_cause)."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "event_type": {"type": "string", "enum": list(EVENT_TYPES)},
-                "content": {"type": "string", "minLength": 1},
-            },
-            "required": ["event_type", "content"],
-            "additionalProperties": False,
-        },
-    )
-
-
-def propose_transition_tool(targets: Sequence[str]) -> ToolSpec:
-    """Its `target_state` enum changes per scenario, as it will in production: only the
-    transitions allowed from the current phase are offered."""
-    return ToolSpec(
-        name="propose_transition",
-        description=(
-            "Propone pasar el caso a otra fase cuando se cumplen sus condiciones. El sistema"
-            " valida la propuesta y puede rechazarla."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "target_state": {"type": "string", "enum": list(targets)},
-                "reasoning": {"type": "string", "minLength": 1},
-            },
-            "required": ["target_state", "reasoning"],
-            "additionalProperties": False,
-        },
-    )
-
-
-def add_action_tool() -> ToolSpec:
-    return ToolSpec(
-        name="add_action",
-        description="Registra una acción acordada, con responsable y fecha límite.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "description": {"type": "string", "minLength": 1},
-                "owner": {"type": "string", "minLength": 1},
-                "due_date": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$"},
-            },
-            "required": ["description", "owner", "due_date"],
-            "additionalProperties": False,
-        },
-    )
+__all__ = ["FIELDS", "PHASES", "Expectations", "Scenario", "ValueRule", "build_scenarios"]
 
 
 # --- Expectations -----------------------------------------------------------
@@ -181,6 +106,12 @@ _PHASE_PROMPTS = {
         " causa esté respaldada por datos verificados, regístrala con log_event como"
         " validated_cause."
     ),
+    "followup": (
+        "Fase actual: Seguimiento. Objetivo: comprobar el avance de las acciones acordadas."
+        " Cuando el usuario diga que una acción está hecha, márcala con update_action usando"
+        " su identificador del registro del caso. Solo cuando no quede ninguna acción"
+        " pendiente, propone cerrar el caso."
+    ),
 }
 
 
@@ -200,6 +131,15 @@ _RECORDED_FIELDS = (
 )
 
 
+_RECORDED_ACTIONS = (
+    "\n\nAcciones registradas:\n"
+    "- [7] Recalibrar la temperatura de la mordaza de la selladora 3 a 180 °C"
+    " · responsable: Marta (mantenimiento) · fecha: 2026-11-14 · pendiente\n"
+    "- [8] Añadir la verificación de temperatura de mordaza a la checklist de arranque"
+    " · responsable: Jorge (calidad) · fecha: 2026-11-21 · pendiente"
+)
+
+
 def _user(text: str) -> Message:
     return Message(role="user", content=text)
 
@@ -208,14 +148,27 @@ def _assistant(text: str) -> Message:
     return Message(role="assistant", content=text)
 
 
+# What the engine answers to a transition from `challenge` without evidence.
+_REJECTED_RESULT = json.dumps(
+    {
+        "ok": False,
+        "error": "criteria_not_met",
+        "detail": describe_missing(["evidence"]),
+        "missing": ["evidence"],
+    },
+    ensure_ascii=False,
+)
+
+
 # --- The scenarios ----------------------------------------------------------
 
 
 def build_scenarios() -> tuple[Scenario, ...]:
-    """The nine draft scenarios, in a stable order (their ids appear in reports)."""
-    understand_tools = (record_field_tool(), propose_transition_tool(["challenge"]))
-    challenge_tools = (log_event_tool(), propose_transition_tool(["analyse"]))
-    analyse_tools = (log_event_tool(), propose_transition_tool(["action"]), add_action_tool())
+    """The ten scenarios, in a stable order (their ids appear in reports)."""
+    understand_tools = tools_for_phase("understand")
+    challenge_tools = tools_for_phase("challenge")
+    analyse_tools = tools_for_phase("analyse")
+    followup_tools = tools_for_phase("followup")
     rejected_call = tool_call(
         "propose_transition",
         {
@@ -381,17 +334,35 @@ def build_scenarios() -> tuple[Scenario, ...]:
                 Message(
                     role="tool",
                     tool_call_id=rejected_call.id,
-                    content=(
-                        '{"status": "rejected", "reason": "missing_evidence", "detail":'
-                        ' "Para pasar a Analizar hace falta al menos una evidencia registrada'
-                        ' que apoye o descarte la hipótesis."}'
-                    ),
+                    content=_REJECTED_RESULT,
                 ),
             ),
             tools=challenge_tools,
             expectations=Expectations(
                 forbidden_tools=frozenset({"propose_transition"}),
                 needs_question=True,
+            ),
+        ),
+        Scenario(
+            id="followup_action_done",
+            title="Seguimiento: una acción está hecha; marcarla, sin cerrar el caso",
+            phase="followup",
+            system=_system("followup", _RECORDED_FIELDS + _RECORDED_ACTIONS),
+            messages=(
+                _user(
+                    "Marta ya ha recalibrado la mordaza a 180 °C esta mañana. Lo de la"
+                    " checklist todavía no está."
+                ),
+            ),
+            tools=followup_tools,
+            expectations=Expectations(
+                must_call_any=frozenset({"update_action"}),
+                required_values=(
+                    ValueRule("update_action", "action_id", frozenset({"7"})),
+                    ValueRule("update_action", "status", frozenset({"done"})),
+                ),
+                forbidden_values=(ValueRule("update_action", "action_id", frozenset({"8"})),),
+                forbidden_tools=frozenset({"add_action", "propose_transition"}),
             ),
         ),
     )
