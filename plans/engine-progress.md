@@ -8,11 +8,11 @@ pasted into the session on 2026-11-12). This file holds the agreed deviations, w
 over the spec, the plan and the progress log.
 
 ## Next (resume here)
-**E10 done (2026-11-16, commit "Add the live conversation test and transcripts (E10)");
-E1-E8 and the README restructure pushed, E9 and E10 not.** Next is **E11** (billed): give
-call counts and a cost estimate and wait for the user's OK before any call. Pending OK,
-not part of E11 unless agreed: applying migration 0003 to the Neon dev branch (the manual
-conversations need a database with it: local or the dev branch).
+**E1-E10 done and pushed (2026-11-16). E11 is parked (2026-11-16, the user's call): do
+not resume it, or make any billed call for it, until the user says so.** When it
+resumes: give call counts and a cost estimate first and wait for the user's OK. Pending
+OK, not part of E11 unless agreed: applying migration 0003 to the Neon dev branch (the
+manual conversations need a database with it: local or the dev branch).
 
 ## Decisions (agreed 2026-11-12)
 1. **One commit per step**, brief first, stop after each (the repo's rule), not the spec's
@@ -122,7 +122,7 @@ conversations need a database with it: local or the dev branch).
 - [x] **E8** Scripted golden path through all five phases; README sections.
 - [x] **E9** `ayo-llm-check` imports the real tool specs; `update_action` scenario (no calls).
 - [x] **E10** Live conversation test and `eval/conversations/` transcript writer (code only).
-- [ ] **E11** **Billed**: live test, the three manual conversations, check rerun for both
+- [ ] **E11** (parked 2026-11-16) **Billed**: live test, the three manual conversations, check rerun for both
   models, final report. Call counts and a cost estimate first; wait for the user's OK.
 
 ## Open items

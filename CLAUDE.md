@@ -9,11 +9,12 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active (2026-11-12): conversation engine core.** Spec
+- **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
-  E11 is billed (live test, manual conversations, `ayo-llm-check` rerun): give call counts
-  and a cost estimate and wait for the user's OK.
+  E1-E10 are done. E11 (billed: live test, manual conversations, `ayo-llm-check` rerun) is
+  **parked**: do not resume it without the user saying so; then give call counts and a
+  cost estimate and wait for the user's OK.
 - Done (2026-11-12): LLM provider through OpenRouter (L1-L6; spec
   `plans/claude-code-prompt-llm-provider.md`, decisions and log in `plans/llm-progress.md`).
   L7, the billed check run, is superseded by E11 of the engine milestone (decision 10 in
