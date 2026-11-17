@@ -893,6 +893,12 @@ export interface components {
              */
             chunk_id: string;
             /**
+             * Chunk Index
+             * @description The chunk's position in its document now (from 0), to open the document on it; null when the chunk is no longer stored: the document was reprocessed or replaced since (its chunks were replaced) or deleted.
+             * @example 3
+             */
+            chunk_index: number | null;
+            /**
              * Doc Id
              * @description The document it came from.
              * @example upload-1f2e3d4c5b6a

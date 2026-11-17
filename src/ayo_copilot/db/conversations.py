@@ -435,7 +435,26 @@ def document_titles(conn: Connection, tenant: str, doc_ids: Sequence[str]) -> di
     return {row[0]: row[1] for row in rows}
 
 
-# --- Listing cases (admin) -------------------------------------------------------------------
+def chunk_indexes(
+    conn: Connection, tenant: str, chunk_ids: Sequence[UUID]
+) -> dict[UUID, tuple[str, int]]:
+    """Where the tenant's chunks among `chunk_ids` are now: `chunk_id` -> (`doc_id`,
+    `chunk_index`). A chunk missing from the result is no longer stored: reprocessing or
+    replacing a document replaces its chunks (new ids), and deleting it removes them."""
+    if not chunk_ids:
+        return {}
+    rows = conn.execute(
+        """
+        select c.id, d.doc_id, c.chunk_index
+        from chunks c join documents d on d.id = c.document_id
+        where c.id = any(%s) and d.tenant = %s
+        """,
+        (list(chunk_ids), tenant),
+    ).fetchall()
+    return {row[0]: (row[1], row[2]) for row in rows}
+
+
+# --- Listing cases (admin)-------------------------------------------------------------------
 
 
 @dataclass(frozen=True)

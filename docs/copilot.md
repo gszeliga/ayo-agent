@@ -109,13 +109,18 @@ admin view is cross-tenant: there is no tenant parameter.
   message, the reply and the trace (model, prompts version, calls, tokens, cost, duration,
   `capped`, `retrieval_error`, the tool calls with outcome, `target` and `missing`, and
   the retrieved chunks with `chunk_id`, `doc_id`, the document's current title,
-  `document_deleted` and similarity). No prompts, tool arguments or chunk text.
+  `document_deleted`, `chunk_index` and similarity). No prompts, tool arguments or chunk text.
 - Each turn stores exactly one user message and one reply, so the n-th of each is turn n.
 - To show the latest turns first, ask for `offset = max(0, total - limit)` and step back
   by `limit`; after a new turn, fetch `offset = total` and append. Turns are only added at
   the end, so earlier pages never move.
 - A document deleted since (or not in the case's tenant) shows `document_deleted: true`
   and a null title.
+- `chunk_index` is where the chunk is in its document now, looked up by `chunk_id` when
+  the page is read, so a link can open the document on it. It is null when the chunk is no
+  longer stored: reprocessing or replacing a document replaces its chunks (new ids), and
+  deleting it removes them. A null `chunk_index` with `document_deleted: false` means the
+  document changed after that turn.
 
 `DELETE /admin/cases/{case_id}` deletes a case for good (`204`; `404 case_not_found` if
 there is none, or it was already deleted): its messages, annotations, actions, channel

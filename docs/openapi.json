@@ -437,6 +437,22 @@
             "title": "Chunk Id",
             "type": "string"
           },
+          "chunk_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The chunk's position in its document now (from 0), to open the document on it; null when the chunk is no longer stored: the document was reprocessed or replaced since (its chunks were replaced) or deleted.",
+            "examples": [
+              3
+            ],
+            "title": "Chunk Index"
+          },
           "doc_id": {
             "description": "The document it came from.",
             "examples": [
@@ -482,6 +498,7 @@
           "doc_id",
           "document_title",
           "document_deleted",
+          "chunk_index",
           "similarity"
         ],
         "title": "CaseRetrievedChunk",

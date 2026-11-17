@@ -8,8 +8,9 @@ file is their reference. The decisions here win over the spec, the plan and the 
 
 ## Next (resume here)
 C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`); the
-clickable prototype T0 is approved (2026-11-17). Next: **brief C9** (the backend fields the
-prototype needs), then T1-T5 one at a time, each briefed first. Nothing is in progress.
+clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) is done. Next: **brief
+C10** (`usage` in `get_case`, tokens and cost on the summary), then T1-T5 one at a time,
+each briefed first. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -142,10 +143,12 @@ What the UI steps start from:
   prompt (Spanish, for review), one LLM call, store and return; LLM errors as in
   `/copilot`; fake-provider tests only.
 - [x] **T0** Clickable prototype of `/chat` on the U1 Artifact (decision 18), approved.
-- [ ] **C9** Backend fields for the prototype: `chunk_index` on each retrieved chunk in
-  `list_case_turns` (null when no longer stored; decision 23), `usage` in `get_case`
-  (aggregate of `turn_traces` plus the summary; decision 24), `total_tokens` and `cost` on
-  `CaseSummary`. Additive, no migration. May split in two at its brief.
+- [x] **C9** `chunk_index` on each retrieved chunk in `list_case_turns` (null when no
+  longer stored; decision 23). Split from C10 at its brief (agreed 2026-11-17).
+- [ ] **C10** `usage` in `get_case` (one aggregate of `turn_traces`: calls, tokens, cost,
+  turns without cost or tokens, capped, retrieval failures, failed tool calls, average and
+  longest latency; decision 24) and `total_tokens` and `cost` on `CaseSummary`. Additive,
+  no migration; the UI adds the summary to the turns' totals.
 - [ ] **T1** Route `/chat` and `/chat/:caseId`, nav, cases list (filters, load more,
   collapse), empty state.
 - [ ] **T2** A case read-only: header, phase stepper, turns paged back, safe Markdown, phase
@@ -161,7 +164,9 @@ What the UI steps start from:
 - **Future milestone, not in these steps: tenant-bound keys** (raised 2026-11-17). Each
   `/copilot` key is tied to a fixed tenant; retrieval then searches that tenant's
   knowledge base together with AYO's shared one (`ayo`). `/admin` stays cross-tenant
-  (decision 12).
+  (decision 12). When it lands, the turn page's document lookups (titles,
+  `document_deleted`, `chunk_index`: `document_titles` and `chunk_indexes`, both filtered by
+  the case's tenant) must include `ayo` too, or its documents read as deleted (noted in C9).
 - **The summary prompt (`prompts/summary.md`) is a draft** for the user (and AYO) to
   review; no real model has run it yet. A manual try is billed: ask first.
 - Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK (0004
@@ -336,3 +341,18 @@ What the UI steps start from:
   - Dialogs: new conversation (tenant select, the last one remembered as a name only; the
     case exists after the first reply), delete (permanent, what goes with it, and that the
     next message starts a new case), export (Markdown or JSON preview, Download).
+- **C9 (2026-11-17).** `CaseRetrievedChunk.chunk_index` (int >= 0 or null) in
+  `list_case_turns`. `db/conversations.chunk_indexes(conn, tenant, chunk_ids)`: one select
+  joining `chunks` to `documents` by chunk id and tenant, `chunk_id` -> (`doc_id`,
+  `chunk_index`); `cases.read_case_turns` calls it in the same snapshot as the titles
+  (`CaseTurns.chunk_indexes`); `CaseTurn.build` sets the index only when the stored chunk's
+  `doc_id` is the one the trace recorded. Looked up when read, never stored: chunk ids are
+  random and replaced on every reprocess or replace, so an id is either the same chunk or
+  gone. Same tenant filter as the titles (the `ayo` caveat went into the tenant-bound keys
+  open item). No migration, no new log line, no chunk text. `docs/copilot.md`,
+  `docs/openapi.json`, `schema.d.ts`. Tests (`tests/api/test_cases.py`, 4 new plus the
+  existing retrieval test with the field): real chunk ids give their indexes (out of order,
+  repeated), a forced reprocess gives null with the document still there and titled, a
+  deleted document gives null and `document_deleted`, a chunk recorded under another
+  `doc_id` and another tenant's chunk give null. Full suite green (1555 passed), `pnpm
+  check` green.

@@ -93,11 +93,14 @@ class CaseTurn:
 @dataclass(frozen=True)
 class CaseTurns:
     """A page of a case's turns, oldest first, and the titles of the documents they
-    retrieved (`doc_id` -> title; a missing `doc_id` is a deleted document)."""
+    retrieved (`doc_id` -> title; a missing `doc_id` is a deleted document) and where the
+    retrieved chunks are now (`chunk_id` -> (`doc_id`, `chunk_index`); a missing
+    `chunk_id` is no longer stored)."""
 
     turns: list[CaseTurn]
     total: int
     document_titles: dict[str, str | None]
+    chunk_indexes: dict[UUID, tuple[str, int]]
 
 
 class MissingTurnMessage(Exception):
@@ -129,6 +132,8 @@ def read_case_turns(
         )
         doc_ids = sorted({r.doc_id for t in traces for r in t.trace.retrieved})
         titles = db.document_titles(conn, case.tenant, doc_ids)
+        chunk_ids = sorted({r.chunk_id for t in traces for r in t.trace.retrieved})
+        indexes = db.chunk_indexes(conn, case.tenant, chunk_ids)
     turns = []
     for trace in traces:
         user_message = messages.get((trace.turn_no, "user"))
@@ -136,7 +141,7 @@ def read_case_turns(
         if user_message is None or reply is None:
             raise MissingTurnMessage(f"case {case_id} turn {trace.turn_no} lacks a message")
         turns.append(CaseTurn(trace, user_message, reply))
-    return CaseTurns(turns=turns, total=total, document_titles=titles)
+    return CaseTurns(turns=turns, total=total, document_titles=titles, chunk_indexes=indexes)
 
 
 def delete_case(pool: ConnectionPool, case_id: UUID) -> tuple[str, int] | None:

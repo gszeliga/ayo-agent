@@ -1361,6 +1361,13 @@ class CaseRetrievedChunk(BaseModel):
     document_deleted: bool = Field(
         description="The document no longer exists in the case's tenant.", examples=[False]
     )
+    chunk_index: int | None = Field(
+        ge=0,
+        description="The chunk's position in its document now (from 0), to open the document"
+        " on it; null when the chunk is no longer stored: the document was reprocessed or"
+        " replaced since (its chunks were replaced) or deleted.",
+        examples=[3],
+    )
     similarity: float = Field(description="Cosine similarity to the query.", examples=[0.82])
 
 
@@ -1422,9 +1429,20 @@ class CaseTurn(BaseModel):
 
     @classmethod
     def build(
-        cls, stored: StoredTrace, user_message: Event, reply: Event, titles: dict[str, str | None]
+        cls,
+        stored: StoredTrace,
+        user_message: Event,
+        reply: Event,
+        titles: dict[str, str | None],
+        chunk_indexes: dict[UUID, tuple[str, int]],
     ) -> "CaseTurn":
         trace = stored.trace
+
+        def chunk_index(chunk_id: UUID, doc_id: str) -> int | None:
+            # Only where the trace says it was: a chunk id is unique, but check anyway.
+            found = chunk_indexes.get(chunk_id)
+            return found[1] if found is not None and found[0] == doc_id else None
+
         return cls(
             turn=stored.turn_no,
             phase_before=stored.phase_before,
@@ -1459,6 +1477,7 @@ class CaseTurn(BaseModel):
                         doc_id=chunk.doc_id,
                         document_title=titles.get(chunk.doc_id),
                         document_deleted=chunk.doc_id not in titles,
+                        chunk_index=chunk_index(chunk.chunk_id, chunk.doc_id),
                         similarity=chunk.similarity,
                     )
                     for chunk in trace.retrieved
@@ -1476,7 +1495,9 @@ class CaseTurnPage(Page[CaseTurn]):
     def from_turns(cls, turns: CaseTurns, *, limit: int, offset: int) -> "CaseTurnPage":
         return cls(
             items=[
-                CaseTurn.build(t.trace, t.user_message, t.reply, turns.document_titles)
+                CaseTurn.build(
+                    t.trace, t.user_message, t.reply, turns.document_titles, turns.chunk_indexes
+                )
                 for t in turns.turns
             ],
             total=turns.total,

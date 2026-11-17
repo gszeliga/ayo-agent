@@ -766,6 +766,7 @@ def test_retrieved_documents(client: TestClient, db_pool: ConnectionPool) -> Non
             "doc_id": kept,
             "document_title": "Calibración de la llenadora",
             "document_deleted": False,
+            "chunk_index": None,
             "similarity": 0.82,
         },
         {
@@ -773,6 +774,7 @@ def test_retrieved_documents(client: TestClient, db_pool: ConnectionPool) -> Non
             "doc_id": gone,
             "document_title": None,
             "document_deleted": True,
+            "chunk_index": None,
             "similarity": 0.71,
         },
         {
@@ -780,6 +782,7 @@ def test_retrieved_documents(client: TestClient, db_pool: ConnectionPool) -> Non
             "doc_id": untitled,
             "document_title": None,
             "document_deleted": False,
+            "chunk_index": None,
             "similarity": 0.65,
         },
         {
@@ -787,9 +790,138 @@ def test_retrieved_documents(client: TestClient, db_pool: ConnectionPool) -> Non
             "doc_id": foreign,
             "document_title": None,
             "document_deleted": True,
+            "chunk_index": None,
             "similarity": 0.6,
         },
     ]
+
+
+def stored_chunks(pool: ConnectionPool, doc_id: str) -> list[tuple[str, int]]:
+    """A document's chunks as stored now: (chunk_id, chunk_index), in order."""
+    with pool.connection() as conn:
+        rows = conn.execute(
+            "select c.id::text, c.chunk_index from chunks c"
+            " join documents d on d.id = c.document_id where d.doc_id = %s"
+            " order by c.chunk_index",
+            (doc_id,),
+        ).fetchall()
+    return [(row[0], row[1]) for row in rows]
+
+
+LONG_PROCEDURE = (
+    "# Calibración de la llenadora\n\n"
+    "## Preparación\n\n"
+    + "Comprobar que la llenadora está parada y bloqueada antes de abrir la tapa. " * 9
+    + "\n\n## Ajuste del sensor\n\n"
+    + "Ajustar el sensor de nivel hasta que la lectura coincida con el patrón. " * 9
+    + "\n"
+)
+
+
+def upload_long(client: TestClient, tenant: str, name: str) -> str:
+    response = client.post(
+        "/admin/documents",
+        files={"file": (name, LONG_PROCEDURE.encode(), "text/markdown")},
+        data={"tenant": tenant},
+        headers=HEADERS,
+    )
+    assert response.status_code in (200, 201), response.text
+    return response.json()["doc_id"]
+
+
+def retrieved_of(client: TestClient, problem_id: UUID) -> list[dict[str, Any]]:
+    return list_turns(client, problem_id).json()["items"][0]["trace"]["retrieved"]
+
+
+def test_retrieved_chunks_carry_their_index(client: TestClient, db_pool: ConnectionPool) -> None:
+    doc = upload_long(client, "cliente-acme", "pro-010.md")
+    chunks = stored_chunks(db_pool, doc)
+    assert len(chunks) >= 2
+    problem_id, _ = add_case(db_pool)
+    # Listed out of order and with a repeat, as a trace may hold them.
+    picked = [chunks[-1], chunks[0], chunks[-1]]
+    add_turn(
+        db_pool,
+        problem_id,
+        1,
+        retrieved=[
+            {"chunk_id": chunk_id, "similarity": 0.8 - i / 10, "doc_id": doc}
+            for i, (chunk_id, _) in enumerate(picked)
+        ],
+    )
+
+    retrieved = retrieved_of(client, problem_id)
+
+    assert [(r["chunk_id"], r["chunk_index"]) for r in retrieved] == picked
+    assert all(r["document_deleted"] is False for r in retrieved)
+
+
+def test_chunk_index_is_null_once_the_document_is_reprocessed(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    doc = upload_long(client, "cliente-acme", "pro-011.md")
+    chunk_id, _ = stored_chunks(db_pool, doc)[1]
+    problem_id, _ = add_case(db_pool)
+    add_turn(
+        db_pool,
+        problem_id,
+        1,
+        retrieved=[{"chunk_id": chunk_id, "similarity": 0.8, "doc_id": doc}],
+    )
+    response = client.post(f"/admin/documents/{doc}/reprocess?force=true", headers=HEADERS)
+    assert response.status_code == 200, response.text
+    assert chunk_id not in [c for c, _ in stored_chunks(db_pool, doc)]
+
+    [chunk] = retrieved_of(client, problem_id)
+
+    assert chunk["chunk_index"] is None
+    assert chunk["document_deleted"] is False
+    assert chunk["document_title"] == "Calibración de la llenadora"
+
+
+def test_chunk_index_is_null_for_a_deleted_document(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    doc = upload_long(client, "cliente-acme", "pro-012.md")
+    chunk_id, _ = stored_chunks(db_pool, doc)[0]
+    problem_id, _ = add_case(db_pool)
+    add_turn(
+        db_pool,
+        problem_id,
+        1,
+        retrieved=[{"chunk_id": chunk_id, "similarity": 0.8, "doc_id": doc}],
+    )
+    assert client.delete(f"/admin/documents/{doc}", headers=HEADERS).status_code == 204
+
+    [chunk] = retrieved_of(client, problem_id)
+
+    assert chunk["chunk_index"] is None
+    assert chunk["document_deleted"] is True
+
+
+def test_chunk_index_only_where_the_trace_says(client: TestClient, db_pool: ConnectionPool) -> None:
+    doc = upload_long(client, "cliente-acme", "pro-013.md")
+    other = upload(client, "cliente-acme", "pro-014.md")
+    foreign = upload_long(client, "otro-cliente", "pro-015.md")
+    chunk_id, _ = stored_chunks(db_pool, doc)[1]
+    foreign_chunk, _ = stored_chunks(db_pool, foreign)[0]
+    problem_id, _ = add_case(db_pool)
+    add_turn(
+        db_pool,
+        problem_id,
+        1,
+        retrieved=[
+            # A stored chunk recorded under another document's doc_id.
+            {"chunk_id": chunk_id, "similarity": 0.8, "doc_id": other},
+            # Another tenant's chunk, never resolved in this case.
+            {"chunk_id": foreign_chunk, "similarity": 0.7, "doc_id": foreign},
+        ],
+    )
+
+    retrieved = retrieved_of(client, problem_id)
+
+    assert [r["chunk_index"] for r in retrieved] == [None, None]
+    assert [r["document_deleted"] for r in retrieved] == [False, True]
 
 
 def test_turns_of_a_copilot_conversation(client: TestClient) -> None:
