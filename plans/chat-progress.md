@@ -7,7 +7,7 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1-C5 and the access-log side step done (2026-11-17). Next: C6, brief first.
+C1-C6 and the access-log side step done (2026-11-17). Next: C7, brief first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -53,6 +53,10 @@ C1-C5 and the access-log side step done (2026-11-17). Next: C6, brief first.
 14. **A turn missing its user message or reply is a server error** (500,
     `MissingTurnMessage`), not a null field: `commit_turn` writes both with the trace, so
     a gap is a bug.
+15. **Deleting a case frees its session** (agreed 2026-11-17, C6 brief): the link goes with
+    the case (`on delete cascade`), so a later message on the same `session_id` opens a new
+    case; no tombstone. A turn running during the delete fails its version check and
+    answers `409 case_changed`, storing nothing.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -71,7 +75,7 @@ C1-C5 and the access-log side step done (2026-11-17). Next: C6, brief first.
   cost, calls, latency, capped, retrieval error, chunks with `chunk_id`, `doc_id`,
   document title, similarity; `document_deleted` when gone). No chunk text, no tool
   arguments.
-- [ ] **C6** `DELETE /admin/cases/{case_id}` (`delete_case`): `204`, `404 case_not_found`.
+- [x] **C6** `DELETE /admin/cases/{case_id}` (`delete_case`): `204`, `404 case_not_found`.
 - [ ] **C7** Migration 0004 (`case_summaries`), repository, `summary` + `stale` in
   `get_case`; no LLM.
 - [ ] **C8** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`): draft summary
@@ -171,3 +175,15 @@ C1-C5 and the access-log side step done (2026-11-17). Next: C6, brief first.
   retrieved documents (kept, deleted, untitled, another tenant's), two real `/copilot`
   turns, 404, four 422s, 401, no content in the logs, and the missing-message error.
   Contract cases for 200 (items, empty), 401, 404 and 422 (id, limit).
+- **C6 (2026-11-17).** `DELETE /admin/cases/{case_id}` (`delete_case`) in
+  `routers/cases.py`: `204`, `401`, `404 case_not_found`, `422`. One statement
+  (`db.delete_case`: `delete ... returning` the tenant and turn count); the cascade of
+  migration 0003 removes events, actions, links and traces. `cases.delete_case` owns the
+  transaction; the router logs `case deleted case_id=... tenant=... turns=N` (the
+  document deletion's precedent). README table, `docs/copilot.md`, `docs/openapi.json`,
+  `schema.d.ts`. Tests (`tests/api/test_cases.py`, 7): every dependent row gone (counted in
+  SQL) and another case untouched, then 404 from `get_case` and the turns and gone from the
+  list; a second delete 404; a closed case from another channel; 422 and 401 deleting
+  nothing; the log line without content; the old `session_id` opening a new case at turn
+  1; a turn whose case is deleted mid-call answering `409 case_changed` with no rows left
+  (decision 15). Contract cases for 204, 401, 404 and 422.

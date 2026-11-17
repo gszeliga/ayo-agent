@@ -23,6 +23,7 @@ from ayo_copilot.llm.fake import (
     tool_call,
     tool_calls_response,
 )
+from ayo_copilot.llm.types import LLMResponse
 
 pytestmark = pytest.mark.integration
 
@@ -857,3 +858,146 @@ def test_a_turn_without_its_messages_is_an_error(db_pool: ConnectionPool) -> Non
 
     with pytest.raises(MissingTurnMessage):
         read_case_turns(db_pool, problem_id, limit=20, offset=0)
+
+
+# --- delete_case ---------------------------------------------------------------------------
+
+
+def delete_case(client: TestClient, case_id: object, headers: dict[str, str] = HEADERS):
+    return client.delete(f"/admin/cases/{case_id}", headers=headers)
+
+
+def row_counts(pool: ConnectionPool, problem_id: UUID) -> dict[str, int]:
+    counts = {}
+    with pool.connection() as conn:
+        for table, column in [
+            ("problems", "id"),
+            ("problem_events", "problem_id"),
+            ("actions", "problem_id"),
+            ("conversation_links", "problem_id"),
+            ("turn_traces", "problem_id"),
+        ]:
+            row = conn.execute(
+                f"select count(*) from {table} where {column} = %s", (problem_id,)
+            ).fetchone()
+            assert row is not None
+            counts[table] = row[0]
+    return counts
+
+
+def test_delete_removes_the_case_and_what_it_owns(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    problem_id, _ = add_case(db_pool, actions=(("pending", "2026-11-20"),))
+    add_turn(db_pool, problem_id, 1, annotation=True)
+    add_turn(db_pool, problem_id, 2)
+    other, _ = add_case(db_pool, actions=(("done", "2026-11-01"),))
+    add_turn(db_pool, other, 1)
+    assert row_counts(db_pool, problem_id) == {
+        "problems": 1,
+        "problem_events": 5,
+        "actions": 1,
+        "conversation_links": 1,
+        "turn_traces": 2,
+    }
+    other_before = row_counts(db_pool, other)
+
+    response = delete_case(client, problem_id)
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert set(row_counts(db_pool, problem_id).values()) == {0}
+    assert row_counts(db_pool, other) == other_before
+    assert get_case(client, problem_id).status_code == 404
+    assert list_turns(client, problem_id).status_code == 404
+    assert ids(list_cases(client)) == [str(other)]
+
+
+def test_delete_twice_is_404(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    assert delete_case(client, problem_id).status_code == 204
+
+    response = delete_case(client, problem_id)
+
+    assert response.status_code == 404
+    assert response.json()["detail"][0]["type"] == "case_not_found"
+
+
+def test_delete_a_closed_case(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool, state="closed", link=("slack", "C123"))
+
+    assert delete_case(client, problem_id).status_code == 204
+    assert get_case(client, problem_id).status_code == 404
+
+
+def test_delete_needs_a_valid_id_and_the_key(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+
+    malformed = delete_case(client, "case-1")
+    no_key = delete_case(client, problem_id, headers={})
+
+    assert malformed.status_code == 422
+    assert malformed.json()["detail"][0]["type"] == "uuid_parsing"
+    assert no_key.status_code == 401
+    assert row_counts(db_pool, problem_id)["problems"] == 1
+
+
+def test_delete_is_logged_without_content(
+    client: TestClient, db_pool: ConnectionPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    problem_id, _ = add_case(db_pool, what="Merma confidencial", turns=0)
+    add_turn(db_pool, problem_id, 1)
+    add_turn(db_pool, problem_id, 2)
+
+    with caplog.at_level("DEBUG"):
+        assert delete_case(client, problem_id).status_code == 204
+
+    app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
+    assert f"case deleted case_id={problem_id} tenant=cliente-acme turns=2" in app_messages
+    assert not any("confidencial" in m or "Mensaje" in m for m in app_messages)
+
+
+def test_the_deleted_session_opens_a_new_case(client: TestClient) -> None:
+    llm = FakeLLMProvider([text_response("¿En qué línea?"), text_response("¿Qué pasa?")])
+    client.app.dependency_overrides[get_llm_provider] = lambda: llm
+    message = {"session_id": str(uuid4()), "tenant": "cliente-acme", "text": "Hay merma"}
+    first = client.post("/copilot/messages", json=message, headers=HEADERS).json()
+    assert delete_case(client, first["case_id"]).status_code == 204
+
+    second = client.post("/copilot/messages", json=message, headers=HEADERS)
+
+    assert second.status_code == 200, second.text
+    assert second.json()["case_id"] != first["case_id"]
+    assert second.json()["turn"] == 1
+
+
+class DeletingLLM:
+    """Deletes every case while the model 'thinks', as an admin would mid-turn."""
+
+    def __init__(self, pool: ConnectionPool) -> None:
+        self.pool = pool
+
+    def complete(self, **kwargs: Any) -> LLMResponse:
+        with self.pool.connection() as conn:
+            conn.execute("delete from problems")
+        return text_response("¿En qué línea?")
+
+
+def test_a_turn_running_on_a_deleted_case_stores_nothing(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    llm = DeletingLLM(db_pool)
+    client.app.dependency_overrides[get_llm_provider] = lambda: llm
+
+    response = client.post(
+        "/copilot/messages",
+        json={"session_id": str(uuid4()), "tenant": "cliente-acme", "text": "Hay merma"},
+        headers=HEADERS,
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"][0]["type"] == "case_changed"
+    with db_pool.connection() as conn:
+        for table in ("problems", "problem_events", "actions", "conversation_links", "turn_traces"):
+            row = conn.execute(f"select count(*) from {table}").fetchone()
+            assert row == (0,), table

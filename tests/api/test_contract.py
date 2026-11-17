@@ -84,6 +84,7 @@ COPILOT_SESSION = ("get", "/copilot/sessions/{session_id}")
 LIST_CASES = ("get", "/admin/cases")
 GET_CASE = ("get", "/admin/cases/{case_id}")
 CASE_TURNS = ("get", "/admin/cases/{case_id}/turns")
+DELETE_CASE = ("delete", "/admin/cases/{case_id}")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -103,6 +104,7 @@ OPERATIONS = [
     LIST_CASES,
     GET_CASE,
     CASE_TURNS,
+    DELETE_CASE,
 ]
 
 
@@ -247,6 +249,12 @@ CASE_ID = "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
 
 def case_detail(client: TestClient, case_id: str, suffix: str = "", headers=None, **params: Any):
     return get(client, f"/admin/cases/{case_id}{suffix}", headers=headers, **params)
+
+
+def delete_case(client: TestClient, case_id: str, headers=None):
+    return client.delete(
+        f"/admin/cases/{case_id}", headers={"X-API-Key": API_KEY} if headers is None else headers
+    )
 
 
 def session(client: TestClient, session_id: str = SESSION_ID, headers=None):
@@ -467,6 +475,14 @@ CASES = {
     ),
     "case turns 404": (CASE_TURNS, 404, lambda c: case_detail(c, CASE_ID, "/turns")),
     "case turns 422 malformed id": (CASE_TURNS, 422, lambda c: case_detail(c, "case-1", "/turns")),
+    "case delete 204": (
+        DELETE_CASE,
+        204,
+        lambda c: delete_case(c, copilot_sent(c).json()["case_id"]),
+    ),
+    "case delete 401 no key": (DELETE_CASE, 401, lambda c: delete_case(c, CASE_ID, headers={})),
+    "case delete 404": (DELETE_CASE, 404, lambda c: delete_case(c, CASE_ID)),
+    "case delete 422 malformed id": (DELETE_CASE, 422, lambda c: delete_case(c, "case-1")),
     "case turns 422 limit": (
         CASE_TURNS,
         422,

@@ -63,7 +63,23 @@ export interface paths {
         get: operations["get_case"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a case
+         * @description Delete a case for good, whatever channel opened it, with its
+         *     messages, annotations, actions, channel links and turn traces. There is no undo.
+         *
+         *     A turn still running on the case stores nothing and answers `409 case_changed`. The
+         *     deleted case's web session is unlinked: a later message with the same `session_id` opens
+         *     a new, empty case.
+         *
+         *     | Status | Meaning |
+         *     |---|---|
+         *     | `204` | Deleted. |
+         *     | `401` | `X-API-Key` missing or wrong. |
+         *     | `404` | No case with that id (or it was already deleted). |
+         *     | `422` | `case_id` is not a UUID (FastAPI validation). |
+         */
+        delete: operations["delete_case"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2422,6 +2438,54 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CaseDetail"];
                 };
+            };
+            /** @description `X-API-Key` is missing or wrong. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No case with that id: `type` is `case_not_found`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `case_id` is not a UUID: `type` is `uuid_parsing`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The case id (a UUID), as `case_id` in the listing or the copilot's replies. */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted, with everything it owned. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description `X-API-Key` is missing or wrong. */
             401: {

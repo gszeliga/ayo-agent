@@ -3374,6 +3374,126 @@
       }
     },
     "/admin/cases/{case_id}": {
+      "delete": {
+        "description": "Delete a case for good, whatever channel opened it, with its\nmessages, annotations, actions, channel links and turn traces. There is no undo.\n\nA turn still running on the case stores nothing and answers `409 case_changed`. The\ndeleted case's web session is unlinked: a later message with the same `session_id` opens\na new, empty case.\n\n| Status | Meaning |\n|---|---|\n| `204` | Deleted. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (or it was already deleted). |\n| `422` | `case_id` is not a UUID (FastAPI validation). |",
+        "operationId": "delete_case",
+        "parameters": [
+          {
+            "description": "The case id (a UUID), as `case_id` in the listing or the copilot's replies.",
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "description": "The case id (a UUID), as `case_id` in the listing or the copilot's replies.",
+              "examples": [
+                "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+              ],
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted, with everything it owned."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "case_not_found": {
+                    "summary": "Unknown case",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "case_id"
+                          ],
+                          "msg": "case not found",
+                          "type": "case_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No case with that id: `type` is `case_not_found`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "uuid_parsing": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "error": "invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1"
+                          },
+                          "input": "case-1",
+                          "loc": [
+                            "path",
+                            "case_id"
+                          ],
+                          "msg": "Input should be a valid UUID, invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1",
+                          "type": "uuid_parsing"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`case_id` is not a UUID: `type` is `uuid_parsing`."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Delete a case",
+        "tags": [
+          "cases"
+        ]
+      },
       "get": {
         "description": "One case, from any channel: its header (tenant, title, phase,\nversion, turn count, times, `web_session_id`), the four facts, the annotations (evidence,\nhypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`\ncomputed in `APP_TIMEZONE`.\n\nThe conversation and the turn traces are not part of it: page through them with\n`GET /admin/cases/{case_id}/turns`.\n\n| Status | Meaning |\n|---|---|\n| `200` | The case. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (`case_not_found`). |\n| `422` | `case_id` is not a UUID (FastAPI validation). |",
         "operationId": "get_case",

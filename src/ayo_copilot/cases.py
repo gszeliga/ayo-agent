@@ -132,3 +132,11 @@ def read_case_turns(
             raise MissingTurnMessage(f"case {case_id} turn {trace.turn_no} lacks a message")
         turns.append(CaseTurn(trace, user_message, reply))
     return CaseTurns(turns=turns, total=total, document_titles=titles)
+
+
+def delete_case(pool: ConnectionPool, case_id: UUID) -> tuple[str, int] | None:
+    """Delete a case and everything it owns; its tenant and turn count, or None if there is
+    no such case. A turn still running on it then fails its version check (`CaseChanged`)
+    and stores nothing."""
+    with pool.connection() as conn, conn.transaction():
+        return db.delete_case(conn, case_id)

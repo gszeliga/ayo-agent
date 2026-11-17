@@ -520,3 +520,14 @@ def get_case_row(conn: Connection, problem_id: UUID, *, today: date) -> CaseRow 
         f"{_CASE_ROW_SELECT} where p.id = %(id)s", {"id": problem_id, "today": today}
     ).fetchone()
     return None if row is None else CaseRow(*row)
+
+
+def delete_case(conn: Connection, problem_id: UUID) -> tuple[str, int] | None:
+    """Delete a case; its events, actions, links and traces go with it (`on delete
+    cascade`). Returns its tenant and turn count, or None if there is no such case."""
+    row = conn.execute(
+        "delete from problems p where p.id = %s returning p.tenant,"
+        " (select count(*) from turn_traces t where t.problem_id = p.id)",
+        (problem_id,),
+    ).fetchone()
+    return None if row is None else (row[0], row[1])

@@ -88,6 +88,15 @@ admin view is cross-tenant: there is no tenant parameter.
 - A document deleted since (or not in the case's tenant) shows `document_deleted: true`
   and a null title.
 
+`DELETE /admin/cases/{case_id}` deletes a case for good (`204`; `404 case_not_found` if
+there is none, or it was already deleted): its messages, annotations, actions, channel
+links and traces go with it, and there is no undo. The log keeps one line with the case
+id, tenant and turn count, never content.
+
+- A turn still running on the case stores nothing and answers `409 case_changed`.
+- The web session is unlinked: a later message with the same `session_id` opens a new,
+  empty case. The test chat starts a new session after a delete.
+
 ## The flow of a turn
 
 1. The channel finds the session's case (or opens one with its link) and loads a

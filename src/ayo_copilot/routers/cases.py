@@ -5,15 +5,16 @@ A case is the problem being solved; a session (`/copilot`) is the web channel's 
 that leads to one. Logs never carry case content or the search text.
 """
 
+import logging
 from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi import Path as PathParam
 from psycopg_pool import ConnectionPool
 
-from ayo_copilot.cases import read_case_detail, read_case_page, read_case_turns
+from ayo_copilot.cases import delete_case, read_case_detail, read_case_page, read_case_turns
 from ayo_copilot.conversation.case import Phase
 from ayo_copilot.dependencies import get_pool, get_today
 from ayo_copilot.errors import ApiError
@@ -45,6 +46,8 @@ def _examples(**examples: tuple[str, dict[str, object]]) -> dict[str, object]:
         }
     }
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/admin/cases",
@@ -296,3 +299,49 @@ def list_case_turns(
     if turns is None:
         raise _case_not_found()
     return CaseTurnPage.from_turns(turns, limit=limit, offset=offset)
+
+
+DELETE_DESCRIPTION = """Delete a case for good, whatever channel opened it, with its
+messages, annotations, actions, channel links and turn traces. There is no undo.
+
+A turn still running on the case stores nothing and answers `409 case_changed`. The
+deleted case's web session is unlinked: a later message with the same `session_id` opens
+a new, empty case.
+
+| Status | Meaning |
+|---|---|
+| `204` | Deleted. |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No case with that id (or it was already deleted). |
+| `422` | `case_id` is not a UUID (FastAPI validation). |
+"""
+
+
+@router.delete(
+    "/{case_id}",
+    operation_id="delete_case",
+    summary="Delete a case",
+    description=DELETE_DESCRIPTION,
+    status_code=204,
+    response_class=Response,
+    responses={
+        204: {"description": "Deleted, with everything it owned."},
+        404: CASE_NOT_FOUND_RESPONSE,
+        422: {
+            "model": ErrorResponse,
+            "description": "`case_id` is not a UUID: `type` is `uuid_parsing`.",
+            "content": _examples(uuid_parsing=("Malformed id", MALFORMED_CASE_ID)),
+        },
+    },
+)
+def delete(
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    case_id: Annotated[UUID, PathParam(description=CASE_ID_PARAM, examples=[CASE_ID_EXAMPLE])],
+) -> Response:
+    deleted = delete_case(pool, case_id)
+    if deleted is None:
+        raise _case_not_found()
+    tenant, turns = deleted
+    # The only trace of the deletion (no audit table yet); ids and counts, no content.
+    logger.info("case deleted case_id=%s tenant=%s turns=%d", case_id, tenant, turns)
+    return Response(status_code=204)
