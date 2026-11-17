@@ -13,7 +13,7 @@ from ayo_copilot.cases import CaseTurns
 from ayo_copilot.config import MAX_SEARCH_TOP_K, Settings
 from ayo_copilot.conversation.case import FIELDS, Event, Phase
 from ayo_copilot.conversation.store import SessionAction, SessionView
-from ayo_copilot.db.conversations import CaseRow, StoredTrace
+from ayo_copilot.db.conversations import CaseRow, StoredSummary, StoredTrace
 from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusCounts, TenantRow
 from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
@@ -1191,9 +1191,41 @@ class CasePage(Page[CaseListItem]):
     """A page of cases."""
 
 
+class CaseSummary(BaseModel):
+    """The stored AI summary of a case: a narrative generated on request, never updated by
+    itself."""
+
+    content: str = Field(
+        description="The summary, as the model wrote it (Markdown).",
+        examples=["La línea 2 pierde un 4 % en el envasado desde el lunes 9. ..."],
+    )
+    model: str = Field(description="The model that wrote it.", examples=["openai/gpt-4.1-mini"])
+    generated_at: datetime = Field(
+        description="When it was generated (UTC).", examples=["2026-11-13T16:05:40Z"]
+    )
+    source_version: int = Field(
+        ge=0, description="The case `version` it was generated from.", examples=[7]
+    )
+    stale: bool = Field(
+        description="The case has changed since (its `version` is past `source_version`):"
+        " generate it again to include the latest turns.",
+        examples=[False],
+    )
+
+    @classmethod
+    def from_stored(cls, stored: StoredSummary, *, case_version: int) -> "CaseSummary":
+        return cls(
+            content=stored.summary.content,
+            model=stored.summary.model,
+            generated_at=_utc(stored.created_at),
+            source_version=stored.summary.source_version,
+            stale=stored.summary.source_version < case_version,
+        )
+
+
 class CaseDetail(BaseModel):
-    """One case, from any channel: its header, the four facts, the annotations and the
-    actions. The conversation and the turn traces are not here."""
+    """One case, from any channel: its header, the four facts, the annotations, the
+    actions and the AI summary. The conversation and the turn traces are not here."""
 
     case_id: UUID = Field(description="The case.", examples=[CASE_ID_EXAMPLE])
     tenant: str = Field(description="The case's tenant.", examples=["cliente-acme"])
@@ -1227,6 +1259,10 @@ class CaseDetail(BaseModel):
     actions: list[CopilotSessionAction] = Field(
         description="The actions, oldest first; `overdue` is computed by the API."
     )
+    summary: CaseSummary | None = Field(
+        description="The AI summary, null until one is generated.",
+        examples=[None],
+    )
 
     @classmethod
     def from_detail(cls, detail: CaseDetailData) -> "CaseDetail":
@@ -1245,6 +1281,9 @@ class CaseDetail(BaseModel):
             fields=CopilotSessionFields(**{name: case.get_field(name) for name in FIELDS}),
             events=[CopilotSessionEvent.from_event(event) for event in detail.events],
             actions=[CopilotSessionAction.from_item(item) for item in detail.actions],
+            summary=None
+            if detail.summary is None
+            else CaseSummary.from_stored(detail.summary, case_version=case.version),
         )
 
 

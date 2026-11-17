@@ -247,6 +247,18 @@ def copilot_failing(client: TestClient):
 CASE_ID = "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
 
 
+def summarised(client: TestClient) -> str:
+    """A case with a stored AI summary; returns its id."""
+    case_id = copilot_sent(client).json()["case_id"]
+    with client.app_state["pool"].connection() as conn:
+        conn.execute(
+            "insert into case_summaries (problem_id, content, source_version, model,"
+            " prompts_version) values (%s, 'Merma en la línea 2.', 0, 'm', 'summary-1')",
+            (case_id,),
+        )
+    return case_id
+
+
 def case_detail(client: TestClient, case_id: str, suffix: str = "", headers=None, **params: Any):
     return get(client, f"/admin/cases/{case_id}{suffix}", headers=headers, **params)
 
@@ -455,6 +467,7 @@ CASES = {
         200,
         lambda c: (copilot_closed(c), case_detail(c, session(c).json()["case_id"]))[1],
     ),
+    "case get 200 summary": (GET_CASE, 200, lambda c: case_detail(c, summarised(c))),
     "case get 401 no key": (GET_CASE, 401, lambda c: case_detail(c, CASE_ID, headers={})),
     "case get 404": (GET_CASE, 404, lambda c: case_detail(c, CASE_ID)),
     "case get 422 malformed id": (GET_CASE, 422, lambda c: case_detail(c, "case-1")),

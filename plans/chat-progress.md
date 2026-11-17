@@ -7,7 +7,7 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1-C6 and the access-log side step done (2026-11-17). Next: C7, brief first.
+C1-C7 and the access-log side step done (2026-11-17). Next: C8, brief first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -57,6 +57,13 @@ C1-C6 and the access-log side step done (2026-11-17). Next: C7, brief first.
     the case (`on delete cascade`), so a later message on the same `session_id` opens a new
     case; no tombstone. A turn running during the delete fails its version check and
     answers `409 case_changed`, storing nothing.
+16. **Summary storage** (agreed 2026-11-17, C7 brief): `case_summaries` keyed by
+    `problem_id` (one per case, cascade on delete) with `content`, `source_version`,
+    `model`, `prompts_version`, `total_tokens`, `cost`, `created_at`. The API exposes
+    `content`, `model`, `generated_at`, `source_version` and `stale` (source version below
+    the case's); tokens and cost are stored for cost tracking only. The upsert never
+    replaces a summary made from a newer case version (racing generations: the later case
+    wins). The summary prompt gets its own version string in C8.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -76,7 +83,7 @@ C1-C6 and the access-log side step done (2026-11-17). Next: C7, brief first.
   document title, similarity; `document_deleted` when gone). No chunk text, no tool
   arguments.
 - [x] **C6** `DELETE /admin/cases/{case_id}` (`delete_case`): `204`, `404 case_not_found`.
-- [ ] **C7** Migration 0004 (`case_summaries`), repository, `summary` + `stale` in
+- [x] **C7** Migration 0004 (`case_summaries`), repository, `summary` + `stale` in
   `get_case`; no LLM.
 - [ ] **C8** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`): draft summary
   prompt (Spanish, for review), one LLM call, store and return; LLM errors as in
@@ -88,7 +95,8 @@ C1-C6 and the access-log side step done (2026-11-17). Next: C7, brief first.
   `/copilot` key is tied to a fixed tenant; retrieval then searches that tenant's
   knowledge base together with AYO's shared one (`ayo`). `/admin` stays cross-tenant
   (decision 12).
-- Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK.
+- Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK (0004
+  exists since C7; local test databases only so far).
 - A proxy or platform in front of the service (deployment, D1) keeps its own access log:
   it must not record query strings either (`docs/operations.md`, "Logs").
 
@@ -187,3 +195,18 @@ C1-C6 and the access-log side step done (2026-11-17). Next: C7, brief first.
   nothing; the log line without content; the old `session_id` opening a new case at turn
   1; a turn whose case is deleted mid-call answering `409 case_changed` with no rows left
   (decision 15). Contract cases for 204, 401, 404 and 422.
+- **C7 (2026-11-17).** Migration `0004_case_summaries` (table above, decision 16; named
+  check `source_version >= 0`; downgrade drops it). `db/conversations.py`:
+  `SummaryRecord` (content out of `repr`), `StoredSummary`, `get_case_summary`,
+  `upsert_case_summary` (`on conflict ... do update ... where source_version <=
+  excluded`, returns whether it was stored; no caller until C8). `read_case_detail` reads
+  the summary in the same snapshot; `schemas.CaseSummary` and `CaseDetail.summary`
+  (nullable, field examples only). The test truncation includes `case_summaries`.
+  `docs/copilot.md`, README table, `docs/openapi.json`, `schema.d.ts`, CLAUDE.md layout.
+  Tests: migrations (4: table, unique per case, foreign key and check, cascade, downgrade
+  to 0003 keeping cases), `tests/integration/test_case_summaries.py` (8: none, round trip,
+  null tokens and cost, same or newer version replaces, older ignored, the case's version
+  and `updated_at` untouched, cascade, no content in `repr`), API (4: null, current with
+  every field, stale after a real `/copilot` turn, no content in logs; the C6 delete test
+  now counts the summary too), a contract case for 200 with a summary. Applied to local
+  test databases only, not Neon.

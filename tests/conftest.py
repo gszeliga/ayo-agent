@@ -77,6 +77,6 @@ def db_pool(_session_pool: ConnectionPool) -> ConnectionPool:
     with _session_pool.connection() as conn:
         conn.execute(
             "truncate documents, chunks, problems, problem_events, actions,"
-            " conversation_links, turn_traces restart identity cascade"
+            " conversation_links, turn_traces, case_summaries restart identity cascade"
         )
     return _session_pool

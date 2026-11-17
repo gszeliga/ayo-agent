@@ -10,18 +10,20 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.conversation.case import Case, Event, Phase
 from ayo_copilot.conversation.store import SessionAction
 from ayo_copilot.db import conversations as db
-from ayo_copilot.db.conversations import CaseRow, StoredTrace
+from ayo_copilot.db.conversations import CaseRow, StoredSummary, StoredTrace
 
 
 @dataclass(frozen=True)
 class CaseDetail:
     """One case for the admin view: its listing row, the facts and version, the
-    annotations and the actions (with `overdue`). Messages and traces are paged apart."""
+    annotations, the actions (with `overdue`) and the AI summary, if any. Messages and
+    traces are paged apart."""
 
     row: CaseRow
     case: Case
     events: list[Event]
     actions: list[SessionAction]
+    summary: StoredSummary | None
 
 
 def read_case_page(
@@ -55,7 +57,8 @@ def read_case_page(
 
 
 def read_case_detail(pool: ConnectionPool, case_id: UUID, *, today: date) -> CaseDetail | None:
-    """A case with its facts, annotations and actions; None if there is no such case.
+    """A case with its facts, annotations, actions and summary; None if there is no such
+    case.
 
     Repeatable read, so the counts in the row agree with the actions and the version.
     """
@@ -68,11 +71,13 @@ def read_case_detail(pool: ConnectionPool, case_id: UUID, *, today: date) -> Cas
         assert case is not None
         events = db.list_annotations(conn, case_id)
         actions = db.list_actions(conn, case_id)
+        summary = db.get_case_summary(conn, case_id)
     return CaseDetail(
         row=row,
         case=case,
         events=events,
         actions=[SessionAction(action, action.is_overdue(today)) for action in actions],
+        summary=summary,
     )
 
 

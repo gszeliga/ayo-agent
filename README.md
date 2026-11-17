@@ -71,7 +71,7 @@ error `type` and example.
 | `POST /copilot/messages` | Send a session's message to the copilot; get its reply and the phase |
 | `GET /copilot/sessions/{session_id}` | A session's case: phase, facts, annotations, actions, messages |
 | `GET /admin/cases` | The copilot's cases from every channel (filter by tenant, phase, open or closed, text) |
-| `GET /admin/cases/{case_id}` | One case: header, facts, annotations, actions (with `overdue`) |
+| `GET /admin/cases/{case_id}` | One case: header, facts, annotations, actions (with `overdue`), AI summary |
 | `GET /admin/cases/{case_id}/turns` | A case's turns, oldest first, in pages: messages and trace |
 | `DELETE /admin/cases/{case_id}` | Delete a case for good, with its messages, actions, links and traces |
 | `GET /health` | Liveness, no key |

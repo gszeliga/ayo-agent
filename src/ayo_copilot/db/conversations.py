@@ -7,7 +7,7 @@ never logged; traces are content-free by construction (`TraceRecord`).
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 from uuid import UUID
@@ -531,3 +531,81 @@ def delete_case(conn: Connection, problem_id: UUID) -> tuple[str, int] | None:
         (problem_id,),
     ).fetchone()
     return None if row is None else (row[0], row[1])
+
+
+# --- Case summaries ------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SummaryRecord:
+    """An AI summary of a case and how it was made. `content` is customer content."""
+
+    content: str = field(repr=False)
+    source_version: int
+    model: str
+    prompts_version: str
+    total_tokens: int | None = None
+    cost: float | None = None
+
+
+@dataclass(frozen=True)
+class StoredSummary:
+    """A stored summary and when it was generated."""
+
+    summary: SummaryRecord
+    created_at: datetime
+
+
+def get_case_summary(conn: Connection, problem_id: UUID) -> StoredSummary | None:
+    row = conn.execute(
+        "select content, source_version, model, prompts_version, total_tokens, cost,"
+        " created_at from case_summaries where problem_id = %s",
+        (problem_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return StoredSummary(
+        summary=SummaryRecord(
+            content=row[0],
+            source_version=row[1],
+            model=row[2],
+            prompts_version=row[3],
+            total_tokens=row[4],
+            cost=None if row[5] is None else float(row[5]),
+        ),
+        created_at=row[6],
+    )
+
+
+def upsert_case_summary(conn: Connection, problem_id: UUID, summary: SummaryRecord) -> bool:
+    """Store the case's summary, replacing the previous one unless that one was generated
+    from a newer case version (two generations racing: the one that saw the later case
+    wins). Never touches `problems`. Returns whether it was stored."""
+    row = conn.execute(
+        """
+        insert into case_summaries (problem_id, content, source_version, model,
+          prompts_version, total_tokens, cost)
+        values (%(problem_id)s, %(content)s, %(source_version)s, %(model)s,
+          %(prompts_version)s, %(total_tokens)s, %(cost)s)
+        on conflict (problem_id) do update set
+          content = excluded.content,
+          source_version = excluded.source_version,
+          model = excluded.model,
+          prompts_version = excluded.prompts_version,
+          total_tokens = excluded.total_tokens,
+          cost = excluded.cost,
+          created_at = excluded.created_at
+        where case_summaries.source_version <= excluded.source_version
+        returning 1
+        """,
+        {
+            "problem_id": problem_id,
+            "content": summary.content,
+            "source_version": summary.source_version,
+            "model": summary.model,
+            "prompts_version": summary.prompts_version,
+            "total_tokens": summary.total_tokens,
+            "cost": summary.cost,
+        },
+    ).fetchone()
+    return row is not None

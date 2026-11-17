@@ -47,8 +47,9 @@ export interface paths {
          * Get a case
          * @description One case, from any channel: its header (tenant, title, phase,
          *     version, turn count, times, `web_session_id`), the four facts, the annotations (evidence,
-         *     hypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`
-         *     computed in `APP_TIMEZONE`.
+         *     hypotheses, discarded hypotheses, the validated cause), the actions, with `overdue`
+         *     computed in `APP_TIMEZONE`, and the AI summary: null until one is generated, `stale` once
+         *     a turn has been committed after it.
          *
          *     The conversation and the turn traces are not part of it: page through them with
          *     `GET /admin/cases/{case_id}/turns`.
@@ -648,8 +649,8 @@ export interface components {
         };
         /**
          * CaseDetail
-         * @description One case, from any channel: its header, the four facts, the annotations and the
-         *     actions. The conversation and the turn traces are not here.
+         * @description One case, from any channel: its header, the four facts, the annotations, the
+         *     actions and the AI summary. The conversation and the turn traces are not here.
          */
         CaseDetail: {
             /**
@@ -691,6 +692,11 @@ export interface components {
              * @enum {string}
              */
             phase: "understand" | "challenge" | "analyse" | "action" | "followup" | "closed";
+            /**
+             * @description The AI summary, null until one is generated.
+             * @example null
+             */
+            summary: components["schemas"]["CaseSummary"] | null;
             /**
              * Tenant
              * @description The case's tenant.
@@ -871,6 +877,44 @@ export interface components {
              * @example 0.82
              */
             similarity: number;
+        };
+        /**
+         * CaseSummary
+         * @description The stored AI summary of a case: a narrative generated on request, never updated by
+         *     itself.
+         */
+        CaseSummary: {
+            /**
+             * Content
+             * @description The summary, as the model wrote it (Markdown).
+             * @example La línea 2 pierde un 4 % en el envasado desde el lunes 9. ...
+             */
+            content: string;
+            /**
+             * Generated At
+             * Format: date-time
+             * @description When it was generated (UTC).
+             * @example 2026-11-13T16:05:40Z
+             */
+            generated_at: string;
+            /**
+             * Model
+             * @description The model that wrote it.
+             * @example openai/gpt-4.1-mini
+             */
+            model: string;
+            /**
+             * Source Version
+             * @description The case `version` it was generated from.
+             * @example 7
+             */
+            source_version: number;
+            /**
+             * Stale
+             * @description The case has changed since (its `version` is past `source_version`): generate it again to include the latest turns.
+             * @example false
+             */
+            stale: boolean;
         };
         /**
          * CaseToolCall

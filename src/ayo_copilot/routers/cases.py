@@ -168,8 +168,9 @@ def list_cases(
 
 GET_DESCRIPTION = """One case, from any channel: its header (tenant, title, phase,
 version, turn count, times, `web_session_id`), the four facts, the annotations (evidence,
-hypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`
-computed in `APP_TIMEZONE`.
+hypotheses, discarded hypotheses, the validated cause), the actions, with `overdue`
+computed in `APP_TIMEZONE`, and the AI summary: null until one is generated, `stale` once
+a turn has been committed after it.
 
 The conversation and the turn traces are not part of it: page through them with
 `GET /admin/cases/{case_id}/turns`.

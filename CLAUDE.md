@@ -12,7 +12,7 @@ working rules, update this file in that step's commit.
 - **Active (2026-11-16): test chat and case inspector.** Spec
   `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
   log in `plans/chat-progress.md`. **Read both first.** The cases API (C1-C8) comes before
-  the UI; C1-C6 are done.
+  the UI; C1-C7 are done.
 - **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
@@ -132,7 +132,7 @@ src/ayo_copilot/
                        LLMSettings (ayo-llm-check), ConversationSettings < Settings
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
-  db/conversations.py  hand-written SQL for cases, events, actions, links, traces (TraceRecord, StoredTrace)
+  db/conversations.py  hand-written SQL for cases, events, actions, links, traces, summaries (TraceRecord, StoredTrace, SummaryRecord)
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
   ingestion/signatures.py  content/chunk/embed signatures, make_doc_id, CHUNKER_VERSION
   ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2), FakeEmbedder
@@ -164,6 +164,7 @@ src/ayo_copilot/
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)
                        0002 = documents.chunk_count/size_bytes/*_config + list index
                        0003 = problems, problem_events, actions, conversation_links, turn_traces
+                       0004 = case_summaries (one AI summary per case)
 scripts/               dev_db.sh, db_shell.sh (psql; no tests, a personal tool), export_openapi.py
 docs/                  topic docs: knowledge-base, search, copilot, configuration, operations,
                        development (.md); openapi.json (generated, committed), decisions/

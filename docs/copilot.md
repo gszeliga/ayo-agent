@@ -68,8 +68,15 @@ curl -s "http://127.0.0.1:8000/admin/cases?tenant=cliente-acme&closed=false" \
 
 `GET /admin/cases/{case_id}` returns one case from any channel: the header (tenant,
 title, phase, version, turn count, times, `web_session_id`), the four facts, the
-annotations and the actions, with `overdue` computed as in the session view. An unknown
-id is `404 case_not_found`, a malformed one `422`. The conversation and the turn traces
+annotations, the actions, with `overdue` computed as in the session view, and the AI
+summary. An unknown id is `404 case_not_found`, a malformed one `422`.
+
+`summary` is null until one is generated (on request only, never by a turn). It carries
+the text, the model, `generated_at`, `source_version` (the case `version` it was made
+from) and `stale`, true once a turn has been committed after it. Summaries live in their
+own table (`case_summaries`, one per case): storing one never changes the case's `version`
+or `updated_at`, so it cannot cause `409 case_changed` or reorder the listing. Of two
+generations racing, the one that read the later case version is kept. The conversation and the turn traces
 are not part of it: they come in pages of turns, so a long case never loads at once. The
 admin view is cross-tenant: there is no tenant parameter.
 

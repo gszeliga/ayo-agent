@@ -400,3 +400,68 @@ def test_0003_downgrade_removes_conversation_tables_and_keeps_documents(
     command.upgrade(config, "head")
     with psycopg.connect(scratch_database_url) as conn:
         assert _tables(conn) >= CONVERSATION_TABLES
+
+
+def _insert_summary(conn: psycopg.Connection, problem_id: str, source_version: int = 0) -> None:
+    conn.execute(
+        "insert into case_summaries (problem_id, content, source_version, model,"
+        " prompts_version) values (%s, 'La línea 3 pierde un 2 %%.', %s, 'm', 'summary-1')",
+        (problem_id, source_version),
+    )
+
+
+def test_0004_creates_case_summaries_one_per_case(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        assert "case_summaries" in _tables(conn)
+        problem_id = _insert_problem(conn)
+        _insert_summary(conn, problem_id)
+        (created_at,) = conn.execute("select created_at from case_summaries").fetchone()
+        assert created_at is not None
+        with pytest.raises(psycopg.errors.UniqueViolation):
+            _insert_summary(conn, problem_id)
+
+
+def test_0004_summary_needs_a_problem_and_a_valid_version(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with (
+        psycopg.connect(scratch_database_url) as conn,
+        pytest.raises(psycopg.errors.ForeignKeyViolation),
+    ):
+        _insert_summary(conn, "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52")
+    with psycopg.connect(scratch_database_url) as conn:
+        with pytest.raises(psycopg.errors.CheckViolation) as excinfo:
+            _insert_summary(conn, _insert_problem(conn), source_version=-1)
+        assert excinfo.value.diag.constraint_name == "case_summaries_source_version_check"
+
+
+def test_0004_deleting_a_problem_deletes_its_summary(scratch_database_url: str) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        doomed, kept = _insert_problem(conn), _insert_problem(conn)
+        _insert_summary(conn, doomed)
+        _insert_summary(conn, kept)
+        conn.execute("delete from problems where id = %s", (doomed,))
+
+        assert conn.execute("select problem_id from case_summaries").fetchall() == [(kept,)]
+
+
+def test_0004_downgrade_removes_summaries_and_keeps_cases(scratch_database_url: str) -> None:
+    config = alembic_config(scratch_database_url)
+    command.upgrade(config, "head")
+    with psycopg.connect(scratch_database_url) as conn:
+        problem_id = _insert_problem(conn)
+        _insert_summary(conn, problem_id)
+
+    command.downgrade(config, "0003")
+
+    with psycopg.connect(scratch_database_url) as conn:
+        assert "case_summaries" not in _tables(conn)
+        assert conn.execute("select id from problems").fetchall() == [(problem_id,)]
+
+    command.upgrade(config, "head")
+    with psycopg.connect(scratch_database_url) as conn:
+        assert "case_summaries" in _tables(conn)

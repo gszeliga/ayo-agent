@@ -63,7 +63,7 @@
         "type": "object"
       },
       "CaseDetail": {
-        "description": "One case, from any channel: its header, the four facts, the annotations and the\nactions. The conversation and the turn traces are not here.",
+        "description": "One case, from any channel: its header, the four facts, the annotations, the\nactions and the AI summary. The conversation and the turn traces are not here.",
         "properties": {
           "actions": {
             "description": "The actions, oldest first; `overdue` is computed by the API.",
@@ -134,6 +134,20 @@
             ],
             "title": "Phase",
             "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The AI summary, null until one is generated.",
+            "examples": [
+              null
+            ]
           },
           "tenant": {
             "description": "The case's tenant.",
@@ -215,7 +229,8 @@
           "web_session_id",
           "fields",
           "events",
-          "actions"
+          "actions",
+          "summary"
         ],
         "title": "CaseDetail",
         "type": "object"
@@ -470,6 +485,62 @@
           "similarity"
         ],
         "title": "CaseRetrievedChunk",
+        "type": "object"
+      },
+      "CaseSummary": {
+        "description": "The stored AI summary of a case: a narrative generated on request, never updated by\nitself.",
+        "properties": {
+          "content": {
+            "description": "The summary, as the model wrote it (Markdown).",
+            "examples": [
+              "La línea 2 pierde un 4 % en el envasado desde el lunes 9. ..."
+            ],
+            "title": "Content",
+            "type": "string"
+          },
+          "generated_at": {
+            "description": "When it was generated (UTC).",
+            "examples": [
+              "2026-11-13T16:05:40Z"
+            ],
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "model": {
+            "description": "The model that wrote it.",
+            "examples": [
+              "openai/gpt-4.1-mini"
+            ],
+            "title": "Model",
+            "type": "string"
+          },
+          "source_version": {
+            "description": "The case `version` it was generated from.",
+            "examples": [
+              7
+            ],
+            "minimum": 0.0,
+            "title": "Source Version",
+            "type": "integer"
+          },
+          "stale": {
+            "description": "The case has changed since (its `version` is past `source_version`): generate it again to include the latest turns.",
+            "examples": [
+              false
+            ],
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "content",
+          "model",
+          "generated_at",
+          "source_version",
+          "stale"
+        ],
+        "title": "CaseSummary",
         "type": "object"
       },
       "CaseToolCall": {
@@ -3495,7 +3566,7 @@
         ]
       },
       "get": {
-        "description": "One case, from any channel: its header (tenant, title, phase,\nversion, turn count, times, `web_session_id`), the four facts, the annotations (evidence,\nhypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`\ncomputed in `APP_TIMEZONE`.\n\nThe conversation and the turn traces are not part of it: page through them with\n`GET /admin/cases/{case_id}/turns`.\n\n| Status | Meaning |\n|---|---|\n| `200` | The case. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (`case_not_found`). |\n| `422` | `case_id` is not a UUID (FastAPI validation). |",
+        "description": "One case, from any channel: its header (tenant, title, phase,\nversion, turn count, times, `web_session_id`), the four facts, the annotations (evidence,\nhypotheses, discarded hypotheses, the validated cause), the actions, with `overdue`\ncomputed in `APP_TIMEZONE`, and the AI summary: null until one is generated, `stale` once\na turn has been committed after it.\n\nThe conversation and the turn traces are not part of it: page through them with\n`GET /admin/cases/{case_id}/turns`.\n\n| Status | Meaning |\n|---|---|\n| `200` | The case. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (`case_not_found`). |\n| `422` | `case_id` is not a UUID (FastAPI validation). |",
         "operationId": "get_case",
         "parameters": [
           {

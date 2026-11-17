@@ -334,6 +334,7 @@ def test_case_detail_fields(client: TestClient, db_pool: ConnectionPool) -> None
     body = response.json()
     events = body.pop("events")
     actions = body.pop("actions")
+    assert body.pop("summary") is None
     assert body == {
         "case_id": str(problem_id),
         "tenant": "cliente-acme",
@@ -876,6 +877,7 @@ def row_counts(pool: ConnectionPool, problem_id: UUID) -> dict[str, int]:
             ("actions", "problem_id"),
             ("conversation_links", "problem_id"),
             ("turn_traces", "problem_id"),
+            ("case_summaries", "problem_id"),
         ]:
             row = conn.execute(
                 f"select count(*) from {table} where {column} = %s", (problem_id,)
@@ -891,6 +893,7 @@ def test_delete_removes_the_case_and_what_it_owns(
     problem_id, _ = add_case(db_pool, actions=(("pending", "2026-11-20"),))
     add_turn(db_pool, problem_id, 1, annotation=True)
     add_turn(db_pool, problem_id, 2)
+    add_summary(db_pool, problem_id)
     other, _ = add_case(db_pool, actions=(("done", "2026-11-01"),))
     add_turn(db_pool, other, 1)
     assert row_counts(db_pool, problem_id) == {
@@ -899,6 +902,7 @@ def test_delete_removes_the_case_and_what_it_owns(
         "actions": 1,
         "conversation_links": 1,
         "turn_traces": 2,
+        "case_summaries": 1,
     }
     other_before = row_counts(db_pool, other)
 
@@ -1001,3 +1005,69 @@ def test_a_turn_running_on_a_deleted_case_stores_nothing(
         for table in ("problems", "problem_events", "actions", "conversation_links", "turn_traces"):
             row = conn.execute(f"select count(*) from {table}").fetchone()
             assert row == (0,), table
+
+
+# --- summary in get_case ---------------------------------------------------------------------
+
+
+def add_summary(pool: ConnectionPool, problem_id: UUID, source_version: int = 0) -> None:
+    with pool.connection() as conn:
+        conn.execute(
+            "insert into case_summaries (problem_id, content, source_version, model,"
+            " prompts_version, total_tokens, cost, created_at)"
+            " values (%s, 'La línea 2 pierde un 4 %%.', %s, 'openai/gpt-4.1-mini',"
+            " 'summary-1', 812, 0.0004, '2026-11-13 16:05:40+00')",
+            (problem_id, source_version),
+        )
+
+
+def test_summary_is_null_until_generated(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+
+    assert get_case(client, problem_id).json()["summary"] is None
+
+
+def test_summary_of_the_current_version(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_detail(db_pool, problem_id)  # version 5
+    add_summary(db_pool, problem_id, source_version=5)
+
+    summary = get_case(client, problem_id).json()["summary"]
+
+    # Tokens, cost and the prompts version are stored, not exposed.
+    assert summary == {
+        "content": "La línea 2 pierde un 4 %.",
+        "model": "openai/gpt-4.1-mini",
+        "generated_at": "2026-11-13T16:05:40Z",
+        "source_version": 5,
+        "stale": False,
+    }
+
+
+def test_summary_is_stale_after_another_turn(client: TestClient, db_pool: ConnectionPool) -> None:
+    llm = FakeLLMProvider([text_response("¿En qué línea?"), text_response("¿Desde cuándo?")])
+    client.app.dependency_overrides[get_llm_provider] = lambda: llm
+    message = {"session_id": str(uuid4()), "tenant": "cliente-acme", "text": "Hay merma"}
+    sent = client.post("/copilot/messages", json=message, headers=HEADERS).json()
+    case_id = UUID(sent["case_id"])
+    add_summary(db_pool, case_id, source_version=get_case(client, case_id).json()["version"])
+    assert get_case(client, case_id).json()["summary"]["stale"] is False
+
+    client.post("/copilot/messages", json={**message, "text": "En la línea 2"}, headers=HEADERS)
+
+    body = get_case(client, case_id).json()
+    assert body["summary"]["stale"] is True
+    assert body["summary"]["source_version"] == body["version"] - 1
+
+
+def test_summary_content_is_not_logged(
+    client: TestClient, db_pool: ConnectionPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_summary(db_pool, problem_id)
+
+    with caplog.at_level("DEBUG"):
+        assert get_case(client, problem_id).status_code == 200
+
+    app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
+    assert not any("pierde" in message for message in app_messages)
