@@ -7,24 +7,24 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1-C8 (the cases API) and the access-log side step done and pushed (2026-11-17, up to
-`7cc0378`). Next: **the UI steps for `/chat`, briefed together first** (the user asked for
-one combined brief of the UI steps, then one step at a time as usual). Nothing is in
-progress and the tree is clean.
+C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`); the
+clickable prototype T0 is approved (2026-11-17). Next: **brief C9** (the backend fields the
+prototype needs), then T1-T5 one at a time, each briefed first. Nothing is in progress.
 
-What the UI brief starts from:
-- The spec's UI sections (layout, actions, errors, quality, tests) still apply, with the
-  decisions below overriding it: no mock layer (1), `/copilot/*` and `/admin/cases/*`
-  (2), title from `what` (4), the structured summary built from `get_case` (5), messages
-  numbered by turn (7, 13), the stored AI summary with `stale` (8, 16), no e2e test (9).
+What the UI steps start from:
+- The approved prototype (T0 below: link, version and what it settles) and the spec's UI
+  sections (layout, actions, errors, quality, tests), with the decisions below overriding
+  both: no mock layer (1), `/copilot/*` and `/admin/cases/*` (2), title from `what` (4),
+  the structured summary built from `get_case` (5), messages numbered by turn (7, 13), the
+  stored AI summary with `stale` (8, 16), no e2e test (9), and 18-25.
 - Endpoints (types in `ui/src/api/schema.d.ts`, generated): `list_cases`, `get_case`
   (header, facts, events, actions, `summary`), `list_case_turns` (oldest first; latest page
   at `offset = max(0, turns - limit)`, older pages at `offset -= limit`, a new turn at
   `offset = turns`), `delete_case`, `generate_case_summary` (billed when a real provider
   is configured), `POST /copilot/messages`, `GET /copilot/sessions/{session_id}`.
 - After a turn: refetch `get_case` and fetch the new turn (decision 13). A case with
-  `web_session_id: null` opens read-only. After a delete, start a new `session_id`
-  (decision 15).
+  `web_session_id: null` or a closed one opens read-only (decision 19). After a delete,
+  start a new `session_id` (decision 15).
 - Read `ui/README.md` and the existing UI code first (routes in `ui/src/paths.ts`, the
   API client, MSW tests); UI routes must not clash with API paths.
 
@@ -88,6 +88,35 @@ What the UI brief starts from:
     `SUMMARY_MAX_MESSAGES` (40) messages; `SUMMARY_PROMPTS_VERSION` apart from
     `PROMPTS_VERSION`; `SUMMARY_MODEL` (unset: `LLM_MODEL`) and `SUMMARY_MAX_TOKENS` (800).
     Model failures map as in `/copilot` (the table moved to `errors.py`).
+18. **Prototype first** (agreed 2026-11-17): the screen is settled on the U1 Artifact (T0)
+    before any UI code, as U1 and U12 were. It is a reference, not code to port.
+19. **Read-only cases**: one from another channel (`web_session_id: null`) and a closed one
+    (the API answers `409 case_closed`) open with the input disabled and the reason shown.
+20. **Hypotheses as the API has them**: the State tab lists hypotheses, then discarded ones
+    (a discard is its own event, not linked to its hypothesis; a note says so), the
+    validated cause and the evidence. No "confirmed" group: that is the validated cause.
+    The facts are `what`, `where`, `since`, `standard` (the spec's "impact" does not exist).
+21. **Navigation**: "Test chat" comes first, as an accent pill with an icon, then a divider
+    and the "Knowledge" group (Documents, Search, Indexing settings). The landing page
+    after connecting stays Documents; a link to `/chat/:caseId` survives the connect screen.
+22. **Generating the AI summary asks first**: a dialog names the model and says the call is
+    billed; Cancel or Generate.
+23. **Retrieved chunks link to their document** (from the trace): the document opens on its
+    Chunks tab at the chunk's page with the chunk outlined, and "Back to the chat" returns
+    to the case. Chunk ids are random and replaced on every reprocess or replace, so the
+    API resolves `chunk_index` at read time (C9): null when the chunk is no longer stored
+    ("Changed since": the link opens the document), no link for a deleted document.
+24. **Usage per case**: the chat header shows the case's cost and tokens; the Trace tab
+    starts with "Case totals" (cost, tokens, LLM calls; per-turn tokens and cost; the AI
+    summary's tokens and cost; average and slowest latency; capped turns, retrieval
+    failures, refused tool calls). Totals come from the API (C9), never from the loaded
+    turns. A regenerated summary replaces the stored one, so earlier summaries' cost is
+    not counted; a log of generations is left for later. No cost column or sort in the
+    cases list for now.
+25. **Layout**: the cases list collapses to a rail (show, new conversation, a count); the
+    inspector can be hidden and is a drawer on narrow screens. "Load earlier turns" is a
+    button, not loading on scroll. Export (Markdown, JSON) fetches the turns not loaded
+    yet first (reads only), so the file has the whole case.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -112,7 +141,21 @@ What the UI brief starts from:
 - [x] **C8** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`): draft summary
   prompt (Spanish, for review), one LLM call, store and return; LLM errors as in
   `/copilot`; fake-provider tests only.
-- [ ] UI steps: briefed once C8 is done.
+- [x] **T0** Clickable prototype of `/chat` on the U1 Artifact (decision 18), approved.
+- [ ] **C9** Backend fields for the prototype: `chunk_index` on each retrieved chunk in
+  `list_case_turns` (null when no longer stored; decision 23), `usage` in `get_case`
+  (aggregate of `turn_traces` plus the summary; decision 24), `total_tokens` and `cost` on
+  `CaseSummary`. Additive, no migration. May split in two at its brief.
+- [ ] **T1** Route `/chat` and `/chat/:caseId`, nav, cases list (filters, load more,
+  collapse), empty state.
+- [ ] **T2** A case read-only: header, phase stepper, turns paged back, safe Markdown, phase
+  markers, Copy, read-only and 404 states.
+- [ ] **T3** Sending: new conversation (tenant, in-memory `session_id`), resume, in-flight
+  state, errors by status with the text kept, refetch after a turn.
+- [ ] **T4** Inspector: State, Actions, Trace (with case totals and chunk links), hide and
+  drawer.
+- [ ] **T5** Summary tab and generation, delete, export, the browser-storage and axe tests,
+  README section, final report.
 
 ## Open items
 - **Future milestone, not in these steps: tenant-bound keys** (raised 2026-11-17). Each
@@ -259,3 +302,37 @@ What the UI brief starts from:
   empty answer storing nothing and keeping the old summary; 503 without a key; 422 and
   401 without a call; the message window; no content in logs). The cases test client now
   sets `openrouter_api_key=None`. Contract cases for every status. No real model call.
+- **T0 (2026-11-17).** Clickable prototype, approved by the user. Added to the U1 Artifact
+  (https://claude.ai/artifact/We1nZk6KWUYCXvHJvGwoZt, **version 16**, artboard
+  `project/Main.dc.html`; `startScreen` can be `chat`). Mock data only, shaped like
+  `CaseListItem`, `CaseDetail`, `CaseTurn` and `CopilotMessageResponse`; a scripted
+  stand-in for the engine moves a case through the phases; no model is called. Six Spanish
+  cases: acme in Analyse with 9 turns (refusals, a retrieval failure, a deleted document, a
+  discarded hypothesis), planta-norte in Action (an overdue action, a stale summary),
+  planta-sur closed (a current summary), acme from another channel (read-only, a capped
+  turn), an untitled first turn, and an empty case (`409 case_empty`). The Prototype menu
+  adds 503 and a network failure, a narrow-screen toggle and a reset. Pages are 4 turns and
+  4 cases to show paging; the app uses 20. What the design settles (decisions 19-25):
+  - Three columns: cases (filters: title search kept out of the URL, tenant, phase,
+    open/closed; rows with title or "Untitled case", phase badge, tenant, turns, pending,
+    overdue badge, "Other channel", relative update; Load more; collapsible to a rail),
+    the chat, and the inspector (State, Actions, Trace, Summary; hideable; a drawer when
+    narrow).
+  - Chat header: title, tenant, turns, cost and tokens, Refresh, Export, Delete, Inspector;
+    a phase stepper (numbers, a check for done ones, the current one filled, text for
+    screen readers). The log (`role="log"`): "Load earlier turns", "Start of the
+    conversation", user bubbles, replies rendered from Markdown as text, "Moved to Analyse
+    (from Challenge)" markers, a "Turn N · trace" chip that opens and outlines that trace,
+    Copy. While sending: the message as a "Sending…" bubble, a typing indicator, the input
+    disabled. Errors in an alert above the input, the text back in it: 409 with Reload
+    case, 422, 502 and network with Send again, 503; 401 goes to the connect screen.
+  - Trace entries, newest first: phases, tool calls (accepted or refused transitions with
+    target and codes), retrieved documents with similarity and links (decision 23), model,
+    prompts version, calls, tokens, cost, latency; badges for capped, retrieval failed and
+    refused. A note on what is never shown (chunk text, tool arguments, reasoning).
+  - Summary tab: the structured summary (from the case record, no model call) and the AI
+    summary (stale notice, model, time, version; Generate or Regenerate behind the billed
+    call dialog; skeleton while waiting; 409, 502, 503 and network errors keep the old one).
+  - Dialogs: new conversation (tenant select, the last one remembered as a name only; the
+    case exists after the first reply), delete (permanent, what goes with it, and that the
+    next message starts a new case), export (Markdown or JSON preview, Download).

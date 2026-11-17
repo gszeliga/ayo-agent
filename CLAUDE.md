@@ -11,8 +11,9 @@ working rules, update this file in that step's commit.
 
 - **Active (2026-11-16): test chat and case inspector.** Spec
   `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
-  log in `plans/chat-progress.md`. **Read both first.** The cases API (C1-C8) comes before
-  the UI; C1-C8 (the cases API) are done; the UI steps are next.
+  log in `plans/chat-progress.md`. **Read both first.** C1-C8 (the cases API) and the
+  approved clickable prototype (T0, an Artifact) are done; next is C9 (backend fields the
+  prototype needs), then the UI steps T1-T5.
   `POST /admin/cases/{case_id}/summary` makes a real, billed model call: never call it
   against a configured provider without the user's OK.
 - **Paused (2026-11-16): conversation engine core.** Spec
