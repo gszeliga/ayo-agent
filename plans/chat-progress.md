@@ -7,11 +7,29 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1-C8 (the cases API) and the access-log side step done (2026-11-17). Next: the UI
-steps, briefed together first.
+C1-C8 (the cases API) and the access-log side step done and pushed (2026-11-17, up to
+`7cc0378`). Next: **the UI steps for `/chat`, briefed together first** (the user asked for
+one combined brief of the UI steps, then one step at a time as usual). Nothing is in
+progress and the tree is clean.
+
+What the UI brief starts from:
+- The spec's UI sections (layout, actions, errors, quality, tests) still apply, with the
+  decisions below overriding it: no mock layer (1), `/copilot/*` and `/admin/cases/*`
+  (2), title from `what` (4), the structured summary built from `get_case` (5), messages
+  numbered by turn (7, 13), the stored AI summary with `stale` (8, 16), no e2e test (9).
+- Endpoints (types in `ui/src/api/schema.d.ts`, generated): `list_cases`, `get_case`
+  (header, facts, events, actions, `summary`), `list_case_turns` (oldest first; latest page
+  at `offset = max(0, turns - limit)`, older pages at `offset -= limit`, a new turn at
+  `offset = turns`), `delete_case`, `generate_case_summary` (billed when a real provider
+  is configured), `POST /copilot/messages`, `GET /copilot/sessions/{session_id}`.
+- After a turn: refetch `get_case` and fetch the new turn (decision 13). A case with
+  `web_session_id: null` opens read-only. After a delete, start a new `session_id`
+  (decision 15).
+- Read `ui/README.md` and the existing UI code first (routes in `ui/src/paths.ts`, the
+  API client, MSW tests); UI routes must not clash with API paths.
 
 ## Decisions (agreed 2026-11-16)
-1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
+1. **Backend first.** The cases API does not exist, so it is built (C1-C8) before the UI,
    which then uses generated types only: no mock layer with hand-written types.
 2. **Names follow the code, not the spec**: the channel is `/copilot/*` (engine decision
    23), not `/web/*`; the inspection API is `/admin/cases/*` (every channel, admin key).
