@@ -9,8 +9,8 @@ file is their reference. The decisions here win over the spec, the plan and the 
 ## Next (resume here)
 C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`); the
 clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) and C10 (one usage
-shape) are done. Next: **brief T1**, then T2-T5 one at a time, each briefed first. Nothing
-is in progress.
+shape) are done and pushed. Next: **brief T1** (it also carries the `cost` wording fix
+listed under it), then T2-T5 one at a time, each briefed first. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -153,6 +153,11 @@ What the UI steps start from:
   `summary.usage` and the case's `usage` (turns plus summary) in `get_case`.
 - [ ] **T1** Route `/chat` and `/chat/:caseId`, nav, cases list (filters, load more,
   collapse), empty state.
+  Also (agreed 2026-11-17): `LLMUsage.cost` reads "US dollars (OpenRouter credits, which
+  are dollar-denominated; the fee on buying credits is not included)" instead of "about
+  USD" (OpenRouter's docs: `cost` is in credits, whose base currency is US dollars; the
+  5.5% fee is charged on buying credits, not per call), with `docs/copilot.md`,
+  `docs/openapi.json` and `schema.d.ts`.
 - [ ] **T2** A case read-only: header, phase stepper, turns paged back, safe Markdown, phase
   markers, Copy, read-only and 404 states.
 - [ ] **T3** Sending: new conversation (tenant, in-memory `session_id`), resume, in-flight
