@@ -363,6 +363,14 @@ def test_case_detail_fields(client: TestClient, db_pool: ConnectionPool) -> None
             "since": "Desde el lunes",
             "standard": None,
         },
+        # Two traces of one call each that reported no tokens or cost.
+        "usage": {
+            "llm_calls": 2,
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+            "cost": None,
+        },
     }
     # Annotations only, oldest first; messages are not part of the case detail.
     assert [
@@ -628,11 +636,13 @@ def test_turn_fields(client: TestClient, db_pool: ConnectionPool) -> None:
         "trace": {
             "model": "openai/gpt-4.1-mini",
             "prompts_version": "draft-1",
-            "llm_calls": 3,
-            "prompt_tokens": 3120,
-            "completion_tokens": 210,
-            "total_tokens": 3330,
-            "cost": 0.0021,
+            "usage": {
+                "llm_calls": 3,
+                "prompt_tokens": 3120,
+                "completion_tokens": 210,
+                "total_tokens": 3330,
+                "cost": 0.0021,
+            },
             "duration_ms": 101,
             "capped": True,
             "retrieval_error": "embedding_failed",
@@ -1164,6 +1174,118 @@ def add_summary(pool: ConnectionPool, problem_id: UUID, source_version: int = 0)
         )
 
 
+def usage_of(client: TestClient, problem_id: UUID) -> dict[str, Any]:
+    response = get_case(client, problem_id)
+    assert response.status_code == 200, response.text
+    return response.json()["usage"]
+
+
+NO_USAGE = {
+    "llm_calls": 0,
+    "prompt_tokens": None,
+    "completion_tokens": None,
+    "total_tokens": None,
+    "cost": None,
+}
+
+
+def test_case_usage_without_turns(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+
+    assert usage_of(client, problem_id) == NO_USAGE
+
+
+def add_reporting_turns(pool: ConnectionPool, problem_id: UUID) -> None:
+    """Three turns: everything reported, cost only, tokens only."""
+    add_turn(
+        pool,
+        problem_id,
+        1,
+        llm_calls=2,
+        prompt_tokens=1000,
+        completion_tokens=100,
+        total_tokens=1100,
+        cost=Decimal("0.001"),
+    )
+    add_turn(pool, problem_id, 2, llm_calls=1, cost=Decimal("0.0005"))
+    add_turn(
+        pool,
+        problem_id,
+        3,
+        llm_calls=3,
+        prompt_tokens=2000,
+        completion_tokens=50,
+        total_tokens=2050,
+    )
+
+
+def test_case_usage_adds_what_the_turns_reported(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_reporting_turns(db_pool, problem_id)
+    # Another case's turns and summary never count.
+    other, _ = add_case(db_pool)
+    add_reporting_turns(db_pool, other)
+    add_summary(db_pool, other)
+
+    assert usage_of(client, problem_id) == {
+        "llm_calls": 6,
+        "prompt_tokens": 3000,
+        "completion_tokens": 150,
+        "total_tokens": 3150,
+        "cost": 0.0015,
+    }
+
+
+def test_case_usage_includes_the_summary(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_reporting_turns(db_pool, problem_id)
+    add_summary(db_pool, problem_id)  # 812 tokens, 0.0004
+
+    body = get_case(client, problem_id).json()
+
+    assert body["usage"] == {
+        "llm_calls": 7,
+        "prompt_tokens": 3000,
+        "completion_tokens": 150,
+        "total_tokens": 3962,
+        "cost": 0.0019,
+    }
+    assert body["summary"]["usage"]["total_tokens"] == 812
+
+
+def test_a_summary_that_reported_nothing_adds_only_its_call(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    with db_pool.connection() as conn:
+        conn.execute(
+            "insert into case_summaries (problem_id, content, source_version, model,"
+            " prompts_version) values (%s, 'Resumen', 0, 'm', 'summary-1')",
+            (problem_id,),
+        )
+
+    body = get_case(client, problem_id).json()
+
+    assert body["usage"] == {**NO_USAGE, "llm_calls": 1}
+    assert body["summary"]["usage"] == {**NO_USAGE, "llm_calls": 1}
+
+
+def test_case_usage_of_a_copilot_conversation(client: TestClient) -> None:
+    llm = FakeLLMProvider([text_response("¿En qué línea?")])
+    client.app.dependency_overrides[get_llm_provider] = lambda: llm
+    message = {"session_id": str(uuid4()), "tenant": "cliente-acme", "text": "Hay merma"}
+    sent = client.post("/copilot/messages", json=message, headers=HEADERS)
+    assert sent.status_code == 200, sent.text
+    case_id = UUID(sent.json()["case_id"])
+
+    [turn] = list_turns(client, case_id).json()["items"]
+
+    assert turn["trace"]["usage"]["llm_calls"] == 1
+    assert usage_of(client, case_id) == turn["trace"]["usage"]
+
+
 def test_summary_is_null_until_generated(client: TestClient, db_pool: ConnectionPool) -> None:
     problem_id, _ = add_case(db_pool)
 
@@ -1177,13 +1299,20 @@ def test_summary_of_the_current_version(client: TestClient, db_pool: ConnectionP
 
     summary = get_case(client, problem_id).json()["summary"]
 
-    # Tokens, cost and the prompts version are stored, not exposed.
+    # The prompts version is stored, not exposed; only total tokens and cost are stored.
     assert summary == {
         "content": "La línea 2 pierde un 4 %.",
         "model": "openai/gpt-4.1-mini",
         "generated_at": "2026-11-13T16:05:40Z",
         "source_version": 5,
         "stale": False,
+        "usage": {
+            "llm_calls": 1,
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": 812,
+            "cost": 0.0004,
+        },
     }
 
 
@@ -1268,6 +1397,13 @@ def test_summary_is_generated_stored_and_shown(client: TestClient, db_pool: Conn
         "model": "m-used",
         "source_version": 5,
         "stale": False,
+        "usage": {
+            "llm_calls": 1,
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": 812,
+            "cost": 0.000412,
+        },
     }
     assert get_case(client, problem_id).json()["summary"] == {
         **body,

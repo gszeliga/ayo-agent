@@ -190,6 +190,10 @@
             "title": "Updated At",
             "type": "string"
           },
+          "usage": {
+            "$ref": "#/components/schemas/LLMUsage",
+            "description": "What the case's model calls used: every turn plus the stored AI summary. Each figure adds what was reported; null when nothing reported it."
+          },
           "version": {
             "description": "Bumped by every committed turn.",
             "examples": [
@@ -230,7 +234,8 @@
           "fields",
           "events",
           "actions",
-          "summary"
+          "summary",
+          "usage"
         ],
         "title": "CaseDetail",
         "type": "object"
@@ -548,6 +553,10 @@
             ],
             "title": "Stale",
             "type": "boolean"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/LLMUsage",
+            "description": "What generating it used: one call, its total tokens and cost (prompt and completion tokens are not stored, so null). Regenerating replaces it."
           }
         },
         "required": [
@@ -555,7 +564,8 @@
           "model",
           "generated_at",
           "source_version",
-          "stale"
+          "stale",
+          "usage"
         ],
         "title": "CaseSummary",
         "type": "object"
@@ -652,36 +662,6 @@
             "title": "Capped",
             "type": "boolean"
           },
-          "completion_tokens": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Output tokens over the turn's calls; null if unknown.",
-            "examples": [
-              210
-            ],
-            "title": "Completion Tokens"
-          },
-          "cost": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Cost reported by the provider, in USD; null if unknown.",
-            "examples": [
-              0.0021
-            ],
-            "title": "Cost"
-          },
           "duration_ms": {
             "description": "How long the turn took.",
             "examples": [
@@ -689,15 +669,6 @@
             ],
             "minimum": 0.0,
             "title": "Duration Ms",
-            "type": "integer"
-          },
-          "llm_calls": {
-            "description": "Model calls in the turn.",
-            "examples": [
-              2
-            ],
-            "minimum": 0.0,
-            "title": "Llm Calls",
             "type": "integer"
           },
           "model": {
@@ -714,21 +685,6 @@
               "openai/gpt-4.1-mini"
             ],
             "title": "Model"
-          },
-          "prompt_tokens": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Input tokens over the turn's calls; null if unknown.",
-            "examples": [
-              3120
-            ],
-            "title": "Prompt Tokens"
           },
           "prompts_version": {
             "description": "The prompt files' version used.",
@@ -769,30 +725,15 @@
             "title": "Tool Calls",
             "type": "array"
           },
-          "total_tokens": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Total tokens over the turn's calls; null if unknown.",
-            "examples": [
-              3330
-            ],
-            "title": "Total Tokens"
+          "usage": {
+            "$ref": "#/components/schemas/LLMUsage",
+            "description": "What the turn's model calls used, summed over them."
           }
         },
         "required": [
           "model",
           "prompts_version",
-          "llm_calls",
-          "prompt_tokens",
-          "completion_tokens",
-          "total_tokens",
-          "cost",
+          "usage",
           "duration_ms",
           "capped",
           "retrieval_error",
@@ -2638,6 +2579,93 @@
           "status"
         ],
         "title": "IngestResponse",
+        "type": "object"
+      },
+      "LLMUsage": {
+        "description": "Model usage as the provider reported it: calls, tokens and cost. The same shape for\na turn, the AI summary and a whole case; a total adds what was reported, and a figure\nis null when nothing reported it.",
+        "properties": {
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Output tokens; null if not reported.",
+            "examples": [
+              210
+            ],
+            "title": "Completion Tokens"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cost in the provider's billing unit (OpenRouter credits, about USD); null if not reported.",
+            "examples": [
+              0.0021
+            ],
+            "title": "Cost"
+          },
+          "llm_calls": {
+            "description": "Model calls.",
+            "examples": [
+              2
+            ],
+            "minimum": 0.0,
+            "title": "Llm Calls",
+            "type": "integer"
+          },
+          "prompt_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Input tokens; null if not reported.",
+            "examples": [
+              3120
+            ],
+            "title": "Prompt Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "All tokens; null if not reported.",
+            "examples": [
+              3330
+            ],
+            "title": "Total Tokens"
+          }
+        },
+        "required": [
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens",
+          "cost"
+        ],
+        "title": "LLMUsage",
         "type": "object"
       },
       "OutdatedCounts": {

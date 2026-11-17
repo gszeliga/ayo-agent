@@ -68,12 +68,21 @@ curl -s "http://127.0.0.1:8000/admin/cases?tenant=cliente-acme&closed=false" \
 
 `GET /admin/cases/{case_id}` returns one case from any channel: the header (tenant,
 title, phase, version, turn count, times, `web_session_id`), the four facts, the
-annotations, the actions, with `overdue` computed as in the session view, and the AI
-summary. An unknown id is `404 case_not_found`, a malformed one `422`.
+annotations, the actions, with `overdue` computed as in the session view, the AI
+summary and `usage`. An unknown id is `404 case_not_found`, a malformed one `422`.
+
+**Usage** has one shape wherever it appears (`LLMUsage`): `llm_calls`, `prompt_tokens`,
+`completion_tokens`, `total_tokens` and `cost` (the provider's billing unit: OpenRouter
+credits, about USD). A turn's trace has its own, the AI summary has its one call (only its
+total tokens and cost are stored, so prompt and completion are null), and the case's
+`usage` adds every turn and the stored summary. A total sums what was reported and is null
+only when nothing reported it. Regenerating the summary replaces it, so an earlier
+summary's cost leaves the total. These figures say what a case used; billing reports stay
+with OpenRouter (spend per key and model; the logs keep each call's generation id).
 
 `summary` is null until one is generated (on request only, never by a turn). It carries
 the text, the model, `generated_at`, `source_version` (the case `version` it was made
-from) and `stale`, true once a turn has been committed after it. Summaries live in their
+from), its `usage` and `stale`, true once a turn has been committed after it. Summaries live in their
 own table (`case_summaries`, one per case): storing one never changes the case's `version`
 or `updated_at`, so it cannot cause `409 case_changed` or reorder the listing. Of two
 generations racing, the one that read the later case version is kept.
@@ -106,7 +115,7 @@ admin view is cross-tenant: there is no tenant parameter.
 1-50, default 20; `offset`; `total` is the turn count):
 
 - Each item is one committed turn: `turn`, `phase_before`, `phase_after`, the user's
-  message, the reply and the trace (model, prompts version, calls, tokens, cost, duration,
+  message, the reply and the trace (model, prompts version, `usage`, duration,
   `capped`, `retrieval_error`, the tool calls with outcome, `target` and `missing`, and
   the retrieved chunks with `chunk_id`, `doc_id`, the document's current title,
   `document_deleted`, `chunk_index` and similarity). No prompts, tool arguments or chunk text.

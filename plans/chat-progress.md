@@ -8,9 +8,9 @@ file is their reference. The decisions here win over the spec, the plan and the 
 
 ## Next (resume here)
 C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`); the
-clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) is done. Next: **brief
-C10** (`usage` in `get_case`, tokens and cost on the summary), then T1-T5 one at a time,
-each briefed first. Nothing is in progress.
+clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) and C10 (one usage
+shape) are done. Next: **brief T1**, then T2-T5 one at a time, each briefed first. Nothing
+is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -107,13 +107,17 @@ What the UI steps start from:
     to the case. Chunk ids are random and replaced on every reprocess or replace, so the
     API resolves `chunk_index` at read time (C9): null when the chunk is no longer stored
     ("Changed since": the link opens the document), no link for a deleted document.
-24. **Usage per case**: the chat header shows the case's cost and tokens; the Trace tab
-    starts with "Case totals" (cost, tokens, LLM calls; per-turn tokens and cost; the AI
-    summary's tokens and cost; average and slowest latency; capped turns, retrieval
-    failures, refused tool calls). Totals come from the API (C9), never from the loaded
-    turns. A regenerated summary replaces the stored one, so earlier summaries' cost is
-    not counted; a log of generations is left for later. No cost column or sort in the
-    cases list for now.
+24. **Usage per case, one shape** (revised 2026-11-17 at the C10 brief): `LLMUsage`
+    (`llm_calls`, prompt, completion and total tokens, `cost`; null when not reported)
+    mirrors `llm/types.Usage` and is used three times: a turn's `trace.usage` (replacing
+    its flat fields), the AI summary's `summary.usage` (one call, total tokens and cost
+    only) and the case's `usage` (every turn plus the summary). A total sums what was
+    reported, null only when nothing did; no extra counters. The chat header shows the
+    case's cost and tokens; the Trace tab's "Case totals" shows cost, tokens and calls,
+    with one line each for the turns and the summary. Latency, capped turns, retrieval
+    failures and failed tool calls stay per turn. A regenerated summary replaces the
+    stored one (its cost leaves the total); billing reports stay with OpenRouter (spend
+    per key and model, generation ids in our logs). No cost column or sort in the list.
 25. **Layout**: the cases list collapses to a rail (show, new conversation, a count); the
     inspector can be hidden and is a drawer on narrow screens. "Load earlier turns" is a
     button, not loading on scroll. Export (Markdown, JSON) fetches the turns not loaded
@@ -145,10 +149,8 @@ What the UI steps start from:
 - [x] **T0** Clickable prototype of `/chat` on the U1 Artifact (decision 18), approved.
 - [x] **C9** `chunk_index` on each retrieved chunk in `list_case_turns` (null when no
   longer stored; decision 23). Split from C10 at its brief (agreed 2026-11-17).
-- [ ] **C10** `usage` in `get_case` (one aggregate of `turn_traces`: calls, tokens, cost,
-  turns without cost or tokens, capped, retrieval failures, failed tool calls, average and
-  longest latency; decision 24) and `total_tokens` and `cost` on `CaseSummary`. Additive,
-  no migration; the UI adds the summary to the turns' totals.
+- [x] **C10** One usage shape (`LLMUsage`, decision 24 as revised): `trace.usage`,
+  `summary.usage` and the case's `usage` (turns plus summary) in `get_case`.
 - [ ] **T1** Route `/chat` and `/chat/:caseId`, nav, cases list (filters, load more,
   collapse), empty state.
 - [ ] **T2** A case read-only: header, phase stepper, turns paged back, safe Markdown, phase
@@ -308,7 +310,8 @@ What the UI steps start from:
   401 without a call; the message window; no content in logs). The cases test client now
   sets `openrouter_api_key=None`. Contract cases for every status. No real model call.
 - **T0 (2026-11-17).** Clickable prototype, approved by the user. Added to the U1 Artifact
-  (https://claude.ai/artifact/We1nZk6KWUYCXvHJvGwoZt, **version 16**, artboard
+  (https://claude.ai/artifact/We1nZk6KWUYCXvHJvGwoZt, **version 16**; version 17 trims the
+  totals card for C10; artboard
   `project/Main.dc.html`; `startScreen` can be `chat`). Mock data only, shaped like
   `CaseListItem`, `CaseDetail`, `CaseTurn` and `CopilotMessageResponse`; a scripted
   stand-in for the engine moves a case through the phases; no model is called. Six Spanish
@@ -356,3 +359,20 @@ What the UI steps start from:
   deleted document gives null and `document_deleted`, a chunk recorded under another
   `doc_id` and another tenant's chunk give null. Full suite green (1555 passed), `pnpm
   check` green.
+- **C10 (2026-11-17).** Simplified at its brief (the user asked to stop reinventing token
+  and cost reporting; decision 24 rewritten). `schemas.LLMUsage` (`llm_calls`,
+  `prompt_tokens`, `completion_tokens`, `total_tokens`, `cost`; `ge=0`, null when not
+  reported) with `from_trace`, `from_summary` (one call, prompt and completion null) and
+  `from_case`. `CaseTrace` loses its five flat fields for `usage` (a breaking change to
+  `list_case_turns`, taken now while nothing consumes it); `CaseSummary.usage`;
+  `CaseDetail.usage`. `db/conversations.case_usage`: one statement, the case's
+  `turn_traces` and its `case_summaries` row (as one call) in a `union all`, summed (SQL's
+  `sum` skips nulls); returns `CaseUsage` (calls plus `llm/types.Usage`).
+  `cases.read_case_detail` reads it in the same snapshot. Stored columns, the transcript
+  CLI and logging untouched; no migration. `docs/copilot.md` ("Usage"), README table,
+  `docs/openapi.json`, `schema.d.ts`. Tests: API (5 new: no turns, turns with mixed
+  reporting and another case ignored, the summary added, a summary that reported nothing
+  adds only its call, a real `/copilot` turn equal to its trace; the detail, turn and
+  summary tests read the new shape), unit (`tests/unit/test_schemas.py`, the three
+  constructors). The prototype's "Case totals" card trimmed to match (version 17). Full
+  suite green (1563 passed), `pnpm check` green.

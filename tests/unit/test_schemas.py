@@ -6,9 +6,11 @@ import pytest
 from pydantic import ValidationError
 
 from ayo_copilot.config import Settings
+from ayo_copilot.db.conversations import CaseUsage, SummaryRecord, TraceRecord
 from ayo_copilot.db.repository import DocumentRow, SearchHit
 from ayo_copilot.ingestion.service import current_configs
-from ayo_copilot.schemas import Document, DocumentUpdate, SearchRequest, SearchResponse
+from ayo_copilot.llm.types import Usage
+from ayo_copilot.schemas import Document, DocumentUpdate, LLMUsage, SearchRequest, SearchResponse
 from ayo_copilot.search import SearchOutcome, SearchResult
 
 SETTINGS = Settings(_env_file=None, admin_api_key="k", embedding_provider="fake")
@@ -229,4 +231,51 @@ def test_search_response_debug_rounds_timings_to_a_tenth() -> None:
         "embedder_config": EMBEDDER,
         "chunker_config": CHUNKER,
         "timings_ms": {"embed": 41.3, "search": 0.0, "total": 41.3},
+    }
+
+
+# --- LLMUsage: one shape for a turn, a summary and a case ---------------------------------
+
+
+def test_llm_usage_from_a_trace() -> None:
+    trace = TraceRecord(
+        prompts_version="draft-1",
+        llm_calls=2,
+        duration_ms=900,
+        prompt_tokens=1000,
+        completion_tokens=80,
+        total_tokens=1080,
+        cost=0.0012,
+    )
+
+    assert LLMUsage.from_trace(trace).model_dump() == {
+        "llm_calls": 2,
+        "prompt_tokens": 1000,
+        "completion_tokens": 80,
+        "total_tokens": 1080,
+        "cost": 0.0012,
+    }
+
+
+def test_llm_usage_from_a_summary_is_one_call_without_the_split() -> None:
+    summary = SummaryRecord("Resumen", 3, "m", "summary-1", total_tokens=812, cost=0.0004)
+
+    assert LLMUsage.from_summary(summary).model_dump() == {
+        "llm_calls": 1,
+        "prompt_tokens": None,
+        "completion_tokens": None,
+        "total_tokens": 812,
+        "cost": 0.0004,
+    }
+
+
+def test_llm_usage_from_a_case_keeps_what_was_not_reported_null() -> None:
+    case = CaseUsage(llm_calls=4, usage=Usage(total_tokens=500))
+
+    assert LLMUsage.from_case(case).model_dump() == {
+        "llm_calls": 4,
+        "prompt_tokens": None,
+        "completion_tokens": None,
+        "total_tokens": 500,
+        "cost": None,
     }

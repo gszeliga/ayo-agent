@@ -17,6 +17,7 @@ from psycopg.types.json import Jsonb
 
 from ayo_copilot.conversation.case import PHASES, Action, ActionStatus, Case, Event, Phase
 from ayo_copilot.db.repository import escape_like
+from ayo_copilot.llm.types import Usage
 
 # Longest tool name kept in a trace (the model may ask for any name; ours are shorter).
 TRACE_TOOL_NAME_MAX = 64
@@ -593,6 +594,45 @@ def get_case_summary(conn: Connection, problem_id: UUID) -> StoredSummary | None
             cost=None if row[5] is None else float(row[5]),
         ),
         created_at=row[6],
+    )
+
+
+@dataclass(frozen=True)
+class CaseUsage:
+    """What a case's model calls used: every turn plus the stored summary. A figure is
+    the sum of what was reported, None when nothing reported it."""
+
+    llm_calls: int
+    usage: Usage
+
+
+def case_usage(conn: Connection, problem_id: UUID) -> CaseUsage:
+    """Sum the case's turns and its summary (one call) in one statement; SQL's `sum`
+    skips nulls and is null when every value is."""
+    row = conn.execute(
+        """
+        with parts as (
+          select llm_calls, prompt_tokens, completion_tokens, total_tokens, cost
+          from turn_traces where problem_id = %(problem_id)s
+          union all
+          select 1, null, null, total_tokens, cost
+          from case_summaries where problem_id = %(problem_id)s
+        )
+        select coalesce(sum(llm_calls), 0), sum(prompt_tokens), sum(completion_tokens),
+               sum(total_tokens), sum(cost)
+        from parts
+        """,
+        {"problem_id": problem_id},
+    ).fetchone()
+    assert row is not None
+    return CaseUsage(
+        llm_calls=int(row[0]),
+        usage=Usage(
+            prompt_tokens=None if row[1] is None else int(row[1]),
+            completion_tokens=None if row[2] is None else int(row[2]),
+            total_tokens=None if row[3] is None else int(row[3]),
+            cost=None if row[4] is None else float(row[4]),
+        ),
     )
 
 

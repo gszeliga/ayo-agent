@@ -13,7 +13,14 @@ from ayo_copilot.cases import CaseTurns
 from ayo_copilot.config import MAX_SEARCH_TOP_K, Settings
 from ayo_copilot.conversation.case import FIELDS, Event, Phase
 from ayo_copilot.conversation.store import SessionAction, SessionView
-from ayo_copilot.db.conversations import CaseRow, StoredSummary, StoredTrace
+from ayo_copilot.db.conversations import (
+    CaseRow,
+    CaseUsage,
+    StoredSummary,
+    StoredTrace,
+    SummaryRecord,
+    TraceRecord,
+)
 from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusCounts, TenantRow
 from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
@@ -1191,6 +1198,61 @@ class CasePage(Page[CaseListItem]):
     """A page of cases."""
 
 
+class LLMUsage(BaseModel):
+    """Model usage as the provider reported it: calls, tokens and cost. The same shape for
+    a turn, the AI summary and a whole case; a total adds what was reported, and a figure
+    is null when nothing reported it."""
+
+    llm_calls: int = Field(ge=0, description="Model calls.", examples=[2])
+    prompt_tokens: int | None = Field(
+        ge=0, description="Input tokens; null if not reported.", examples=[3120]
+    )
+    completion_tokens: int | None = Field(
+        ge=0, description="Output tokens; null if not reported.", examples=[210]
+    )
+    total_tokens: int | None = Field(
+        ge=0, description="All tokens; null if not reported.", examples=[3330]
+    )
+    cost: float | None = Field(
+        ge=0,
+        description="Cost in the provider's billing unit (OpenRouter credits, about USD);"
+        " null if not reported.",
+        examples=[0.0021],
+    )
+
+    @classmethod
+    def from_trace(cls, trace: TraceRecord) -> "LLMUsage":
+        return cls(
+            llm_calls=trace.llm_calls,
+            prompt_tokens=trace.prompt_tokens,
+            completion_tokens=trace.completion_tokens,
+            total_tokens=trace.total_tokens,
+            cost=trace.cost,
+        )
+
+    @classmethod
+    def from_summary(cls, summary: SummaryRecord) -> "LLMUsage":
+        """One call; only its total tokens and cost are stored."""
+        return cls(
+            llm_calls=1,
+            prompt_tokens=None,
+            completion_tokens=None,
+            total_tokens=summary.total_tokens,
+            cost=summary.cost,
+        )
+
+    @classmethod
+    def from_case(cls, case: CaseUsage) -> "LLMUsage":
+        usage = case.usage
+        return cls(
+            llm_calls=case.llm_calls,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+            cost=usage.cost,
+        )
+
+
 class CaseSummary(BaseModel):
     """The stored AI summary of a case: a narrative generated on request, never updated by
     itself."""
@@ -1211,6 +1273,10 @@ class CaseSummary(BaseModel):
         " generate it again to include the latest turns.",
         examples=[False],
     )
+    usage: LLMUsage = Field(
+        description="What generating it used: one call, its total tokens and cost (prompt"
+        " and completion tokens are not stored, so null). Regenerating replaces it."
+    )
 
     @classmethod
     def from_stored(cls, stored: StoredSummary, *, case_version: int) -> "CaseSummary":
@@ -1220,6 +1286,7 @@ class CaseSummary(BaseModel):
             generated_at=_utc(stored.created_at),
             source_version=stored.summary.source_version,
             stale=stored.summary.source_version < case_version,
+            usage=LLMUsage.from_summary(stored.summary),
         )
 
 
@@ -1263,6 +1330,10 @@ class CaseDetail(BaseModel):
         description="The AI summary, null until one is generated.",
         examples=[None],
     )
+    usage: LLMUsage = Field(
+        description="What the case's model calls used: every turn plus the stored AI"
+        " summary. Each figure adds what was reported; null when nothing reported it."
+    )
 
     @classmethod
     def from_detail(cls, detail: CaseDetailData) -> "CaseDetail":
@@ -1284,6 +1355,7 @@ class CaseDetail(BaseModel):
             summary=None
             if detail.summary is None
             else CaseSummary.from_stored(detail.summary, case_version=case.version),
+            usage=LLMUsage.from_case(detail.usage),
         )
 
 
@@ -1381,19 +1453,7 @@ class CaseTrace(BaseModel):
     prompts_version: str = Field(
         description="The prompt files' version used.", examples=["draft-1"]
     )
-    llm_calls: int = Field(ge=0, description="Model calls in the turn.", examples=[2])
-    prompt_tokens: int | None = Field(
-        description="Input tokens over the turn's calls; null if unknown.", examples=[3120]
-    )
-    completion_tokens: int | None = Field(
-        description="Output tokens over the turn's calls; null if unknown.", examples=[210]
-    )
-    total_tokens: int | None = Field(
-        description="Total tokens over the turn's calls; null if unknown.", examples=[3330]
-    )
-    cost: float | None = Field(
-        description="Cost reported by the provider, in USD; null if unknown.", examples=[0.0021]
-    )
+    usage: LLMUsage = Field(description="What the turn's model calls used, summed over them.")
     duration_ms: int = Field(ge=0, description="How long the turn took.", examples=[2450])
     capped: bool = Field(
         description="The turn hit `MAX_TOOL_ROUNDS` or `TURN_TIMEOUT_SECONDS` and ended with"
@@ -1453,11 +1513,7 @@ class CaseTurn(BaseModel):
             trace=CaseTrace(
                 model=trace.model,
                 prompts_version=trace.prompts_version,
-                llm_calls=trace.llm_calls,
-                prompt_tokens=trace.prompt_tokens,
-                completion_tokens=trace.completion_tokens,
-                total_tokens=trace.total_tokens,
-                cost=trace.cost,
+                usage=LLMUsage.from_trace(trace),
                 duration_ms=trace.duration_ms,
                 capped=trace.capped,
                 retrieval_error=trace.retrieval_error,

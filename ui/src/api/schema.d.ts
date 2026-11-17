@@ -761,6 +761,8 @@ export interface components {
              * @example 2026-11-13T16:02:11Z
              */
             updated_at: string;
+            /** @description What the case's model calls used: every turn plus the stored AI summary. Each figure adds what was reported; null when nothing reported it. */
+            usage: components["schemas"]["LLMUsage"];
             /**
              * Version
              * @description Bumped by every committed turn.
@@ -960,6 +962,8 @@ export interface components {
              * @example false
              */
             stale: boolean;
+            /** @description What generating it used: one call, its total tokens and cost (prompt and completion tokens are not stored, so null). Regenerating replaces it. */
+            usage: components["schemas"]["LLMUsage"];
         };
         /**
          * CaseToolCall
@@ -1011,41 +1015,17 @@ export interface components {
              */
             capped: boolean;
             /**
-             * Completion Tokens
-             * @description Output tokens over the turn's calls; null if unknown.
-             * @example 210
-             */
-            completion_tokens: number | null;
-            /**
-             * Cost
-             * @description Cost reported by the provider, in USD; null if unknown.
-             * @example 0.0021
-             */
-            cost: number | null;
-            /**
              * Duration Ms
              * @description How long the turn took.
              * @example 2450
              */
             duration_ms: number;
             /**
-             * Llm Calls
-             * @description Model calls in the turn.
-             * @example 2
-             */
-            llm_calls: number;
-            /**
              * Model
              * @description The model that answered; null if no call returned.
              * @example openai/gpt-4.1-mini
              */
             model: string | null;
-            /**
-             * Prompt Tokens
-             * @description Input tokens over the turn's calls; null if unknown.
-             * @example 3120
-             */
-            prompt_tokens: number | null;
             /**
              * Prompts Version
              * @description The prompt files' version used.
@@ -1068,12 +1048,8 @@ export interface components {
              * @description The tool calls, in order.
              */
             tool_calls: components["schemas"]["CaseToolCall"][];
-            /**
-             * Total Tokens
-             * @description Total tokens over the turn's calls; null if unknown.
-             * @example 3330
-             */
-            total_tokens: number | null;
+            /** @description What the turn's model calls used, summed over them. */
+            usage: components["schemas"]["LLMUsage"];
         };
         /**
          * CaseTurn
@@ -2108,6 +2084,44 @@ export interface components {
              * @enum {string}
              */
             status: "indexed" | "up_to_date";
+        };
+        /**
+         * LLMUsage
+         * @description Model usage as the provider reported it: calls, tokens and cost. The same shape for
+         *     a turn, the AI summary and a whole case; a total adds what was reported, and a figure
+         *     is null when nothing reported it.
+         */
+        LLMUsage: {
+            /**
+             * Completion Tokens
+             * @description Output tokens; null if not reported.
+             * @example 210
+             */
+            completion_tokens: number | null;
+            /**
+             * Cost
+             * @description Cost in the provider's billing unit (OpenRouter credits, about USD); null if not reported.
+             * @example 0.0021
+             */
+            cost: number | null;
+            /**
+             * Llm Calls
+             * @description Model calls.
+             * @example 2
+             */
+            llm_calls: number;
+            /**
+             * Prompt Tokens
+             * @description Input tokens; null if not reported.
+             * @example 3120
+             */
+            prompt_tokens: number | null;
+            /**
+             * Total Tokens
+             * @description All tokens; null if not reported.
+             * @example 3330
+             */
+            total_tokens: number | null;
         };
         /**
          * OutdatedCounts

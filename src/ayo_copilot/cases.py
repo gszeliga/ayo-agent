@@ -10,20 +10,27 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.conversation.case import Case, CaseSnapshot, Event, Phase
 from ayo_copilot.conversation.store import SessionAction
 from ayo_copilot.db import conversations as db
-from ayo_copilot.db.conversations import CaseRow, StoredSummary, StoredTrace, SummaryRecord
+from ayo_copilot.db.conversations import (
+    CaseRow,
+    CaseUsage,
+    StoredSummary,
+    StoredTrace,
+    SummaryRecord,
+)
 
 
 @dataclass(frozen=True)
 class CaseDetail:
     """One case for the admin view: its listing row, the facts and version, the
-    annotations, the actions (with `overdue`) and the AI summary, if any. Messages and
-    traces are paged apart."""
+    annotations, the actions (with `overdue`), the AI summary, if any, and what its model
+    calls used (turns and summary). Messages and traces are paged apart."""
 
     row: CaseRow
     case: Case
     events: list[Event]
     actions: list[SessionAction]
     summary: StoredSummary | None
+    usage: CaseUsage
 
 
 def read_case_page(
@@ -60,7 +67,8 @@ def read_case_detail(pool: ConnectionPool, case_id: UUID, *, today: date) -> Cas
     """A case with its facts, annotations, actions and summary; None if there is no such
     case.
 
-    Repeatable read, so the counts in the row agree with the actions and the version.
+    Repeatable read, so the counts in the row agree with the actions, the version and the
+    usage.
     """
     with pool.connection() as conn, conn.transaction():
         conn.execute("set transaction isolation level repeatable read, read only")
@@ -72,12 +80,14 @@ def read_case_detail(pool: ConnectionPool, case_id: UUID, *, today: date) -> Cas
         events = db.list_annotations(conn, case_id)
         actions = db.list_actions(conn, case_id)
         summary = db.get_case_summary(conn, case_id)
+        usage = db.case_usage(conn, case_id)
     return CaseDetail(
         row=row,
         case=case,
         events=events,
         actions=[SessionAction(action, action.is_overdue(today)) for action in actions],
         summary=summary,
+        usage=usage,
     )
 
 
