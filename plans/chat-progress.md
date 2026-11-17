@@ -7,7 +7,8 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1-C7 and the access-log side step done (2026-11-17). Next: C8, brief first.
+C1-C8 (the cases API) and the access-log side step done (2026-11-17). Next: the UI
+steps, briefed together first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -64,6 +65,11 @@ C1-C7 and the access-log side step done (2026-11-17). Next: C8, brief first.
     the case's); tokens and cost are stored for cost tracking only. The upsert never
     replaces a summary made from a newer case version (racing generations: the later case
     wins). The summary prompt gets its own version string in C8.
+17. **Summary generation** (agreed 2026-11-17, C8 brief): `409 case_empty` for a case with
+    no turns (no call made); the model gets the whole case record and the latest
+    `SUMMARY_MAX_MESSAGES` (40) messages; `SUMMARY_PROMPTS_VERSION` apart from
+    `PROMPTS_VERSION`; `SUMMARY_MODEL` (unset: `LLM_MODEL`) and `SUMMARY_MAX_TOKENS` (800).
+    Model failures map as in `/copilot` (the table moved to `errors.py`).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -85,7 +91,7 @@ C1-C7 and the access-log side step done (2026-11-17). Next: C8, brief first.
 - [x] **C6** `DELETE /admin/cases/{case_id}` (`delete_case`): `204`, `404 case_not_found`.
 - [x] **C7** Migration 0004 (`case_summaries`), repository, `summary` + `stale` in
   `get_case`; no LLM.
-- [ ] **C8** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`): draft summary
+- [x] **C8** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`): draft summary
   prompt (Spanish, for review), one LLM call, store and return; LLM errors as in
   `/copilot`; fake-provider tests only.
 - [ ] UI steps: briefed once C8 is done.
@@ -95,6 +101,8 @@ C1-C7 and the access-log side step done (2026-11-17). Next: C8, brief first.
   `/copilot` key is tied to a fixed tenant; retrieval then searches that tenant's
   knowledge base together with AYO's shared one (`ayo`). `/admin` stays cross-tenant
   (decision 12).
+- **The summary prompt (`prompts/summary.md`) is a draft** for the user (and AYO) to
+  review; no real model has run it yet. A manual try is billed: ask first.
 - Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK (0004
   exists since C7; local test databases only so far).
 - A proxy or platform in front of the service (deployment, D1) keeps its own access log:
@@ -210,3 +218,26 @@ C1-C7 and the access-log side step done (2026-11-17). Next: C8, brief first.
   every field, stale after a real `/copilot` turn, no content in logs; the C6 delete test
   now counts the summary too), a contract case for 200 with a summary. Applied to local
   test databases only, not Neon.
+- **C8 (2026-11-17).** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`):
+  `200`, `401`, `404 case_not_found` (also deleted during the call), `409 case_empty`,
+  `422`, `502 llm_*`, `503 llm_not_configured`. `conversation/summary.py`:
+  `conversation_block`, `build_summary_prompt` (summary.md, date, phase, `case_record`,
+  the messages), `generate_summary` (one call, no tools, `EmptySummary(LLMError)` for no
+  text, the stored model: reported, else requested, else `LLM_MODEL`). `context.py`:
+  `CONVERSATION_TAG` joins the neutralized tags. `prompts/summary.md` (draft, Spanish, no
+  placeholders) is loaded by `load_prompts` (`PromptSet.summary`, `file_count` 8, in the
+  hash). `cases.read_summary_input` (one snapshot: case, turns, annotations, actions, the
+  latest messages and how many were left out) and `cases.store_summary` (`for key share`
+  on the case so a delete waits, upsert, read back, current version; None when deleted).
+  `errors.py` now holds `LLM_FAILURES`, `llm_failure` and `llm_failure_examples`, used by
+  both routers (the 503 example's summary text changed). Four `SUMMARY_*` settings (also in `.env.example`).
+  README table, `docs/copilot.md` (generation, prompt files), `docs/configuration.md`,
+  `docs/openapi.json`, `schema.d.ts`, CLAUDE.md. Tests: `tests/unit/test_case_summary.py`
+  (9: prompt parts and order, omitted note, tags neutralized, the call's arguments, the
+  stored model, empty text); prompt files (summary required, no placeholders, stray `$`,
+  in the hash, the draft note); API (15: generated, stored with every column and shown;
+  the case untouched; regenerating clears stale; a newer summary kept; deleted mid-call
+  404; unknown 404 and empty 409 without a call; a closed case; six model failures and an
+  empty answer storing nothing and keeping the old summary; 503 without a key; 422 and
+  401 without a call; the message window; no content in logs). The cases test client now
+  sets `openrouter_api_key=None`. Contract cases for every status. No real model call.

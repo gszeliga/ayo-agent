@@ -86,6 +86,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/cases/{case_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate a case's AI summary
+         * @description Write the case's AI summary now, store it and return it. **Each
+         *     call is one billed language model call**; nothing generates a summary by itself.
+         *
+         *     The model gets `prompts/summary.md`, today's date, the case's phase, the case record (the
+         *     facts, annotations and actions) and the latest `SUMMARY_MAX_MESSAGES` messages, and no
+         *     tools. The summary replaces the stored one, unless a summary made from a newer case
+         *     version was stored meanwhile: that one is kept and returned. Storing it never changes the
+         *     case (`version`, `updated_at`). A closed case can be summarised too.
+         *
+         *     A failure stores nothing and leaves the previous summary in place.
+         *
+         *     | Status | Meaning |
+         *     |---|---|
+         *     | `200` | The summary now stored, as in `get_case`. |
+         *     | `401` | `X-API-Key` missing or wrong. |
+         *     | `404` | No case with that id, or it was deleted during the call (`case_not_found`). |
+         *     | `409` | `case_empty`: the case has no turns yet; no call was made. |
+         *     | `422` | `case_id` is not a UUID (FastAPI validation). |
+         *     | `502` | The language model failed, or returned no text (`llm_*`, see below). |
+         *     | `503` | `llm_not_configured`: no language model key. |
+         */
+        post: operations["generate_case_summary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/cases/{case_id}/turns": {
         parameters: {
             query?: never;
@@ -2551,6 +2590,83 @@ export interface operations {
             };
             /** @description `case_id` is not a UUID: `type` is `uuid_parsing`. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    generate_case_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The case id (a UUID), as `case_id` in the listing or the copilot's replies. */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The summary now stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            /** @description `X-API-Key` is missing or wrong. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No case with that id: `type` is `case_not_found`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The case has no turns yet (`case_empty`): there is nothing to summarise, and no model call was made. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `case_id` is not a UUID: `type` is `uuid_parsing`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The language model failed after retries, or answered without text (`llm_error`). Nothing was stored. One fixed message per `type`, never the provider's details. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No language model is configured (`OPENROUTER_API_KEY` is unset). Nothing was stored. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

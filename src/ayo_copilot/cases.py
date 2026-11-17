@@ -7,10 +7,10 @@ from uuid import UUID
 
 from psycopg_pool import ConnectionPool
 
-from ayo_copilot.conversation.case import Case, Event, Phase
+from ayo_copilot.conversation.case import Case, CaseSnapshot, Event, Phase
 from ayo_copilot.conversation.store import SessionAction
 from ayo_copilot.db import conversations as db
-from ayo_copilot.db.conversations import CaseRow, StoredSummary, StoredTrace
+from ayo_copilot.db.conversations import CaseRow, StoredSummary, StoredTrace, SummaryRecord
 
 
 @dataclass(frozen=True)
@@ -145,3 +145,57 @@ def delete_case(pool: ConnectionPool, case_id: UUID) -> tuple[str, int] | None:
     and stores nothing."""
     with pool.connection() as conn, conn.transaction():
         return db.delete_case(conn, case_id)
+
+
+@dataclass(frozen=True)
+class SummaryInput:
+    """What the summary is made from: the case (facts, annotations, actions) at one
+    version, its turn count and its latest messages, oldest first."""
+
+    snapshot: CaseSnapshot
+    turns: int
+    messages: list[Event]
+    omitted: int
+
+
+def read_summary_input(
+    pool: ConnectionPool, case_id: UUID, *, message_limit: int
+) -> SummaryInput | None:
+    """The case as one snapshot, with its latest `message_limit` messages; None if there is
+    no such case."""
+    with pool.connection() as conn, conn.transaction():
+        conn.execute("set transaction isolation level repeatable read, read only")
+        case = db.get_case(conn, case_id)
+        if case is None:
+            return None
+        turns = db.count_turns(conn, case_id)
+        events = db.list_annotations(conn, case_id)
+        actions = db.list_actions(conn, case_id)
+        messages = db.list_messages(conn, case_id, last=message_limit)
+    # Each turn stores two messages (`commit_turn`).
+    omitted = max(0, 2 * turns - len(messages))
+    return SummaryInput(
+        snapshot=CaseSnapshot(case=case, events=events, actions=actions),
+        turns=turns,
+        messages=messages,
+        omitted=omitted,
+    )
+
+
+def store_summary(
+    pool: ConnectionPool, case_id: UUID, summary: SummaryRecord
+) -> tuple[StoredSummary, int, bool] | None:
+    """Store the case's summary (unless one from a newer case version is there) and read
+    back what is stored, the case's current version and whether this one was stored; None
+    if the case is gone (deleted meanwhile). Never changes the case itself."""
+    with pool.connection() as conn, conn.transaction():
+        # A key-share lock: a concurrent delete waits, turns (plain updates) do not.
+        row = conn.execute(
+            "select version from problems where id = %s for key share", (case_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        stored = db.upsert_case_summary(conn, case_id, summary)
+        current = db.get_case_summary(conn, case_id)
+    assert current is not None
+    return current, row[0], stored

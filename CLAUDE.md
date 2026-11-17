@@ -12,7 +12,9 @@ working rules, update this file in that step's commit.
 - **Active (2026-11-16): test chat and case inspector.** Spec
   `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
   log in `plans/chat-progress.md`. **Read both first.** The cases API (C1-C8) comes before
-  the UI; C1-C7 are done.
+  the UI; C1-C8 (the cases API) are done; the UI steps are next.
+  `POST /admin/cases/{case_id}/summary` makes a real, billed model call: never call it
+  against a configured provider without the user's OK.
 - **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
@@ -117,12 +119,12 @@ src/ayo_copilot/
   access_log.py        DropQueryString: uvicorn's access log without query strings
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        CORS middleware, lifespan: prompts, pool, embedder, LLM provider, DB_LOG_LEVEL, dimension check
-  errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}
+  errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}; LLM_FAILURES
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, Search*, errors
   dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider / get_prompts (request.state), get_today
   routers/admin.py     /admin: upload, list, get, content, chunks, rename, reprocess, delete, bulk delete, search, tenants, settings, health (provisional X-API-Key auth, size limits)
   routers/copilot.py   /copilot: send a message, get a session (own key dependency), LLM errors -> 502/503
-  routers/cases.py     /admin/cases: list, get, page turns, delete; cases from every channel (admin key)
+  routers/cases.py     /admin/cases: list, get, page turns, delete, generate the summary (billed); every channel
   documents.py         admin read/write operations on stored documents (own transactions)
   cases.py             admin read operations on the copilot's cases (own transactions): page, detail, turns, delete
   health.py            /admin/health: check_database, EmbeddingMonitor (cached probe), TrackedEmbedder
@@ -150,10 +152,11 @@ src/ayo_copilot/
   conversation/phases.py   TRANSITIONS, exit criteria (missing_for), describe_missing / describe_targets
   conversation/tools.py    TOOLS (one ToolDef per tool: spec, phases, handler), tools_for_phase, execute_tool
   conversation/prompt_files.py  load_prompts (string.Template, once at startup) -> PromptSet
-  conversation/prompts/    draft prompt files (Spanish): base.md, one per phase, glossary.md
+  conversation/prompts/    draft prompt files (Spanish): base.md, one per phase, glossary.md, summary.md
   conversation/context.py  build_system_prompt (parts, delimited data blocks), build_messages (window)
   conversation/query.py    build_query: the retrieval query from the case state
   conversation/reply.py    compose_reply and the fallback message
+  conversation/summary.py  the case summary: build_summary_prompt, generate_summary (one call, no tools)
   conversation/store.py    resolve_case (race-safe), load_snapshot, commit_turn (version check), read_session, read_traces
   conversation/engine.py   TurnEngine.handle_turn: model loop, phase hops, caps, retrieval, trace, commit
   conversation/channels.py IncomingMessage, ChannelAdapter, WebAdapter, handle_message (resolve case + turn)

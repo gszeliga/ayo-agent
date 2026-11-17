@@ -80,6 +80,10 @@ malformed JSON) stop the app at startup.
 | `PROMPTS_VERSION` | `draft-1` | Recorded in every turn trace. Bump it whenever the prompt files change. 1 to 64 characters, no spaces. |
 | `APP_TIMEZONE` | `Europe/Madrid` | IANA time zone of "today" for the model (so "el viernes" becomes a date). |
 | `LLM_MODEL_BY_PHASE` | *(empty)* | Optional JSON mapping a phase to a model, such as `{"analyse": "<model id>"}`; phases without an entry use `LLM_MODEL`. |
+| `SUMMARY_MODEL` | *(unset: `LLM_MODEL`)* | Model of the case summary (`POST /admin/cases/{case_id}/summary`). |
+| `SUMMARY_MAX_TOKENS` | `800` | Output cap of the case summary. |
+| `SUMMARY_MAX_MESSAGES` | `40` | Latest messages the summary is given, besides the whole case record. |
+| `SUMMARY_PROMPTS_VERSION` | `summary-draft-1` | Stored with each summary. Bump it whenever `summary.md` changes. 1 to 64 characters, no spaces. |
 
 The prompt files are not settings: see
 [Editing the prompt files](copilot.md#editing-the-prompt-files).

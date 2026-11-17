@@ -16,6 +16,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from ayo_copilot.llm.errors import (
+    LLMAuthError,
+    LLMConfigError,
+    LLMError,
+    LLMInsufficientCreditsError,
+    LLMRateLimitError,
+    LLMUnavailableError,
+)
 from ayo_copilot.schemas import ErrorItem, ErrorResponse
 
 logger = logging.getLogger(__name__)
@@ -38,6 +46,35 @@ class ApiError(Exception):
         self.msg = msg
         self.loc = list(loc)
         self.headers = dict(headers or {})
+
+
+# The safe answer per model failure (engine decision 7): a stable type, a fixed message,
+# never the provider's own. The first matching class wins (subclasses before `LLMError`).
+LLM_FAILURES: tuple[tuple[type[LLMError], int, str, str], ...] = (
+    (LLMConfigError, 503, "llm_not_configured", "the language model is not configured"),
+    (LLMUnavailableError, 502, "llm_unavailable", "the language model is unavailable"),
+    (LLMRateLimitError, 502, "llm_rate_limited", "the language model is rate limited"),
+    (LLMInsufficientCreditsError, 502, "llm_credits", "the language model has no credits left"),
+    (LLMAuthError, 502, "llm_auth", "the language model rejected our credentials"),
+    (LLMError, 502, "llm_error", "the language model call failed"),
+)
+
+
+def llm_failure(error: LLMError) -> ApiError:
+    """The API error for a model failure (502 or 503), with its fixed message."""
+    for error_class, status, type, msg in LLM_FAILURES:
+        if isinstance(error, error_class):
+            return ApiError(status, type, msg)
+    raise AssertionError("unreachable: LLMError is the last entry")
+
+
+def llm_failure_examples(status: int) -> dict[str, tuple[str, dict[str, object]]]:
+    """OpenAPI examples of the model failures with this status: type -> (summary, body)."""
+    return {
+        type: (msg[0].upper() + msg[1:], {"detail": [{"type": type, "loc": [], "msg": msg}]})
+        for _, failure_status, type, msg in LLM_FAILURES
+        if failure_status == status
+    }
 
 
 def error_response(

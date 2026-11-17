@@ -30,17 +30,10 @@ from ayo_copilot.dependencies import (
     get_prompts,
     get_settings,
 )
-from ayo_copilot.errors import ApiError
+from ayo_copilot.errors import ApiError, llm_failure, llm_failure_examples
 from ayo_copilot.ingestion.embedding import Embedder
 from ayo_copilot.llm import LLMProvider
-from ayo_copilot.llm.errors import (
-    LLMAuthError,
-    LLMConfigError,
-    LLMError,
-    LLMInsufficientCreditsError,
-    LLMRateLimitError,
-    LLMUnavailableError,
-)
+from ayo_copilot.llm.errors import LLMError
 from ayo_copilot.schemas import (
     SESSION_ID_EXAMPLE,
     CopilotMessageRequest,
@@ -123,29 +116,11 @@ router = APIRouter(
     },
 )
 
-# The safe answer per model failure (decision 7): a stable type, a fixed message, never
-# the provider's own. The first matching class wins (subclasses before `LLMError`).
-LLM_FAILURES: tuple[tuple[type[LLMError], int, str, str], ...] = (
-    (LLMConfigError, 503, "llm_not_configured", "the language model is not configured"),
-    (LLMUnavailableError, 502, "llm_unavailable", "the language model is unavailable"),
-    (LLMRateLimitError, 502, "llm_rate_limited", "the language model is rate limited"),
-    (LLMInsufficientCreditsError, 502, "llm_credits", "the language model has no credits left"),
-    (LLMAuthError, 502, "llm_auth", "the language model rejected our credentials"),
-    (LLMError, 502, "llm_error", "the language model call failed"),
-)
-
 CASE_CLOSED_MSG = "the case is closed and takes no new messages"
 CASE_CHANGED_MSG = "the case changed while processing, try again"
 TENANT_MISMATCH_MSG = "the session belongs to another tenant"
 SESSION_NOT_FOUND_MSG = "no session with this id"
 SESSION_ID_PARAM = "The session id (a UUID) sent with the session's messages."
-
-
-def _llm_failure(error: LLMError) -> ApiError:
-    for error_class, status, type, msg in LLM_FAILURES:
-        if isinstance(error, error_class):
-            return ApiError(status, type, msg)
-    raise AssertionError("unreachable: LLMError is the last entry")
 
 
 SEND_DESCRIPTION = """Send one message of a session and get the copilot's reply.
@@ -226,24 +201,13 @@ turn: the copilot says it could not consult it.
             "description": "The language model failed after retries. Nothing was stored;"
             " sending the message again later is safe. One fixed message per `type`, never"
             " the provider's details.",
-            "content": _examples(
-                **{
-                    type: (msg[0].upper() + msg[1:], _error(type, [], msg))
-                    for _, status, type, msg in LLM_FAILURES
-                    if status == 502
-                }
-            ),
+            "content": _examples(**llm_failure_examples(502)),
         },
         503: {
             "model": ErrorResponse,
             "description": "No language model is configured (`OPENROUTER_API_KEY` is unset)."
             " Nothing was stored.",
-            "content": _examples(
-                llm_not_configured=(
-                    "No model key",
-                    _error("llm_not_configured", [], "the language model is not configured"),
-                )
-            ),
+            "content": _examples(**llm_failure_examples(503)),
         },
     },
 )
@@ -273,7 +237,7 @@ def send_copilot_message(
     except CaseChanged:
         raise ApiError(409, "case_changed", CASE_CHANGED_MSG) from None
     except LLMError as error:
-        failure = _llm_failure(error)
+        failure = llm_failure(error)
         logger.warning(
             "turn failed session=%s: %s (status=%s reason=%s)",
             incoming.external_thread_id,

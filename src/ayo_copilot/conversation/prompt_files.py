@@ -1,9 +1,10 @@
 """The prompt files: loaded and rendered once, at startup.
 
 The prompts live as Markdown files in `prompts/` so consultants can edit them: `base.md`
-(every phase), one file per phase but `closed`, and `glossary.md` (what each phase is for,
-sent in every phase). Rendering uses `string.Template`, never
-`str.format` (the text may hold braces), and only with values that come from code:
+(every phase), one file per phase but `closed`, `glossary.md` (what each phase is for,
+sent in every phase) and `summary.md` (the case summary, apart from the turns). Rendering
+uses `string.Template`, never `str.format` (the text may hold braces), and only with
+values that come from code:
 
 - `$phase`: the phase the file is for (phase files only);
 - `$exit_conditions`: where the case can go from that phase and when, generated from the
@@ -31,6 +32,7 @@ from ayo_copilot.conversation.phases import describe_targets
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 BASE_PROMPT = "base"
 GLOSSARY_PROMPT = "glossary"
+SUMMARY_PROMPT = "summary"
 # The phases with a prompt file: every phase but `closed` (a closed case gets no turn).
 PROMPT_PHASES: tuple[Phase, ...] = tuple(phase for phase in PHASES if phase != "closed")
 
@@ -49,6 +51,7 @@ class PromptSet:
     base: str = field(repr=False)
     phases: Mapping[Phase, str] = field(repr=False)
     glossary: str = field(repr=False)
+    summary: str = field(repr=False)
     sha256: str
 
     def for_phase(self, phase: Phase) -> str:
@@ -59,7 +62,7 @@ class PromptSet:
 
     @property
     def file_count(self) -> int:
-        return 2 + len(self.phases)
+        return 3 + len(self.phases)
 
 
 def load_prompts(directory: Path | None = None) -> PromptSet:
@@ -79,10 +82,12 @@ def load_prompts(directory: Path | None = None) -> PromptSet:
         for phase in PROMPT_PHASES
     }
     glossary = load(GLOSSARY_PROMPT, {})
+    summary = load(SUMMARY_PROMPT, {})
     return PromptSet(
         base=base,
         phases=MappingProxyType(phases),
         glossary=glossary,
+        summary=summary,
         sha256=digest.hexdigest(),
     )
 

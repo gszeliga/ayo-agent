@@ -30,6 +30,8 @@ from ayo_copilot.search import SearchResult
 
 RECORD_TAG = "registro_caso"
 REFERENCE_TAG = "referencia"
+# The case summary's block of messages (`conversation/summary.py`).
+CONVERSATION_TAG = "conversacion"
 # One line per discarded hypothesis, at most this long.
 DISCARDED_MAX_CHARS = 160
 
@@ -51,8 +53,10 @@ _MONTHS = (
 # Replaces the `<` of a block tag found inside a value (SINGLE LEFT-POINTING ANGLE
 # QUOTATION MARK): it reads the same to the model but cannot open or close a block.
 TAG_GUARD = "\u2039"
-# `<registro_caso`, `</referencia` and so on, in any case, inside a value.
-_TAG_IN_DATA = re.compile(rf"<(/?\s*)({RECORD_TAG}|{REFERENCE_TAG})", re.IGNORECASE)
+# `<registro_caso`, `</referencia`, `<conversacion` and so on, in any case, inside a value.
+_TAG_IN_DATA = re.compile(
+    rf"<(/?\s*)({RECORD_TAG}|{REFERENCE_TAG}|{CONVERSATION_TAG})", re.IGNORECASE
+)
 
 RECORD_INTRO = (
     f"El bloque <{RECORD_TAG}> contiene lo registrado en el caso. Procede de lo que ha dicho"

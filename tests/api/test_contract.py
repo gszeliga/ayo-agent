@@ -85,6 +85,7 @@ LIST_CASES = ("get", "/admin/cases")
 GET_CASE = ("get", "/admin/cases/{case_id}")
 CASE_TURNS = ("get", "/admin/cases/{case_id}/turns")
 DELETE_CASE = ("delete", "/admin/cases/{case_id}")
+CASE_SUMMARY = ("post", "/admin/cases/{case_id}/summary")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -105,6 +106,7 @@ OPERATIONS = [
     GET_CASE,
     CASE_TURNS,
     DELETE_CASE,
+    CASE_SUMMARY,
 ]
 
 
@@ -245,6 +247,32 @@ def copilot_failing(client: TestClient):
 
 
 CASE_ID = "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+
+
+def summary_post(client: TestClient, case_id: str):
+    return client.post(f"/admin/cases/{case_id}/summary", headers={"X-API-Key": API_KEY})
+
+
+def generate(client: TestClient, response: LLMResponse | str | None):
+    """A case with one turn, then its summary: `response` scripts the model, None makes it
+    fail and "no-key" leaves the unconfigured provider."""
+    case_id = copilot_sent(client).json()["case_id"]
+    if response is None:
+        client.app.dependency_overrides[get_llm_provider] = RaisingLLM
+    elif isinstance(response, LLMResponse):
+        with_llm(client, response)
+    else:
+        client.app.dependency_overrides.pop(get_llm_provider)
+    return summary_post(client, case_id)
+
+
+def summary_of_empty_case(client: TestClient):
+    with client.app_state["pool"].connection() as conn:
+        row = conn.execute(
+            "insert into problems (tenant) values ('cliente-acme') returning id"
+        ).fetchone()
+    assert row is not None
+    return summary_post(client, str(row[0]))
 
 
 def summarised(client: TestClient) -> str:
@@ -496,6 +524,17 @@ CASES = {
     "case delete 401 no key": (DELETE_CASE, 401, lambda c: delete_case(c, CASE_ID, headers={})),
     "case delete 404": (DELETE_CASE, 404, lambda c: delete_case(c, CASE_ID)),
     "case delete 422 malformed id": (DELETE_CASE, 422, lambda c: delete_case(c, "case-1")),
+    "case summary 200": (CASE_SUMMARY, 200, lambda c: generate(c, text_response("Resumen."))),
+    "case summary 401 no key": (
+        CASE_SUMMARY,
+        401,
+        lambda c: c.post(f"/admin/cases/{CASE_ID}/summary"),
+    ),
+    "case summary 404": (CASE_SUMMARY, 404, lambda c: summary_post(c, CASE_ID)),
+    "case summary 409 empty": (CASE_SUMMARY, 409, summary_of_empty_case),
+    "case summary 422 malformed id": (CASE_SUMMARY, 422, lambda c: summary_post(c, "case-1")),
+    "case summary 502 model failed": (CASE_SUMMARY, 502, lambda c: generate(c, None)),
+    "case summary 503 no model key": (CASE_SUMMARY, 503, lambda c: generate(c, "no-key")),
     "case turns 422 limit": (
         CASE_TURNS,
         422,

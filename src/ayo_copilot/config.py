@@ -209,6 +209,15 @@ class ConversationSettings(BaseSettings):
     app_timezone: str = "Europe/Madrid"
     # JSON, e.g. {"analyse": "<model id>"}; a phase without an entry uses LLM_MODEL.
     llm_model_by_phase: dict[str, str] = {}
+    # The case summary (`POST /admin/cases/{case_id}/summary`): its model (unset: LLM_MODEL),
+    # output cap, the latest messages it is given and the version of `prompts/summary.md`,
+    # stored with each summary.
+    summary_model: str | None = Field(default=None, min_length=1)
+    summary_max_tokens: int = Field(default=800, gt=0)
+    summary_max_messages: int = Field(default=40, ge=1)
+    summary_prompts_version: str = Field(
+        default="summary-draft-1", min_length=1, max_length=64, pattern=r"^\S+$"
+    )
 
     @field_validator("retrieval_phases", mode="before")
     @classmethod

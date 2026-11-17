@@ -74,6 +74,7 @@ error `type` and example.
 | `GET /admin/cases/{case_id}` | One case: header, facts, annotations, actions (with `overdue`), AI summary |
 | `GET /admin/cases/{case_id}/turns` | A case's turns, oldest first, in pages: messages and trace |
 | `DELETE /admin/cases/{case_id}` | Delete a case for good, with its messages, actions, links and traces |
+| `POST /admin/cases/{case_id}/summary` | Generate and store the case's AI summary (one **billed** model call) |
 | `GET /health` | Liveness, no key |
 
 The `X-API-Key` authentication is provisional: one shared key, to be replaced by real

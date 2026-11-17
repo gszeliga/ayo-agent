@@ -76,7 +76,29 @@ the text, the model, `generated_at`, `source_version` (the case `version` it was
 from) and `stale`, true once a turn has been committed after it. Summaries live in their
 own table (`case_summaries`, one per case): storing one never changes the case's `version`
 or `updated_at`, so it cannot cause `409 case_changed` or reorder the listing. Of two
-generations racing, the one that read the later case version is kept. The conversation and the turn traces
+generations racing, the one that read the later case version is kept.
+
+`POST /admin/cases/{case_id}/summary` generates it. **Each call is one billed model
+call**:
+
+```sh
+curl -s -X POST "http://127.0.0.1:8000/admin/cases/$CASE_ID/summary" \
+  -H "X-API-Key: $ADMIN_API_KEY"
+```
+
+- The model (`SUMMARY_MODEL`, else `LLM_MODEL`) gets `summary.md`, today's date, the
+  phase, the case record (the same block a turn sees) and the latest
+  `SUMMARY_MAX_MESSAGES` messages in a `<conversacion>` block (both marked as data, never
+  instructions), with a fixed request as the only user message and no tools; the answer
+  is capped at `SUMMARY_MAX_TOKENS`.
+- `200` returns the summary now stored (as in `get_case`); it records the model,
+  `SUMMARY_PROMPTS_VERSION`, tokens and cost.
+- `409 case_empty`: the case has no turns, and no call is made. `404 case_not_found`
+  also when the case is deleted during the call (nothing is stored).
+- Model failures answer as in `/copilot` (`502 llm_*`, `503 llm_not_configured`); an
+  empty answer is `502 llm_error`. A failure leaves the previous summary in place.
+- The log has one line (`case summary case_id=... tenant=... source_version=...
+  stored=...`) and the provider's metadata line; never the prompt or the summary. The conversation and the turn traces
 are not part of it: they come in pages of turns, so a long case never loads at once. The
 admin view is cross-tenant: there is no tenant parameter.
 
@@ -178,18 +200,20 @@ To read a whole conversation with its traces, write its transcript:
 
 The conversation prompts are Markdown files in `src/ayo_copilot/conversation/prompts/`:
 `base.md` (sent in every phase), one per phase (`understand.md`, `challenge.md`,
-`analyse.md`, `action.md`, `followup.md`) and `glossary.md` (what each phase is for, sent
-in every phase so the model understands references to other phases). The current ones are **drafts** to make the
-engine work, to be replaced with AYO's real method.
+`analyse.md`, `action.md`, `followup.md`), `glossary.md` (what each phase is for, sent
+in every phase so the model understands references to other phases) and `summary.md`
+(the case summary, see [Inspecting cases](#inspecting-cases)). The current ones are
+**drafts** to make the engine work, to be replaced with AYO's real method.
 
 - Text inside HTML comments (`<!-- ... -->`) is a note for editors: it is removed before
   the prompt reaches the model.
 - Phase files may use two placeholders, filled in by the code: `$phase` (the phase name)
   and `$exit_conditions` (where the case can go from that phase and when, generated from
-  the rules the code enforces). `base.md` and `glossary.md` take none. Write a literal
-  dollar sign as `$$`.
+  the rules the code enforces). `base.md`, `glossary.md` and `summary.md` take none.
+  Write a literal dollar sign as `$$`.
 - The files are read once, at startup: restart the app after editing. A missing or empty
   file, a stray `$` or an unknown placeholder stops the app with an error naming the file.
-- Bump `PROMPTS_VERSION` after any change; the startup log prints the version and a hash
-  of the files (`prompts: version=draft-1 files=7 sha256=...`), so an edit without a bump
-  shows.
+- Bump `PROMPTS_VERSION` after any change to the turn prompts, and
+  `SUMMARY_PROMPTS_VERSION` after a change to `summary.md` (stored with each summary); the
+  startup log prints the version and a hash of all the files
+  (`prompts: version=draft-1 files=8 sha256=...`), so an edit without a bump shows.

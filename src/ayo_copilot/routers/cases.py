@@ -14,11 +14,30 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi import Path as PathParam
 from psycopg_pool import ConnectionPool
 
-from ayo_copilot.cases import delete_case, read_case_detail, read_case_page, read_case_turns
+from ayo_copilot.cases import (
+    delete_case,
+    read_case_detail,
+    read_case_page,
+    read_case_turns,
+    read_summary_input,
+    store_summary,
+)
+from ayo_copilot.config import Settings
 from ayo_copilot.conversation.case import Phase
-from ayo_copilot.dependencies import get_pool, get_today
-from ayo_copilot.errors import ApiError
+from ayo_copilot.conversation.prompt_files import PromptSet
+from ayo_copilot.conversation.summary import build_summary_prompt, generate_summary
+from ayo_copilot.db.conversations import SummaryRecord
+from ayo_copilot.dependencies import (
+    get_llm_provider,
+    get_pool,
+    get_prompts,
+    get_settings,
+    get_today,
+)
+from ayo_copilot.errors import ApiError, llm_failure, llm_failure_examples
 from ayo_copilot.ingestion.storage import TENANT_PATTERN
+from ayo_copilot.llm import LLMProvider
+from ayo_copilot.llm.errors import LLMError
 from ayo_copilot.routers.admin import UNAUTHORIZED_RESPONSE, require_admin_key
 from ayo_copilot.schemas import (
     CASE_ID_EXAMPLE,
@@ -26,6 +45,7 @@ from ayo_copilot.schemas import (
     CaseDetail,
     CaseListItem,
     CasePage,
+    CaseSummary,
     CaseTurnPage,
     ErrorResponse,
 )
@@ -346,3 +366,132 @@ def delete(
     # The only trace of the deletion (no audit table yet); ids and counts, no content.
     logger.info("case deleted case_id=%s tenant=%s turns=%d", case_id, tenant, turns)
     return Response(status_code=204)
+
+
+CASE_EMPTY_MSG = "the case has no turns to summarise"
+
+SUMMARY_DESCRIPTION = """Write the case's AI summary now, store it and return it. **Each
+call is one billed language model call**; nothing generates a summary by itself.
+
+The model gets `prompts/summary.md`, today's date, the case's phase, the case record (the
+facts, annotations and actions) and the latest `SUMMARY_MAX_MESSAGES` messages, and no
+tools. The summary replaces the stored one, unless a summary made from a newer case
+version was stored meanwhile: that one is kept and returned. Storing it never changes the
+case (`version`, `updated_at`). A closed case can be summarised too.
+
+A failure stores nothing and leaves the previous summary in place.
+
+| Status | Meaning |
+|---|---|
+| `200` | The summary now stored, as in `get_case`. |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No case with that id, or it was deleted during the call (`case_not_found`). |
+| `409` | `case_empty`: the case has no turns yet; no call was made. |
+| `422` | `case_id` is not a UUID (FastAPI validation). |
+| `502` | The language model failed, or returned no text (`llm_*`, see below). |
+| `503` | `llm_not_configured`: no language model key. |
+"""
+
+
+@router.post(
+    "/{case_id}/summary",
+    operation_id="generate_case_summary",
+    summary="Generate a case's AI summary",
+    description=SUMMARY_DESCRIPTION,
+    responses={
+        # The 200 sample comes from the field examples (see `schemas.CaseSummary`).
+        200: {"description": "The summary now stored."},
+        404: CASE_NOT_FOUND_RESPONSE,
+        409: {
+            "model": ErrorResponse,
+            "description": "The case has no turns yet (`case_empty`): there is nothing to"
+            " summarise, and no model call was made.",
+            "content": _examples(
+                case_empty=("Nothing to summarise", _error("case_empty", [], CASE_EMPTY_MSG))
+            ),
+        },
+        422: {
+            "model": ErrorResponse,
+            "description": "`case_id` is not a UUID: `type` is `uuid_parsing`.",
+            "content": _examples(uuid_parsing=("Malformed id", MALFORMED_CASE_ID)),
+        },
+        502: {
+            "model": ErrorResponse,
+            "description": "The language model failed after retries, or answered without text"
+            " (`llm_error`). Nothing was stored. One fixed message per `type`, never the"
+            " provider's details.",
+            "content": _examples(**llm_failure_examples(502)),
+        },
+        503: {
+            "model": ErrorResponse,
+            "description": "No language model is configured (`OPENROUTER_API_KEY` is unset)."
+            " Nothing was stored.",
+            "content": _examples(**llm_failure_examples(503)),
+        },
+    },
+)
+def generate_case_summary(
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    llm: Annotated[LLMProvider, Depends(get_llm_provider)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    prompts: Annotated[PromptSet, Depends(get_prompts)],
+    today: Annotated[date, Depends(get_today)],
+    case_id: Annotated[UUID, PathParam(description=CASE_ID_PARAM, examples=[CASE_ID_EXAMPLE])],
+) -> CaseSummary:
+    source = read_summary_input(pool, case_id, message_limit=settings.summary_max_messages)
+    if source is None:
+        raise _case_not_found()
+    if source.turns == 0:
+        raise ApiError(409, "case_empty", CASE_EMPTY_MSG)
+    case = source.snapshot.case
+    system = build_summary_prompt(
+        prompts,
+        source.snapshot,
+        source.messages,
+        omitted=source.omitted,
+        today=today,
+        timezone_name=settings.app_timezone,
+        field_max_chars=settings.field_max_chars,
+    )
+    try:
+        generated = generate_summary(
+            llm,
+            system,
+            model=settings.summary_model,
+            default_model=settings.llm_model,
+            max_tokens=settings.summary_max_tokens,
+        )
+    except LLMError as error:
+        failure = llm_failure(error)
+        logger.warning(
+            "case summary failed case_id=%s: %s (status=%s reason=%s)",
+            case_id,
+            failure.type,
+            error.status,
+            error.reason,
+        )
+        raise failure from None
+    result = store_summary(
+        pool,
+        case_id,
+        SummaryRecord(
+            content=generated.content,
+            source_version=case.version,
+            model=generated.model,
+            prompts_version=settings.summary_prompts_version,
+            total_tokens=generated.total_tokens,
+            cost=generated.cost,
+        ),
+    )
+    if result is None:
+        logger.info("case summary dropped case_id=%s: the case was deleted", case_id)
+        raise _case_not_found()
+    current, version, stored = result
+    logger.info(
+        "case summary case_id=%s tenant=%s source_version=%d stored=%s",
+        case_id,
+        case.tenant,
+        case.version,
+        stored,
+    )
+    return CaseSummary.from_stored(current, case_version=version)

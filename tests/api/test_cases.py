@@ -14,16 +14,25 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from ayo_copilot.app import create_app
-from ayo_copilot.cases import MissingTurnMessage, read_case_turns
+from ayo_copilot.cases import MissingTurnMessage, read_case_turns, read_summary_input
 from ayo_copilot.config import Settings
+from ayo_copilot.conversation.prompt_files import load_prompts
 from ayo_copilot.dependencies import get_llm_provider, get_today
+from ayo_copilot.llm.errors import (
+    LLMAuthError,
+    LLMConfigError,
+    LLMError,
+    LLMInsufficientCreditsError,
+    LLMRateLimitError,
+    LLMUnavailableError,
+)
 from ayo_copilot.llm.fake import (
     FakeLLMProvider,
     text_response,
     tool_call,
     tool_calls_response,
 )
-from ayo_copilot.llm.types import LLMResponse
+from ayo_copilot.llm.types import LLMResponse, Usage
 
 pytestmark = pytest.mark.integration
 
@@ -40,6 +49,8 @@ def client(db_pool: ConnectionPool, migrated_database_url: str) -> Iterator[Test
         allow_remote_database=True,
         admin_api_key=API_KEY,
         embedding_provider="fake",
+        # No model key: only overridden fake providers answer; a summary without one is 503.
+        openrouter_api_key=None,
     )
     app = create_app(settings, docs_enabled=True)
     app.dependency_overrides[get_today] = lambda: TODAY
@@ -1071,3 +1082,269 @@ def test_summary_content_is_not_logged(
 
     app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
     assert not any("pierde" in message for message in app_messages)
+
+
+# --- generate_case_summary -------------------------------------------------------------------
+
+SUMMARY_TEXT = "### Problema\nLa línea 2 pierde un 4 % en el envasado."
+
+
+def summarise(client: TestClient, case_id: object, headers: dict[str, str] = HEADERS):
+    return client.post(f"/admin/cases/{case_id}/summary", headers=headers)
+
+
+def use_llm(client: TestClient, llm: object) -> None:
+    client.app.dependency_overrides[get_llm_provider] = lambda: llm
+
+
+def summary_response(text: str = SUMMARY_TEXT) -> LLMResponse:
+    return text_response(text, model="m-used", usage=Usage(total_tokens=812, cost=0.000412))
+
+
+def stored_summaries(pool: ConnectionPool) -> list[tuple]:
+    with pool.connection() as conn:
+        return conn.execute(
+            "select problem_id, content, source_version, model, prompts_version, total_tokens,"
+            " cost from case_summaries order by problem_id"
+        ).fetchall()
+
+
+def case_state(pool: ConnectionPool, problem_id: UUID) -> tuple:
+    with pool.connection() as conn:
+        row = conn.execute(
+            "select version, updated_at from problems where id = %s", (problem_id,)
+        ).fetchone()
+    assert row is not None
+    return row
+
+
+def test_summary_is_generated_stored_and_shown(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool, state="action")
+    add_detail(db_pool, problem_id)  # facts, annotations, version 5
+    add_turn(db_pool, problem_id, 1)
+    before = case_state(db_pool, problem_id)
+    llm = FakeLLMProvider([summary_response()])
+    use_llm(client, llm)
+
+    response = summarise(client, problem_id)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    generated_at = body.pop("generated_at")
+    assert body == {
+        "content": SUMMARY_TEXT,
+        "model": "m-used",
+        "source_version": 5,
+        "stale": False,
+    }
+    assert get_case(client, problem_id).json()["summary"] == {
+        **body,
+        "generated_at": generated_at,
+    }
+    assert stored_summaries(db_pool) == [
+        (problem_id, SUMMARY_TEXT, 5, "m-used", "summary-draft-1", 812, Decimal("0.000412"))
+    ]
+    assert case_state(db_pool, problem_id) == before
+    [call] = llm.calls
+    assert call.tools is None
+    assert call.system.startswith(load_prompts().summary)
+    for value in ("Fase actual del caso: action.", "Merma del 4 %", "Mensaje 1", "Respuesta 1"):
+        assert value in call.system, value
+
+
+def test_regenerating_replaces_and_clears_stale(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+    use_llm(client, FakeLLMProvider([summary_response("Primero"), summary_response("Segundo")]))
+    summarise(client, problem_id)
+    with db_pool.connection() as conn:
+        conn.execute("update problems set version = version + 1 where id = %s", (problem_id,))
+    assert get_case(client, problem_id).json()["summary"]["stale"] is True
+
+    body = summarise(client, problem_id).json()
+
+    assert (body["content"], body["source_version"], body["stale"]) == ("Segundo", 1, False)
+    assert [row[1] for row in stored_summaries(db_pool)] == ["Segundo"]
+
+
+class WritingLLM:
+    """Runs `sql` on the database while the model 'thinks', then answers."""
+
+    def __init__(self, pool: ConnectionPool, sql: str, response: LLMResponse) -> None:
+        self.pool, self.sql, self.response = pool, sql, response
+        self.calls = 0
+
+    def complete(self, **kwargs: Any) -> LLMResponse:
+        self.calls += 1
+        with self.pool.connection() as conn:
+            conn.execute(self.sql)
+        return self.response
+
+
+def test_a_newer_summary_stored_meanwhile_is_kept(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+    newer = (
+        "insert into case_summaries (problem_id, content, source_version, model,"
+        " prompts_version) select id, 'Más reciente', 3, 'm-otro', 'summary-draft-1'"
+        " from problems; update problems set version = 3"
+    )
+    use_llm(client, WritingLLM(db_pool, newer, summary_response("Viejo")))
+
+    body = summarise(client, problem_id).json()
+
+    assert (body["content"], body["source_version"], body["stale"]) == ("Más reciente", 3, False)
+    assert [row[1] for row in stored_summaries(db_pool)] == ["Más reciente"]
+
+
+def test_a_case_deleted_during_the_call_is_404(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+    use_llm(client, WritingLLM(db_pool, "delete from problems", summary_response()))
+
+    response = summarise(client, problem_id)
+
+    assert response.status_code == 404
+    assert response.json()["detail"][0]["type"] == "case_not_found"
+    assert stored_summaries(db_pool) == []
+
+
+def test_unknown_case_is_404_without_a_call(client: TestClient) -> None:
+    llm = FakeLLMProvider()
+    use_llm(client, llm)
+
+    response = summarise(client, uuid4())
+
+    assert response.status_code == 404
+    assert llm.calls == []
+
+
+def test_a_case_without_turns_is_409_without_a_call(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    llm = FakeLLMProvider()
+    use_llm(client, llm)
+
+    response = summarise(client, problem_id)
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": [{"type": "case_empty", "loc": [], "msg": "the case has no turns to summarise"}]
+    }
+    assert llm.calls == []
+
+
+def test_a_closed_case_can_be_summarised(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool, state="closed", link=("slack", "C123"))
+    add_turn(db_pool, problem_id, 1, phases=("followup", "closed"))
+    use_llm(client, FakeLLMProvider([summary_response()]))
+
+    assert summarise(client, problem_id).status_code == 200
+
+
+class RaisingLLM:
+    def __init__(self, error: LLMError) -> None:
+        self.error = error
+
+    def complete(self, **kwargs: Any) -> LLMResponse:
+        raise self.error
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "type"),
+    [
+        (LLMConfigError("no key"), 503, "llm_not_configured"),
+        (LLMUnavailableError("down", status=502), 502, "llm_unavailable"),
+        (LLMRateLimitError("slow", status=429), 502, "llm_rate_limited"),
+        (LLMInsufficientCreditsError("broke", status=402), 502, "llm_credits"),
+        (LLMAuthError("who", status=401), 502, "llm_auth"),
+        (LLMError("other"), 502, "llm_error"),
+    ],
+)
+def test_model_failures_store_nothing(
+    client: TestClient, db_pool: ConnectionPool, error: LLMError, status: int, type: str
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+    add_summary(db_pool, problem_id)
+    before = stored_summaries(db_pool)
+    use_llm(client, RaisingLLM(error))
+
+    response = summarise(client, problem_id)
+
+    assert response.status_code == status
+    [item] = response.json()["detail"]
+    assert item["type"] == type
+    assert str(error) not in item["msg"]
+    assert stored_summaries(db_pool) == before
+
+
+def test_an_empty_reply_is_502(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+    use_llm(client, FakeLLMProvider([text_response("  ")]))
+
+    response = summarise(client, problem_id)
+
+    assert response.status_code == 502
+    assert response.json()["detail"][0]["type"] == "llm_error"
+    assert stored_summaries(db_pool) == []
+
+
+def test_without_a_model_key_it_is_503(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+
+    response = summarise(client, problem_id)
+
+    assert response.status_code == 503
+    assert response.json()["detail"][0]["type"] == "llm_not_configured"
+
+
+def test_summary_needs_a_valid_id_and_the_key(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+    llm = FakeLLMProvider()
+    use_llm(client, llm)
+
+    assert summarise(client, "case-1").status_code == 422
+    assert summarise(client, problem_id, headers={}).status_code == 401
+    assert llm.calls == []
+
+
+def test_summary_input_takes_the_latest_messages(db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    for turn_no in range(1, 4):
+        add_turn(db_pool, problem_id, turn_no, annotation=True)
+
+    source = read_summary_input(db_pool, problem_id, message_limit=3)
+
+    assert source is not None
+    assert source.turns == 3
+    assert [m.content for m in source.messages] == ["Respuesta 2", "Mensaje 3", "Respuesta 3"]
+    assert source.omitted == 3
+    assert [e.event_type for e in source.snapshot.events] == ["evidence"] * 3
+
+
+def test_summary_content_and_prompt_are_not_logged(
+    client: TestClient, db_pool: ConnectionPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    problem_id, _ = add_case(db_pool, what="Merma confidencial")
+    add_turn(db_pool, problem_id, 1)
+    use_llm(client, FakeLLMProvider([summary_response("Resumen secreto")]))
+
+    with caplog.at_level("DEBUG"):
+        assert summarise(client, problem_id).status_code == 200
+
+    app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
+    assert (
+        f"case summary case_id={problem_id} tenant=cliente-acme source_version=0 stored=True"
+        in app_messages
+    )
+    for secret in ("secreto", "confidencial", "Mensaje 1", "Problema"):
+        assert not any(secret in m for m in app_messages), secret

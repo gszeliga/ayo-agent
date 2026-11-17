@@ -31,10 +31,10 @@ def write(directory: Path, name: str, text: str) -> None:
 def test_the_real_files_load_with_every_placeholder_resolved() -> None:
     prompts = load_prompts()
 
-    assert prompts.file_count == 7
+    assert prompts.file_count == 8
     assert set(prompts.phases) == set(PROMPT_PHASES)
     assert "closed" not in prompts.phases
-    for text in (prompts.base, prompts.glossary, *prompts.phases.values()):
+    for text in (prompts.base, prompts.glossary, prompts.summary, *prompts.phases.values()):
         assert text.strip() == text and text
         assert "$" not in text
         assert "DRAFT" not in text and "<!--" not in text and "-->" not in text
@@ -48,6 +48,19 @@ def test_every_real_file_carries_the_draft_note() -> None:
     for name in ("base", "glossary", *PROMPT_PHASES):
         text = (PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
         assert text.startswith("<!--\nDRAFT to make the engine work end to end.")
+
+
+def test_the_summary_prompt_is_a_draft_with_its_own_version() -> None:
+    raw = (PROMPTS_DIR / "summary.md").read_text(encoding="utf-8")
+    assert raw.startswith("<!--\nDRAFT of the case summary prompt")
+    assert "SUMMARY_PROMPTS_VERSION" in raw
+    assert "### Problema" in load_prompts().summary
+
+
+def test_hash_covers_the_summary_prompt(prompts_dir: Path) -> None:
+    before = load_prompts(prompts_dir).sha256
+    write(prompts_dir, "summary", (prompts_dir / "summary.md").read_text() + " ")
+    assert load_prompts(prompts_dir).sha256 != before
 
 
 def test_for_phase_refuses_closed() -> None:
@@ -86,9 +99,10 @@ def test_braced_placeholders_work(prompts_dir: Path) -> None:
     )
 
 
-def test_missing_file(prompts_dir: Path) -> None:
-    (prompts_dir / "challenge.md").unlink()
-    with pytest.raises(PromptError, match=r"prompt file challenge\.md is missing from"):
+@pytest.mark.parametrize("name", ["challenge", "summary"])
+def test_missing_file(prompts_dir: Path, name: str) -> None:
+    (prompts_dir / f"{name}.md").unlink()
+    with pytest.raises(PromptError, match=rf"prompt file {name}\.md is missing from"):
         load_prompts(prompts_dir)
 
 
@@ -113,9 +127,10 @@ def test_unclosed_comment(prompts_dir: Path) -> None:
 
 
 @pytest.mark.parametrize("text", [f"{SECRETISH}: cuesta 5 $", f"{SECRETISH} $ 5", "$5"])
-def test_stray_dollar(prompts_dir: Path, text: str) -> None:
-    write(prompts_dir, "understand", text)
-    with pytest.raises(PromptError, match=r"understand\.md has a \$ that is not a placeholder"):
+@pytest.mark.parametrize("name", ["understand", "summary"])
+def test_stray_dollar(prompts_dir: Path, text: str, name: str) -> None:
+    write(prompts_dir, name, text)
+    with pytest.raises(PromptError, match=rf"{name}\.md has a \$ that is not a placeholder"):
         load_prompts(prompts_dir)
 
 
@@ -130,8 +145,8 @@ def test_unknown_placeholder_names_the_allowed_ones(prompts_dir: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("name", ["base", "glossary"])
-def test_base_and_glossary_allow_no_placeholder(prompts_dir: Path, name: str) -> None:
+@pytest.mark.parametrize("name", ["base", "glossary", "summary"])
+def test_base_glossary_and_summary_allow_no_placeholder(prompts_dir: Path, name: str) -> None:
     write(prompts_dir, name, "Fase $phase")
     with pytest.raises(PromptError, match=rf"{name}\.md uses unknown placeholders \$phase"):
         load_prompts(prompts_dir)

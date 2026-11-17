@@ -3693,6 +3693,255 @@
         ]
       }
     },
+    "/admin/cases/{case_id}/summary": {
+      "post": {
+        "description": "Write the case's AI summary now, store it and return it. **Each\ncall is one billed language model call**; nothing generates a summary by itself.\n\nThe model gets `prompts/summary.md`, today's date, the case's phase, the case record (the\nfacts, annotations and actions) and the latest `SUMMARY_MAX_MESSAGES` messages, and no\ntools. The summary replaces the stored one, unless a summary made from a newer case\nversion was stored meanwhile: that one is kept and returned. Storing it never changes the\ncase (`version`, `updated_at`). A closed case can be summarised too.\n\nA failure stores nothing and leaves the previous summary in place.\n\n| Status | Meaning |\n|---|---|\n| `200` | The summary now stored, as in `get_case`. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id, or it was deleted during the call (`case_not_found`). |\n| `409` | `case_empty`: the case has no turns yet; no call was made. |\n| `422` | `case_id` is not a UUID (FastAPI validation). |\n| `502` | The language model failed, or returned no text (`llm_*`, see below). |\n| `503` | `llm_not_configured`: no language model key. |",
+        "operationId": "generate_case_summary",
+        "parameters": [
+          {
+            "description": "The case id (a UUID), as `case_id` in the listing or the copilot's replies.",
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "description": "The case id (a UUID), as `case_id` in the listing or the copilot's replies.",
+              "examples": [
+                "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+              ],
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            },
+            "description": "The summary now stored."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "case_not_found": {
+                    "summary": "Unknown case",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "case_id"
+                          ],
+                          "msg": "case not found",
+                          "type": "case_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No case with that id: `type` is `case_not_found`."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "case_empty": {
+                    "summary": "Nothing to summarise",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "the case has no turns to summarise",
+                          "type": "case_empty"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The case has no turns yet (`case_empty`): there is nothing to summarise, and no model call was made."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "uuid_parsing": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "error": "invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1"
+                          },
+                          "input": "case-1",
+                          "loc": [
+                            "path",
+                            "case_id"
+                          ],
+                          "msg": "Input should be a valid UUID, invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1",
+                          "type": "uuid_parsing"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`case_id` is not a UUID: `type` is `uuid_parsing`."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "llm_auth": {
+                    "summary": "The language model rejected our credentials",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "the language model rejected our credentials",
+                          "type": "llm_auth"
+                        }
+                      ]
+                    }
+                  },
+                  "llm_credits": {
+                    "summary": "The language model has no credits left",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "the language model has no credits left",
+                          "type": "llm_credits"
+                        }
+                      ]
+                    }
+                  },
+                  "llm_error": {
+                    "summary": "The language model call failed",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "the language model call failed",
+                          "type": "llm_error"
+                        }
+                      ]
+                    }
+                  },
+                  "llm_rate_limited": {
+                    "summary": "The language model is rate limited",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "the language model is rate limited",
+                          "type": "llm_rate_limited"
+                        }
+                      ]
+                    }
+                  },
+                  "llm_unavailable": {
+                    "summary": "The language model is unavailable",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "the language model is unavailable",
+                          "type": "llm_unavailable"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The language model failed after retries, or answered without text (`llm_error`). Nothing was stored. One fixed message per `type`, never the provider's details."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "llm_not_configured": {
+                    "summary": "The language model is not configured",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [],
+                          "msg": "the language model is not configured",
+                          "type": "llm_not_configured"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No language model is configured (`OPENROUTER_API_KEY` is unset). Nothing was stored."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "Generate a case's AI summary",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
     "/admin/cases/{case_id}/turns": {
       "get": {
         "description": "A case's turns, oldest first, one page at a time: for each, the\nuser's message, the copilot's reply and the turn's trace (phases, tool calls with their\noutcome, the knowledge retrieved, model, tokens, cost, latency).\n\n`total` is the case's turn count (`turns` in `get_case`) and turn n is item `n - 1`\ncounting from `offset` 0, so the latest page starts at `offset = max(0, total - limit)`.\nTurns are only ever added at the end: a new one never moves the earlier pages.\n\nThe trace has no prompts, tool arguments or retrieved text. A retrieved chunk carries its\ndocument's current title, and `document_deleted` once the document is gone.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page, possibly empty (no turns yet, or `offset` past the last turn). |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (`case_not_found`). |\n| `422` | `case_id` is not a UUID, or `limit` (1 to 50) or `offset` is out of range. |",
@@ -6161,7 +6410,7 @@
               "application/json": {
                 "examples": {
                   "llm_not_configured": {
-                    "summary": "No model key",
+                    "summary": "The language model is not configured",
                     "value": {
                       "detail": [
                         {
