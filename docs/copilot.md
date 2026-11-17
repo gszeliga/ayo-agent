@@ -70,9 +70,23 @@ curl -s "http://127.0.0.1:8000/admin/cases?tenant=cliente-acme&closed=false" \
 title, phase, version, turn count, times, `web_session_id`), the four facts, the
 annotations and the actions, with `overdue` computed as in the session view. An unknown
 id is `404 case_not_found`, a malformed one `422`. The conversation and the turn traces
-are not part of it: they come in pages of turns from a separate endpoint (next step, C5),
-so a long case never loads at once. The admin view is cross-tenant: there is no tenant
-parameter.
+are not part of it: they come in pages of turns, so a long case never loads at once. The
+admin view is cross-tenant: there is no tenant parameter.
+
+`GET /admin/cases/{case_id}/turns` pages through a case's turns, oldest first (`limit`
+1-50, default 20; `offset`; `total` is the turn count):
+
+- Each item is one committed turn: `turn`, `phase_before`, `phase_after`, the user's
+  message, the reply and the trace (model, prompts version, calls, tokens, cost, duration,
+  `capped`, `retrieval_error`, the tool calls with outcome, `target` and `missing`, and
+  the retrieved chunks with `chunk_id`, `doc_id`, the document's current title,
+  `document_deleted` and similarity). No prompts, tool arguments or chunk text.
+- Each turn stores exactly one user message and one reply, so the n-th of each is turn n.
+- To show the latest turns first, ask for `offset = max(0, total - limit)` and step back
+  by `limit`; after a new turn, fetch `offset = total` and append. Turns are only added at
+  the end, so earlier pages never move.
+- A document deleted since (or not in the case's tenant) shows `document_deleted: true`
+  and a null title.
 
 ## The flow of a turn
 

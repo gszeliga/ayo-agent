@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi import Path as PathParam
 from psycopg_pool import ConnectionPool
 
-from ayo_copilot.cases import read_case_detail, read_case_page
+from ayo_copilot.cases import read_case_detail, read_case_page, read_case_turns
 from ayo_copilot.conversation.case import Phase
 from ayo_copilot.dependencies import get_pool, get_today
 from ayo_copilot.errors import ApiError
@@ -21,9 +21,11 @@ from ayo_copilot.ingestion.storage import TENANT_PATTERN
 from ayo_copilot.routers.admin import UNAUTHORIZED_RESPONSE, require_admin_key
 from ayo_copilot.schemas import (
     CASE_ID_EXAMPLE,
+    TURN_PAGE_MAX,
     CaseDetail,
     CaseListItem,
     CasePage,
+    CaseTurnPage,
     ErrorResponse,
 )
 
@@ -166,7 +168,8 @@ version, turn count, times, `web_session_id`), the four facts, the annotations (
 hypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`
 computed in `APP_TIMEZONE`.
 
-The conversation and the turn traces are not part of it.
+The conversation and the turn traces are not part of it: page through them with
+`GET /admin/cases/{case_id}/turns`.
 
 | Status | Meaning |
 |---|---|
@@ -178,6 +181,22 @@ The conversation and the turn traces are not part of it.
 
 CASE_ID_PARAM = "The case id (a UUID), as `case_id` in the listing or the copilot's replies."
 CASE_NOT_FOUND = _error("case_not_found", ["path", "case_id"], "case not found")
+CASE_NOT_FOUND_RESPONSE: dict[str, object] = {
+    "model": ErrorResponse,
+    "description": "No case with that id: `type` is `case_not_found`.",
+    "content": _examples(case_not_found=("Unknown case", CASE_NOT_FOUND)),
+}
+MALFORMED_CASE_ID = _error(
+    "uuid_parsing",
+    ["path", "case_id"],
+    "Input should be a valid UUID, invalid character: expected an optional"
+    " prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1",
+    input="case-1",
+    ctx={
+        "error": "invalid character: expected an optional prefix of"
+        " `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1"
+    },
+)
 
 
 @router.get(
@@ -188,30 +207,11 @@ CASE_NOT_FOUND = _error("case_not_found", ["path", "case_id"], "case not found")
     responses={
         # The 200 sample comes from the field examples (see `schemas.CaseDetail`).
         200: {"description": "The case."},
-        404: {
-            "model": ErrorResponse,
-            "description": "No case with that id: `type` is `case_not_found`.",
-            "content": _examples(case_not_found=("Unknown case", CASE_NOT_FOUND)),
-        },
+        404: CASE_NOT_FOUND_RESPONSE,
         422: {
             "model": ErrorResponse,
             "description": "`case_id` is not a UUID: `type` is `uuid_parsing`.",
-            "content": _examples(
-                uuid_parsing=(
-                    "Malformed id",
-                    _error(
-                        "uuid_parsing",
-                        ["path", "case_id"],
-                        "Input should be a valid UUID, invalid character: expected an optional"
-                        " prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1",
-                        input="case-1",
-                        ctx={
-                            "error": "invalid character: expected an optional prefix of"
-                            " `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1"
-                        },
-                    ),
-                ),
-            ),
+            "content": _examples(uuid_parsing=("Malformed id", MALFORMED_CASE_ID)),
         },
     },
 )
@@ -222,5 +222,77 @@ def get_case(
 ) -> CaseDetail:
     detail = read_case_detail(pool, case_id, today=today)
     if detail is None:
-        raise ApiError(404, "case_not_found", "case not found", ["path", "case_id"])
+        raise _case_not_found()
     return CaseDetail.from_detail(detail)
+
+
+def _case_not_found() -> ApiError:
+    return ApiError(404, "case_not_found", "case not found", ["path", "case_id"])
+
+
+TURNS_DESCRIPTION = f"""A case's turns, oldest first, one page at a time: for each, the
+user's message, the copilot's reply and the turn's trace (phases, tool calls with their
+outcome, the knowledge retrieved, model, tokens, cost, latency).
+
+`total` is the case's turn count (`turns` in `get_case`) and turn n is item `n - 1`
+counting from `offset` 0, so the latest page starts at `offset = max(0, total - limit)`.
+Turns are only ever added at the end: a new one never moves the earlier pages.
+
+The trace has no prompts, tool arguments or retrieved text. A retrieved chunk carries its
+document's current title, and `document_deleted` once the document is gone.
+
+| Status | Meaning |
+|---|---|
+| `200` | A page, possibly empty (no turns yet, or `offset` past the last turn). |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No case with that id (`case_not_found`). |
+| `422` | `case_id` is not a UUID, or `limit` (1 to {TURN_PAGE_MAX}) or `offset` is out of range. |
+"""
+
+
+@router.get(
+    "/{case_id}/turns",
+    operation_id="list_case_turns",
+    summary="List a case's turns",
+    description=TURNS_DESCRIPTION,
+    responses={
+        # The 200 sample comes from the field examples (see `schemas.CaseTurn`).
+        200: {"description": "A page of turns."},
+        404: CASE_NOT_FOUND_RESPONSE,
+        422: {
+            "model": ErrorResponse,
+            "description": "`case_id` is not a UUID (`uuid_parsing`), or `limit` or `offset` is"
+            " out of range (`greater_than_equal`, `less_than_equal`).",
+            "content": _examples(
+                uuid_parsing=("Malformed id", MALFORMED_CASE_ID),
+                less_than_equal=(
+                    "Page too large",
+                    _error(
+                        "less_than_equal",
+                        ["query", "limit"],
+                        f"Input should be less than or equal to {TURN_PAGE_MAX}",
+                        input="500",
+                        ctx={"le": TURN_PAGE_MAX},
+                    ),
+                ),
+            ),
+        },
+    },
+)
+def list_case_turns(
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    case_id: Annotated[UUID, PathParam(description=CASE_ID_PARAM, examples=[CASE_ID_EXAMPLE])],
+    limit: Annotated[
+        int,
+        Query(
+            ge=1, le=TURN_PAGE_MAX, description=f"Page size, 1 to {TURN_PAGE_MAX}.", examples=[20]
+        ),
+    ] = 20,
+    offset: Annotated[
+        int, Query(ge=0, description="Number of turns to skip, oldest first.", examples=[0])
+    ] = 0,
+) -> CaseTurnPage:
+    turns = read_case_turns(pool, case_id, limit=limit, offset=offset)
+    if turns is None:
+        raise _case_not_found()
+    return CaseTurnPage.from_turns(turns, limit=limit, offset=offset)

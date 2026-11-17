@@ -4,14 +4,17 @@ counts are exact."""
 
 from collections.abc import Iterator
 from datetime import date
+from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from ayo_copilot.app import create_app
+from ayo_copilot.cases import MissingTurnMessage, read_case_turns
 from ayo_copilot.config import Settings
 from ayo_copilot.dependencies import get_llm_provider, get_today
 from ayo_copilot.llm.fake import (
@@ -466,3 +469,391 @@ def test_case_content_is_not_logged(
     app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
     for secret in ("Merma", "Línea 2", "Sensor descalibrado", "Recalibrar", "Ana"):
         assert not any(secret in message for message in app_messages), secret
+
+
+# --- list_case_turns -----------------------------------------------------------------------
+
+
+def list_turns(client: TestClient, case_id: object, headers=HEADERS, **params: Any):
+    return client.get(f"/admin/cases/{case_id}/turns", params=params, headers=headers)
+
+
+def upload(client: TestClient, tenant: str, name: str, title: str = "Calibración") -> str:
+    """A document through the admin API (fake embedder); returns its doc_id."""
+    response = client.post(
+        "/admin/documents",
+        files={
+            "file": (name, f"# {title}\n\nAjustar el sensor de nivel.\n".encode(), "text/markdown")
+        },
+        data={"tenant": tenant},
+        headers=HEADERS,
+    )
+    assert response.status_code in (200, 201), response.text
+    return response.json()["doc_id"]
+
+
+def add_turn(
+    pool: ConnectionPool,
+    problem_id: UUID,
+    turn_no: int,
+    *,
+    phases: tuple[str, str] = ("understand", "understand"),
+    tool_calls: list[dict[str, Any]] | None = None,
+    retrieved: list[dict[str, Any]] | None = None,
+    annotation: bool = False,
+    **trace: Any,
+) -> None:
+    """A committed turn as `commit_turn` writes it: the user message, an optional
+    annotation, the reply and the trace."""
+    before, after = phases
+    with pool.connection() as conn:
+        rows = [("user", "message", f"Mensaje {turn_no}", before)]
+        if annotation:
+            rows.append(("assistant", "evidence", f"Evidencia {turn_no}", after))
+        rows.append(("assistant", "message", f"Respuesta {turn_no}", after))
+        for role, event_type, content, phase in rows:
+            conn.execute(
+                "insert into problem_events (problem_id, role, event_type, content,"
+                " state_at_time, created_at)"
+                " values (%s, %s, %s, %s, %s,"
+                " timestamptz '2026-11-13 09:00+00' + %s * interval '1 minute')",
+                (problem_id, role, event_type, content, phase, turn_no),
+            )
+        values = {
+            "model": "openai/gpt-4.1-mini",
+            "prompts_version": "draft-1",
+            "llm_calls": 1,
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+            "cost": None,
+            "retrieval_error": None,
+            "capped": False,
+            "duration_ms": 100 + turn_no,
+            **trace,
+        }
+        conn.execute(
+            "insert into turn_traces (problem_id, turn_no, phase_before, phase_after, model,"
+            " prompts_version, llm_calls, prompt_tokens, completion_tokens, total_tokens, cost,"
+            " tool_calls, retrieved, retrieval_error, capped, duration_ms, created_at)"
+            " values (%(problem_id)s, %(turn_no)s, %(before)s, %(after)s, %(model)s,"
+            " %(prompts_version)s, %(llm_calls)s, %(prompt_tokens)s, %(completion_tokens)s,"
+            " %(total_tokens)s, %(cost)s, %(tool_calls)s, %(retrieved)s, %(retrieval_error)s,"
+            " %(capped)s, %(duration_ms)s,"
+            " timestamptz '2026-11-13 09:00:30+00' + %(turn_no)s * interval '1 minute')",
+            {
+                **values,
+                "problem_id": problem_id,
+                "turn_no": turn_no,
+                "before": before,
+                "after": after,
+                "tool_calls": Jsonb(tool_calls or []),
+                "retrieved": Jsonb(retrieved or []),
+            },
+        )
+
+
+def turns(response) -> list[int]:
+    assert response.status_code == 200, response.text
+    return [item["turn"] for item in response.json()["items"]]
+
+
+def test_turn_fields(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool, state="analyse")
+    add_turn(
+        db_pool,
+        problem_id,
+        1,
+        phases=("challenge", "analyse"),
+        tool_calls=[
+            {"name": "log_event", "ok": True, "error_code": None},
+            {
+                "name": "propose_transition",
+                "ok": False,
+                "error_code": "criteria_not_met",
+                "target": "analyse",
+                "missing": ["evidence"],
+            },
+            {
+                "name": "propose_transition",
+                "ok": True,
+                "error_code": None,
+                "target": "analyse",
+                "missing": [],
+            },
+        ],
+        llm_calls=3,
+        prompt_tokens=3120,
+        completion_tokens=210,
+        total_tokens=3330,
+        cost=Decimal("0.0021"),
+        capped=True,
+        retrieval_error="embedding_failed",
+    )
+
+    response = list_turns(client, problem_id)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["total"], body["limit"], body["offset"]) == (1, 20, 0)
+    [item] = body["items"]
+    assert item == {
+        "turn": 1,
+        "phase_before": "challenge",
+        "phase_after": "analyse",
+        "created_at": "2026-11-13T09:01:30Z",
+        "user_message": {
+            "content": "Mensaje 1",
+            "state_at_time": "challenge",
+            "created_at": "2026-11-13T09:01:00Z",
+        },
+        "reply": {
+            "content": "Respuesta 1",
+            "state_at_time": "analyse",
+            "created_at": "2026-11-13T09:01:00Z",
+        },
+        "trace": {
+            "model": "openai/gpt-4.1-mini",
+            "prompts_version": "draft-1",
+            "llm_calls": 3,
+            "prompt_tokens": 3120,
+            "completion_tokens": 210,
+            "total_tokens": 3330,
+            "cost": 0.0021,
+            "duration_ms": 101,
+            "capped": True,
+            "retrieval_error": "embedding_failed",
+            "tool_calls": [
+                {
+                    "name": "log_event",
+                    "ok": True,
+                    "error_code": None,
+                    "target": None,
+                    "missing": [],
+                },
+                {
+                    "name": "propose_transition",
+                    "ok": False,
+                    "error_code": "criteria_not_met",
+                    "target": "analyse",
+                    "missing": ["evidence"],
+                },
+                {
+                    "name": "propose_transition",
+                    "ok": True,
+                    "error_code": None,
+                    "target": "analyse",
+                    "missing": [],
+                },
+            ],
+            "retrieved": [],
+        },
+    }
+
+
+def test_old_trace_rows_have_no_target(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(
+        db_pool,
+        problem_id,
+        1,
+        tool_calls=[{"name": "propose_transition", "ok": False, "error_code": "criteria_not_met"}],
+    )
+
+    [call] = list_turns(client, problem_id).json()["items"][0]["trace"]["tool_calls"]
+
+    assert (call["target"], call["missing"]) == (None, [])
+
+
+def test_messages_are_paired_by_turn(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    for turn_no in range(1, 5):
+        # Annotations sit between the messages and are not counted.
+        add_turn(db_pool, problem_id, turn_no, annotation=turn_no % 2 == 1)
+
+    items = list_turns(client, problem_id).json()["items"]
+
+    assert [(i["turn"], i["user_message"]["content"], i["reply"]["content"]) for i in items] == [
+        (n, f"Mensaje {n}", f"Respuesta {n}") for n in range(1, 5)
+    ]
+    assert "Evidencia" not in str(items)
+
+
+def test_pages_walk_back_from_the_latest(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+    for turn_no in range(1, 6):
+        add_turn(db_pool, problem_id, turn_no)
+    total = get_case(client, problem_id).json()["turns"]
+
+    # As the UI does it: the latest page first, then older ones.
+    pages = [
+        turns(list_turns(client, problem_id, limit=2, offset=offset))
+        for offset in (max(0, total - 2), total - 4, 0)
+    ]
+
+    assert total == 5
+    assert pages == [[4, 5], [2, 3], [1, 2]]
+    assert list_turns(client, problem_id, limit=2, offset=3).json()["total"] == 5
+    assert turns(list_turns(client, problem_id, offset=5)) == []
+    assert turns(list_turns(client, problem_id, offset=50)) == []
+    assert turns(list_turns(client, problem_id)) == [1, 2, 3, 4, 5]
+
+
+def test_a_new_turn_does_not_move_earlier_pages(
+    client: TestClient, db_pool: ConnectionPool
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    for turn_no in range(1, 4):
+        add_turn(db_pool, problem_id, turn_no)
+    before = list_turns(client, problem_id, limit=2, offset=0).json()["items"]
+
+    add_turn(db_pool, problem_id, 4)
+
+    assert list_turns(client, problem_id, limit=2, offset=0).json()["items"] == before
+    assert turns(list_turns(client, problem_id, offset=3)) == [4]
+
+
+def test_case_without_turns_has_an_empty_page(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+
+    response = list_turns(client, problem_id)
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
+
+
+def test_retrieved_documents(client: TestClient, db_pool: ConnectionPool) -> None:
+    kept = upload(client, "cliente-acme", "pro-001.md", title="Calibración de la llenadora")
+    gone = upload(client, "cliente-acme", "pro-002.md")
+    untitled = upload(client, "cliente-acme", "pro-003.md")
+    foreign = upload(client, "otro-cliente", "pro-004.md", title="Ajeno")
+    assert client.delete(f"/admin/documents/{gone}", headers=HEADERS).status_code == 204
+    with db_pool.connection() as conn:
+        conn.execute("update documents set title = null where doc_id = %s", (untitled,))
+    problem_id, _ = add_case(db_pool)
+    chunk = "5b0d7c2e-9a41-4f3e-8c6d-2e1f0a9b7c34"
+    add_turn(
+        db_pool,
+        problem_id,
+        1,
+        retrieved=[
+            {"chunk_id": chunk, "similarity": 0.82, "doc_id": kept},
+            {"chunk_id": chunk, "similarity": 0.71, "doc_id": gone},
+            {"chunk_id": chunk, "similarity": 0.65, "doc_id": untitled},
+            # Another tenant's document never shows its title in this case.
+            {"chunk_id": chunk, "similarity": 0.6, "doc_id": foreign},
+        ],
+    )
+
+    retrieved = list_turns(client, problem_id).json()["items"][0]["trace"]["retrieved"]
+
+    assert retrieved == [
+        {
+            "chunk_id": chunk,
+            "doc_id": kept,
+            "document_title": "Calibración de la llenadora",
+            "document_deleted": False,
+            "similarity": 0.82,
+        },
+        {
+            "chunk_id": chunk,
+            "doc_id": gone,
+            "document_title": None,
+            "document_deleted": True,
+            "similarity": 0.71,
+        },
+        {
+            "chunk_id": chunk,
+            "doc_id": untitled,
+            "document_title": None,
+            "document_deleted": False,
+            "similarity": 0.65,
+        },
+        {
+            "chunk_id": chunk,
+            "doc_id": foreign,
+            "document_title": None,
+            "document_deleted": True,
+            "similarity": 0.6,
+        },
+    ]
+
+
+def test_turns_of_a_copilot_conversation(client: TestClient) -> None:
+    llm = FakeLLMProvider(
+        [
+            tool_calls_response(tool_call("record_field", {"field": "what", "value": "Merma"})),
+            text_response("¿En qué línea?"),
+            text_response("¿Desde cuándo?"),
+        ]
+    )
+    client.app.dependency_overrides[get_llm_provider] = lambda: llm
+    session_id = str(uuid4())
+    for text in ("Hay merma", "En la línea 2"):
+        sent = client.post(
+            "/copilot/messages",
+            json={"session_id": session_id, "tenant": "cliente-acme", "text": text},
+            headers=HEADERS,
+        ).json()
+
+    items = list_turns(client, sent["case_id"]).json()["items"]
+
+    assert [(i["turn"], i["user_message"]["content"], i["reply"]["content"]) for i in items] == [
+        (1, "Hay merma", "¿En qué línea?"),
+        (2, "En la línea 2", "¿Desde cuándo?"),
+    ]
+    assert [c["name"] for c in items[0]["trace"]["tool_calls"]] == ["record_field"]
+    assert items[1]["trace"]["tool_calls"] == []
+
+
+def test_turns_of_an_unknown_case_are_404(client: TestClient) -> None:
+    response = list_turns(client, uuid4())
+
+    assert response.status_code == 404
+    assert response.json()["detail"][0]["type"] == "case_not_found"
+
+
+@pytest.mark.parametrize(
+    ("case_id", "params", "loc", "type"),
+    [
+        ("case-1", {}, ["path", "case_id"], "uuid_parsing"),
+        (None, {"limit": 0}, ["query", "limit"], "greater_than_equal"),
+        (None, {"limit": 51}, ["query", "limit"], "less_than_equal"),
+        (None, {"offset": -1}, ["query", "offset"], "greater_than_equal"),
+    ],
+)
+def test_invalid_turn_parameters_are_422(
+    client: TestClient, case_id: str | None, params: dict[str, Any], loc: list[str], type: str
+) -> None:
+    response = list_turns(client, case_id or uuid4(), **params)
+
+    assert response.status_code == 422
+    [error] = response.json()["detail"]
+    assert (error["loc"], error["type"]) == (loc, type)
+
+
+def test_turns_need_the_key(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+
+    assert list_turns(client, problem_id, headers={}).status_code == 401
+
+
+def test_turn_content_is_not_logged(
+    client: TestClient, db_pool: ConnectionPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_turn(db_pool, problem_id, 1)
+
+    with caplog.at_level("DEBUG"):
+        assert list_turns(client, problem_id).status_code == 200
+
+    app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
+    assert not any("Mensaje" in m or "Respuesta" in m for m in app_messages)
+
+
+def test_a_turn_without_its_messages_is_an_error(db_pool: ConnectionPool) -> None:
+    # `commit_turn` always writes both messages with the trace; a gap is a bug, not a page.
+    problem_id, _ = add_case(db_pool, turns=1)
+
+    with pytest.raises(MissingTurnMessage):
+        read_case_turns(db_pool, problem_id, limit=20, offset=0)

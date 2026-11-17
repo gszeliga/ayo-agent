@@ -353,43 +353,86 @@ def insert_trace(
 # --- Reading traces ---------------------------------------------------------------------
 
 
+_TRACE_SELECT = """
+    select turn_no, phase_before, phase_after, created_at, model, prompts_version,
+      llm_calls, prompt_tokens, completion_tokens, total_tokens, cost, tool_calls,
+      retrieved, retrieval_error, capped, duration_ms
+    from turn_traces where problem_id = %(problem_id)s order by turn_no"""
+
+
+def _stored_trace(row: tuple) -> StoredTrace:
+    return StoredTrace(
+        turn_no=row[0],
+        phase_before=row[1],
+        phase_after=row[2],
+        created_at=row[3],
+        trace=TraceRecord(
+            model=row[4],
+            prompts_version=row[5],
+            llm_calls=row[6],
+            prompt_tokens=row[7],
+            completion_tokens=row[8],
+            total_tokens=row[9],
+            cost=None if row[10] is None else float(row[10]),
+            tool_calls=tuple(ToolCallTrace.from_json(t) for t in row[11]),
+            retrieved=tuple(
+                RetrievedTrace(UUID(r["chunk_id"]), r["similarity"], r["doc_id"]) for r in row[12]
+            ),
+            retrieval_error=row[13],
+            capped=row[14],
+            duration_ms=row[15],
+        ),
+    )
+
+
 def list_traces(conn: Connection, problem_id: UUID) -> list[StoredTrace]:
     """A case's turn traces, in turn order."""
+    rows = conn.execute(_TRACE_SELECT, {"problem_id": problem_id}).fetchall()
+    return [_stored_trace(row) for row in rows]
+
+
+def list_trace_page(
+    conn: Connection, problem_id: UUID, *, limit: int, offset: int
+) -> list[StoredTrace]:
+    """A window of a case's turn traces, oldest first: turns `offset + 1` onwards."""
     rows = conn.execute(
-        """
-        select turn_no, phase_before, phase_after, created_at, model, prompts_version,
-          llm_calls, prompt_tokens, completion_tokens, total_tokens, cost, tool_calls,
-          retrieved, retrieval_error, capped, duration_ms
-        from turn_traces where problem_id = %s order by turn_no
-        """,
-        (problem_id,),
+        f"{_TRACE_SELECT} limit %(limit)s offset %(offset)s",
+        {"problem_id": problem_id, "limit": limit, "offset": offset},
     ).fetchall()
-    return [
-        StoredTrace(
-            turn_no=row[0],
-            phase_before=row[1],
-            phase_after=row[2],
-            created_at=row[3],
-            trace=TraceRecord(
-                model=row[4],
-                prompts_version=row[5],
-                llm_calls=row[6],
-                prompt_tokens=row[7],
-                completion_tokens=row[8],
-                total_tokens=row[9],
-                cost=None if row[10] is None else float(row[10]),
-                tool_calls=tuple(ToolCallTrace.from_json(t) for t in row[11]),
-                retrieved=tuple(
-                    RetrievedTrace(UUID(r["chunk_id"]), r["similarity"], r["doc_id"])
-                    for r in row[12]
-                ),
-                retrieval_error=row[13],
-                capped=row[14],
-                duration_ms=row[15],
-            ),
-        )
-        for row in rows
-    ]
+    return [_stored_trace(row) for row in rows]
+
+
+def list_turn_messages(
+    conn: Connection, problem_id: UUID, *, first_turn: int, last_turn: int
+) -> dict[tuple[int, str], Event]:
+    """The messages of turns `first_turn` to `last_turn`, keyed by (turn, role).
+
+    Every committed turn stores exactly one user message and one reply (`commit_turn`), so
+    the n-th message of each role belongs to turn n.
+    """
+    rows = conn.execute(
+        f"""
+        select turn, {_EVENT_COLUMNS} from (
+          select row_number() over (partition by role order by id) as turn, {_EVENT_COLUMNS}
+          from problem_events where problem_id = %(problem_id)s and event_type = 'message'
+        ) numbered
+        where turn between %(first)s and %(last)s
+        """,
+        {"problem_id": problem_id, "first": first_turn, "last": last_turn},
+    ).fetchall()
+    return {(row[0], row[2]): _event(row[1:]) for row in rows}
+
+
+def document_titles(conn: Connection, tenant: str, doc_ids: Sequence[str]) -> dict[str, str | None]:
+    """The titles of the tenant's documents among `doc_ids` (a title may be null); a
+    document missing from the result no longer exists."""
+    if not doc_ids:
+        return {}
+    rows = conn.execute(
+        "select doc_id, title from documents where tenant = %s and doc_id = any(%s)",
+        (tenant, list(doc_ids)),
+    ).fetchall()
+    return {row[0]: row[1] for row in rows}
 
 
 # --- Listing cases (admin) -------------------------------------------------------------------

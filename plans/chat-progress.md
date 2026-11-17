@@ -7,7 +7,7 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1-C4 and the access-log side step done (2026-11-17). Next: C5, brief first.
+C1-C5 and the access-log side step done (2026-11-17). Next: C6, brief first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -38,13 +38,21 @@ C1-C4 and the access-log side step done (2026-11-17). Next: C5, brief first.
 10. **Turns are paged apart from the case** (agreed 2026-11-17, C4 brief): `get_case`
     carries the header, facts, annotations and actions only. Messages and traces come
     from `GET /admin/cases/{case_id}/turns` (C5), one item per turn (user message, reply,
-    trace), newest first, with a `before_turn` cursor (stable while new turns are
-    committed, unlike an offset), so the UI loads older turns as you scroll. This adds a
-    step: delete, summary table and summary generation move to C6-C8.
+    trace), so the UI loads older turns as you scroll. This adds a step: delete, summary
+    table and summary generation move to C6-C8.
 11. **`chunk_id` is exposed** in the trace's retrieved chunks (an id, never text), next to
     `doc_id`, the document title and `document_deleted` (agreed 2026-11-17).
 12. **The admin view is cross-tenant**: no tenant parameter on `/admin/cases/*`
     (agreed 2026-11-17).
+13. **Turns page oldest first with `offset`** (agreed 2026-11-17, C5 brief), in the usual
+    `Page` shape. Turns are only added at the end, so offsets never move while chatting
+    (newest first would shift every page by one per new turn; a cursor would need a new
+    page shape). The UI loads the latest with `offset = max(0, turns - limit)`, steps back
+    by `limit`, and after a turn fetches `offset = turns`. Pages are chosen by the SQL
+    (`order by turn_no limit offset`), not by sorting in code.
+14. **A turn missing its user message or reply is a server error** (500,
+    `MissingTurnMessage`), not a null field: `commit_turn` writes both with the trace, so
+    a gap is a bug.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -57,8 +65,8 @@ C1-C4 and the access-log side step done (2026-11-17). Next: C5, brief first.
   missing item codes on `criteria_not_met` (agreed in the C3 brief).
 - [x] **C4** `GET /admin/cases/{case_id}` (`get_case`): header, facts, events, actions
   (API `overdue`); `404 case_not_found`. No messages or traces (decision 10).
-- [ ] **C5** `GET /admin/cases/{case_id}/turns` (`list_case_turns`): newest first,
-  `before_turn` cursor and `limit`; each turn its user message, reply (both with `turn`)
+- [x] **C5** `GET /admin/cases/{case_id}/turns` (`list_case_turns`): oldest first,
+  `limit`/`offset` (decision 13); each turn its user message, reply (both with `turn`)
   and trace (phases, tool calls with outcome, target and missing codes, model, tokens,
   cost, calls, latency, capped, retrieval error, chunks with `chunk_id`, `doc_id`,
   document title, similarity; `document_deleted` when gone). No chunk text, no tool
@@ -144,3 +152,22 @@ C1-C4 and the access-log side step done (2026-11-17). Next: C5, brief first.
   view after a real `/copilot` turn that records `what`, 404, 422, 401, no content in the
   app's logs. Contract cases for 200 (open, closed), 401, 404 and 422;
   `test_admin_auth.py` gets a `case_id` path value. Full suite green (1451 passed).
+- **C5 (2026-11-17).** `GET /admin/cases/{case_id}/turns` (`list_case_turns`) in
+  `routers/cases.py`: `limit` 1-50 (default 20), `offset`; `200` (empty with no turns or
+  past the end), `401`, `404 case_not_found`, `422`. The 404 and malformed-id examples are
+  shared with `get_case`. `db/conversations.py`: the trace select and row mapping are
+  shared (`_TRACE_SELECT`, `_stored_trace`) by `list_traces` and the new
+  `list_trace_page`; `list_turn_messages` numbers messages per role with `row_number()`
+  (n-th user message and n-th reply = turn n) for the page's turn range;
+  `document_titles(tenant, doc_ids)`. `cases.read_case_turns` (repeatable read, read only):
+  the case, the count, the page of traces, their messages and one title lookup;
+  `MissingTurnMessage` when a turn lacks a message (decision 14). `schemas`:
+  `CaseTurnMessage`, `CaseToolCall`, `CaseRetrievedChunk`, `CaseTrace`, `CaseTurn`,
+  `CaseTurnPage`. README table, `docs/copilot.md`, `docs/openapi.json`, `schema.d.ts`.
+  Tests (`tests/api/test_cases.py`, 15): every field of a turn (a log_event, a refused and
+  an accepted proposal with target and missing codes, tokens, cost, capped, retrieval
+  error), an old trace row, pairing with annotations in between, paging back from the
+  latest in pages of 2 and past the end, a new turn not moving page 1, an empty case,
+  retrieved documents (kept, deleted, untitled, another tenant's), two real `/copilot`
+  turns, 404, four 422s, 401, no content in the logs, and the missing-message error.
+  Contract cases for 200 (items, empty), 401, 404 and 422 (id, limit).

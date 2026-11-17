@@ -50,7 +50,8 @@ export interface paths {
          *     hypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`
          *     computed in `APP_TIMEZONE`.
          *
-         *     The conversation and the turn traces are not part of it.
+         *     The conversation and the turn traces are not part of it: page through them with
+         *     `GET /admin/cases/{case_id}/turns`.
          *
          *     | Status | Meaning |
          *     |---|---|
@@ -60,6 +61,42 @@ export interface paths {
          *     | `422` | `case_id` is not a UUID (FastAPI validation). |
          */
         get: operations["get_case"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cases/{case_id}/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a case's turns
+         * @description A case's turns, oldest first, one page at a time: for each, the
+         *     user's message, the copilot's reply and the turn's trace (phases, tool calls with their
+         *     outcome, the knowledge retrieved, model, tokens, cost, latency).
+         *
+         *     `total` is the case's turn count (`turns` in `get_case`) and turn n is item `n - 1`
+         *     counting from `offset` 0, so the latest page starts at `offset = max(0, total - limit)`.
+         *     Turns are only ever added at the end: a new one never moves the earlier pages.
+         *
+         *     The trace has no prompts, tool arguments or retrieved text. A retrieved chunk carries its
+         *     document's current title, and `document_deleted` once the document is gone.
+         *
+         *     | Status | Meaning |
+         *     |---|---|
+         *     | `200` | A page, possibly empty (no turns yet, or `offset` past the last turn). |
+         *     | `401` | `X-API-Key` missing or wrong. |
+         *     | `404` | No case with that id (`case_not_found`). |
+         *     | `422` | `case_id` is not a UUID, or `limit` (1 to 50) or `offset` is out of range. |
+         */
+        get: operations["list_case_turns"];
         put?: never;
         post?: never;
         delete?: never;
@@ -778,6 +815,252 @@ export interface components {
              * Total
              * @description Number of items matching the filters, across all pages.
              * @example 42
+             */
+            total: number;
+        };
+        /**
+         * CaseRetrievedChunk
+         * @description One knowledge chunk retrieved for the turn: ids, document and similarity, never its
+         *     text.
+         */
+        CaseRetrievedChunk: {
+            /**
+             * Chunk Id
+             * Format: uuid
+             * @description The chunk, as it was then (reprocessing a document replaces its chunks).
+             * @example 5b0d7c2e-9a41-4f3e-8c6d-2e1f0a9b7c34
+             */
+            chunk_id: string;
+            /**
+             * Doc Id
+             * @description The document it came from.
+             * @example upload-1f2e3d4c5b6a
+             */
+            doc_id: string;
+            /**
+             * Document Deleted
+             * @description The document no longer exists in the case's tenant.
+             * @example false
+             */
+            document_deleted: boolean;
+            /**
+             * Document Title
+             * @description The document's current title; null when it has none or was deleted.
+             * @example Procedimiento de calibración de la llenadora
+             */
+            document_title: string | null;
+            /**
+             * Similarity
+             * @description Cosine similarity to the query.
+             * @example 0.82
+             */
+            similarity: number;
+        };
+        /**
+         * CaseToolCall
+         * @description One tool call of the turn: its name and outcome, never its arguments or result.
+         */
+        CaseToolCall: {
+            /**
+             * Error Code
+             * @description Why it was refused (`invalid_arguments`, `criteria_not_met`, `transition_not_allowed`, ...); null when accepted.
+             * @example criteria_not_met
+             */
+            error_code: string | null;
+            /**
+             * Missing
+             * @description `propose_transition` refused with `criteria_not_met`: the codes of what the target phase still needs (`what`, `evidence`, ...); empty otherwise.
+             * @example [
+             *       "evidence"
+             *     ]
+             */
+            missing: string[];
+            /**
+             * Name
+             * @description The tool: `record_field`, `log_event`, `add_action`, `update_action` or `propose_transition` (any other name was refused).
+             * @example propose_transition
+             */
+            name: string;
+            /**
+             * Ok
+             * @description Whether it was accepted. A refused call changed nothing.
+             * @example false
+             */
+            ok: boolean;
+            /**
+             * Target
+             * @description `propose_transition` only: the phase proposed. Null for other tools, for a proposal with invalid arguments and in traces recorded before it was stored.
+             * @example analyse
+             */
+            target: ("understand" | "challenge" | "analyse" | "action" | "followup" | "closed") | null;
+        };
+        /**
+         * CaseTrace
+         * @description The turn's metrics. No prompts, messages, tool arguments or retrieved text.
+         */
+        CaseTrace: {
+            /**
+             * Capped
+             * @description The turn hit `MAX_TOOL_ROUNDS` or `TURN_TIMEOUT_SECONDS` and ended with the fallback message.
+             * @example false
+             */
+            capped: boolean;
+            /**
+             * Completion Tokens
+             * @description Output tokens over the turn's calls; null if unknown.
+             * @example 210
+             */
+            completion_tokens: number | null;
+            /**
+             * Cost
+             * @description Cost reported by the provider, in USD; null if unknown.
+             * @example 0.0021
+             */
+            cost: number | null;
+            /**
+             * Duration Ms
+             * @description How long the turn took.
+             * @example 2450
+             */
+            duration_ms: number;
+            /**
+             * Llm Calls
+             * @description Model calls in the turn.
+             * @example 2
+             */
+            llm_calls: number;
+            /**
+             * Model
+             * @description The model that answered; null if no call returned.
+             * @example openai/gpt-4.1-mini
+             */
+            model: string | null;
+            /**
+             * Prompt Tokens
+             * @description Input tokens over the turn's calls; null if unknown.
+             * @example 3120
+             */
+            prompt_tokens: number | null;
+            /**
+             * Prompts Version
+             * @description The prompt files' version used.
+             * @example draft-1
+             */
+            prompts_version: string;
+            /**
+             * Retrieval Error
+             * @description Why the knowledge search failed (`embedding_failed`); null when it ran or was not needed.
+             * @example null
+             */
+            retrieval_error: string | null;
+            /**
+             * Retrieved
+             * @description The chunks retrieved, in the order the copilot saw them; empty when the phase does not search.
+             */
+            retrieved: components["schemas"]["CaseRetrievedChunk"][];
+            /**
+             * Tool Calls
+             * @description The tool calls, in order.
+             */
+            tool_calls: components["schemas"]["CaseToolCall"][];
+            /**
+             * Total Tokens
+             * @description Total tokens over the turn's calls; null if unknown.
+             * @example 3330
+             */
+            total_tokens: number | null;
+        };
+        /**
+         * CaseTurn
+         * @description One committed turn: the user's message, the copilot's reply and the trace.
+         */
+        CaseTurn: {
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the turn was committed (UTC).
+             * @example 2026-11-12T09:31:05Z
+             */
+            created_at: string;
+            /**
+             * Phase After
+             * @description The phase it ended in.
+             * @example analyse
+             * @enum {string}
+             */
+            phase_after: "understand" | "challenge" | "analyse" | "action" | "followup" | "closed";
+            /**
+             * Phase Before
+             * @description The phase the turn started in.
+             * @example challenge
+             * @enum {string}
+             */
+            phase_before: "understand" | "challenge" | "analyse" | "action" | "followup" | "closed";
+            /** @description What the copilot answered. */
+            reply: components["schemas"]["CaseTurnMessage"];
+            /** @description The turn's metrics. */
+            trace: components["schemas"]["CaseTrace"];
+            /**
+             * Turn
+             * @description The turn's number in the case, from 1.
+             * @example 3
+             */
+            turn: number;
+            /** @description What the user sent. */
+            user_message: components["schemas"]["CaseTurnMessage"];
+        };
+        /**
+         * CaseTurnMessage
+         * @description One message of a turn.
+         */
+        CaseTurnMessage: {
+            /**
+             * Content
+             * @description The message.
+             * @example Tenemos un 4 % de merma en la llenadora de la línea 2.
+             */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When it was stored (UTC).
+             * @example 2026-11-12T09:30:58Z
+             */
+            created_at: string;
+            /**
+             * State At Time
+             * @description The phase when it was sent: the user message carries the phase its turn started in, the reply the phase it ended in.
+             * @example understand
+             * @enum {string}
+             */
+            state_at_time: "understand" | "challenge" | "analyse" | "action" | "followup" | "closed";
+        };
+        /**
+         * CaseTurnPage
+         * @description A page of a case's turns, oldest first.
+         */
+        CaseTurnPage: {
+            /**
+             * Items
+             * @description The items of this page, possibly empty.
+             */
+            items: components["schemas"]["CaseTurn"][];
+            /**
+             * Limit
+             * @description Page size requested.
+             * @example 25
+             */
+            limit: number;
+            /**
+             * Offset
+             * @description Number of matching items skipped.
+             * @example 0
+             */
+            offset: number;
+            /**
+             * Total
+             * @description The case's committed turns.
+             * @example 4
              */
             total: number;
         };
@@ -2159,6 +2442,61 @@ export interface operations {
                 };
             };
             /** @description `case_id` is not a UUID: `type` is `uuid_parsing`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_case_turns: {
+        parameters: {
+            query?: {
+                /** @description Page size, 1 to 50. */
+                limit?: number;
+                /** @description Number of turns to skip, oldest first. */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The case id (a UUID), as `case_id` in the listing or the copilot's replies. */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of turns. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseTurnPage"];
+                };
+            };
+            /** @description `X-API-Key` is missing or wrong. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No case with that id: `type` is `case_not_found`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `case_id` is not a UUID (`uuid_parsing`), or `limit` or `offset` is out of range (`greater_than_equal`, `less_than_equal`). */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -83,6 +83,7 @@ COPILOT_SEND = ("post", "/copilot/messages")
 COPILOT_SESSION = ("get", "/copilot/sessions/{session_id}")
 LIST_CASES = ("get", "/admin/cases")
 GET_CASE = ("get", "/admin/cases/{case_id}")
+CASE_TURNS = ("get", "/admin/cases/{case_id}/turns")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -101,6 +102,7 @@ OPERATIONS = [
     COPILOT_SESSION,
     LIST_CASES,
     GET_CASE,
+    CASE_TURNS,
 ]
 
 
@@ -243,8 +245,8 @@ def copilot_failing(client: TestClient):
 CASE_ID = "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
 
 
-def case_detail(client: TestClient, case_id: str, headers=None):
-    return get(client, f"/admin/cases/{case_id}", headers=headers)
+def case_detail(client: TestClient, case_id: str, suffix: str = "", headers=None, **params: Any):
+    return get(client, f"/admin/cases/{case_id}{suffix}", headers=headers, **params)
 
 
 def session(client: TestClient, session_id: str = SESSION_ID, headers=None):
@@ -448,6 +450,28 @@ CASES = {
     "case get 401 no key": (GET_CASE, 401, lambda c: case_detail(c, CASE_ID, headers={})),
     "case get 404": (GET_CASE, 404, lambda c: case_detail(c, CASE_ID)),
     "case get 422 malformed id": (GET_CASE, 422, lambda c: case_detail(c, "case-1")),
+    "case turns 200": (
+        CASE_TURNS,
+        200,
+        lambda c: case_detail(c, copilot_sent(c).json()["case_id"], "/turns"),
+    ),
+    "case turns 200 empty": (
+        CASE_TURNS,
+        200,
+        lambda c: case_detail(c, copilot_sent(c).json()["case_id"], "/turns", offset=5),
+    ),
+    "case turns 401 no key": (
+        CASE_TURNS,
+        401,
+        lambda c: case_detail(c, CASE_ID, "/turns", headers={}),
+    ),
+    "case turns 404": (CASE_TURNS, 404, lambda c: case_detail(c, CASE_ID, "/turns")),
+    "case turns 422 malformed id": (CASE_TURNS, 422, lambda c: case_detail(c, "case-1", "/turns")),
+    "case turns 422 limit": (
+        CASE_TURNS,
+        422,
+        lambda c: case_detail(c, CASE_ID, "/turns", limit=500),
+    ),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}, SEARCH: {502}}

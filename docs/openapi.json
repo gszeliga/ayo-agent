@@ -410,6 +410,478 @@
         "title": "CasePage",
         "type": "object"
       },
+      "CaseRetrievedChunk": {
+        "description": "One knowledge chunk retrieved for the turn: ids, document and similarity, never its\ntext.",
+        "properties": {
+          "chunk_id": {
+            "description": "The chunk, as it was then (reprocessing a document replaces its chunks).",
+            "examples": [
+              "5b0d7c2e-9a41-4f3e-8c6d-2e1f0a9b7c34"
+            ],
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "doc_id": {
+            "description": "The document it came from.",
+            "examples": [
+              "upload-1f2e3d4c5b6a"
+            ],
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "document_deleted": {
+            "description": "The document no longer exists in the case's tenant.",
+            "examples": [
+              false
+            ],
+            "title": "Document Deleted",
+            "type": "boolean"
+          },
+          "document_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The document's current title; null when it has none or was deleted.",
+            "examples": [
+              "Procedimiento de calibración de la llenadora"
+            ],
+            "title": "Document Title"
+          },
+          "similarity": {
+            "description": "Cosine similarity to the query.",
+            "examples": [
+              0.82
+            ],
+            "title": "Similarity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "doc_id",
+          "document_title",
+          "document_deleted",
+          "similarity"
+        ],
+        "title": "CaseRetrievedChunk",
+        "type": "object"
+      },
+      "CaseToolCall": {
+        "description": "One tool call of the turn: its name and outcome, never its arguments or result.",
+        "properties": {
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was refused (`invalid_arguments`, `criteria_not_met`, `transition_not_allowed`, ...); null when accepted.",
+            "examples": [
+              "criteria_not_met"
+            ],
+            "title": "Error Code"
+          },
+          "missing": {
+            "description": "`propose_transition` refused with `criteria_not_met`: the codes of what the target phase still needs (`what`, `evidence`, ...); empty otherwise.",
+            "examples": [
+              [
+                "evidence"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "name": {
+            "description": "The tool: `record_field`, `log_event`, `add_action`, `update_action` or `propose_transition` (any other name was refused).",
+            "examples": [
+              "propose_transition"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "ok": {
+            "description": "Whether it was accepted. A refused call changed nothing.",
+            "examples": [
+              false
+            ],
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "enum": [
+                  "understand",
+                  "challenge",
+                  "analyse",
+                  "action",
+                  "followup",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`propose_transition` only: the phase proposed. Null for other tools, for a proposal with invalid arguments and in traces recorded before it was stored.",
+            "examples": [
+              "analyse"
+            ],
+            "title": "Target"
+          }
+        },
+        "required": [
+          "name",
+          "ok",
+          "error_code",
+          "target",
+          "missing"
+        ],
+        "title": "CaseToolCall",
+        "type": "object"
+      },
+      "CaseTrace": {
+        "description": "The turn's metrics. No prompts, messages, tool arguments or retrieved text.",
+        "properties": {
+          "capped": {
+            "description": "The turn hit `MAX_TOOL_ROUNDS` or `TURN_TIMEOUT_SECONDS` and ended with the fallback message.",
+            "examples": [
+              false
+            ],
+            "title": "Capped",
+            "type": "boolean"
+          },
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Output tokens over the turn's calls; null if unknown.",
+            "examples": [
+              210
+            ],
+            "title": "Completion Tokens"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cost reported by the provider, in USD; null if unknown.",
+            "examples": [
+              0.0021
+            ],
+            "title": "Cost"
+          },
+          "duration_ms": {
+            "description": "How long the turn took.",
+            "examples": [
+              2450
+            ],
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "llm_calls": {
+            "description": "Model calls in the turn.",
+            "examples": [
+              2
+            ],
+            "minimum": 0.0,
+            "title": "Llm Calls",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model that answered; null if no call returned.",
+            "examples": [
+              "openai/gpt-4.1-mini"
+            ],
+            "title": "Model"
+          },
+          "prompt_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Input tokens over the turn's calls; null if unknown.",
+            "examples": [
+              3120
+            ],
+            "title": "Prompt Tokens"
+          },
+          "prompts_version": {
+            "description": "The prompt files' version used.",
+            "examples": [
+              "draft-1"
+            ],
+            "title": "Prompts Version",
+            "type": "string"
+          },
+          "retrieval_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the knowledge search failed (`embedding_failed`); null when it ran or was not needed.",
+            "examples": [
+              null
+            ],
+            "title": "Retrieval Error"
+          },
+          "retrieved": {
+            "description": "The chunks retrieved, in the order the copilot saw them; empty when the phase does not search.",
+            "items": {
+              "$ref": "#/components/schemas/CaseRetrievedChunk"
+            },
+            "title": "Retrieved",
+            "type": "array"
+          },
+          "tool_calls": {
+            "description": "The tool calls, in order.",
+            "items": {
+              "$ref": "#/components/schemas/CaseToolCall"
+            },
+            "title": "Tool Calls",
+            "type": "array"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total tokens over the turn's calls; null if unknown.",
+            "examples": [
+              3330
+            ],
+            "title": "Total Tokens"
+          }
+        },
+        "required": [
+          "model",
+          "prompts_version",
+          "llm_calls",
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens",
+          "cost",
+          "duration_ms",
+          "capped",
+          "retrieval_error",
+          "tool_calls",
+          "retrieved"
+        ],
+        "title": "CaseTrace",
+        "type": "object"
+      },
+      "CaseTurn": {
+        "description": "One committed turn: the user's message, the copilot's reply and the trace.",
+        "properties": {
+          "created_at": {
+            "description": "When the turn was committed (UTC).",
+            "examples": [
+              "2026-11-12T09:31:05Z"
+            ],
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "phase_after": {
+            "description": "The phase it ended in.",
+            "enum": [
+              "understand",
+              "challenge",
+              "analyse",
+              "action",
+              "followup",
+              "closed"
+            ],
+            "examples": [
+              "analyse"
+            ],
+            "title": "Phase After",
+            "type": "string"
+          },
+          "phase_before": {
+            "description": "The phase the turn started in.",
+            "enum": [
+              "understand",
+              "challenge",
+              "analyse",
+              "action",
+              "followup",
+              "closed"
+            ],
+            "examples": [
+              "challenge"
+            ],
+            "title": "Phase Before",
+            "type": "string"
+          },
+          "reply": {
+            "$ref": "#/components/schemas/CaseTurnMessage",
+            "description": "What the copilot answered."
+          },
+          "trace": {
+            "$ref": "#/components/schemas/CaseTrace",
+            "description": "The turn's metrics."
+          },
+          "turn": {
+            "description": "The turn's number in the case, from 1.",
+            "examples": [
+              3
+            ],
+            "minimum": 1.0,
+            "title": "Turn",
+            "type": "integer"
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/CaseTurnMessage",
+            "description": "What the user sent."
+          }
+        },
+        "required": [
+          "turn",
+          "phase_before",
+          "phase_after",
+          "created_at",
+          "user_message",
+          "reply",
+          "trace"
+        ],
+        "title": "CaseTurn",
+        "type": "object"
+      },
+      "CaseTurnMessage": {
+        "description": "One message of a turn.",
+        "properties": {
+          "content": {
+            "description": "The message.",
+            "examples": [
+              "Tenemos un 4 % de merma en la llenadora de la línea 2."
+            ],
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "When it was stored (UTC).",
+            "examples": [
+              "2026-11-12T09:30:58Z"
+            ],
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "state_at_time": {
+            "description": "The phase when it was sent: the user message carries the phase its turn started in, the reply the phase it ended in.",
+            "enum": [
+              "understand",
+              "challenge",
+              "analyse",
+              "action",
+              "followup",
+              "closed"
+            ],
+            "examples": [
+              "understand"
+            ],
+            "title": "State At Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "state_at_time",
+          "created_at"
+        ],
+        "title": "CaseTurnMessage",
+        "type": "object"
+      },
+      "CaseTurnPage": {
+        "description": "A page of a case's turns, oldest first.",
+        "properties": {
+          "items": {
+            "description": "The items of this page, possibly empty.",
+            "items": {
+              "$ref": "#/components/schemas/CaseTurn"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "description": "Page size requested.",
+            "examples": [
+              25
+            ],
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Number of matching items skipped.",
+            "examples": [
+              0
+            ],
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "The case's committed turns.",
+            "examples": [
+              4
+            ],
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CaseTurnPage",
+        "type": "object"
+      },
       "Chunk": {
         "description": "One stored chunk of a document.",
         "properties": {
@@ -2903,7 +3375,7 @@
     },
     "/admin/cases/{case_id}": {
       "get": {
-        "description": "One case, from any channel: its header (tenant, title, phase,\nversion, turn count, times, `web_session_id`), the four facts, the annotations (evidence,\nhypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`\ncomputed in `APP_TIMEZONE`.\n\nThe conversation and the turn traces are not part of it.\n\n| Status | Meaning |\n|---|---|\n| `200` | The case. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (`case_not_found`). |\n| `422` | `case_id` is not a UUID (FastAPI validation). |",
+        "description": "One case, from any channel: its header (tenant, title, phase,\nversion, turn count, times, `web_session_id`), the four facts, the annotations (evidence,\nhypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`\ncomputed in `APP_TIMEZONE`.\n\nThe conversation and the turn traces are not part of it: page through them with\n`GET /admin/cases/{case_id}/turns`.\n\n| Status | Meaning |\n|---|---|\n| `200` | The case. |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (`case_not_found`). |\n| `422` | `case_id` is not a UUID (FastAPI validation). |",
         "operationId": "get_case",
         "parameters": [
           {
@@ -3025,6 +3497,187 @@
           }
         ],
         "summary": "Get a case",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/admin/cases/{case_id}/turns": {
+      "get": {
+        "description": "A case's turns, oldest first, one page at a time: for each, the\nuser's message, the copilot's reply and the turn's trace (phases, tool calls with their\noutcome, the knowledge retrieved, model, tokens, cost, latency).\n\n`total` is the case's turn count (`turns` in `get_case`) and turn n is item `n - 1`\ncounting from `offset` 0, so the latest page starts at `offset = max(0, total - limit)`.\nTurns are only ever added at the end: a new one never moves the earlier pages.\n\nThe trace has no prompts, tool arguments or retrieved text. A retrieved chunk carries its\ndocument's current title, and `document_deleted` once the document is gone.\n\n| Status | Meaning |\n|---|---|\n| `200` | A page, possibly empty (no turns yet, or `offset` past the last turn). |\n| `401` | `X-API-Key` missing or wrong. |\n| `404` | No case with that id (`case_not_found`). |\n| `422` | `case_id` is not a UUID, or `limit` (1 to 50) or `offset` is out of range. |",
+        "operationId": "list_case_turns",
+        "parameters": [
+          {
+            "description": "The case id (a UUID), as `case_id` in the listing or the copilot's replies.",
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "description": "The case id (a UUID), as `case_id` in the listing or the copilot's replies.",
+              "examples": [
+                "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+              ],
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1 to 50.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Page size, 1 to 50.",
+              "examples": [
+                20
+              ],
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of turns to skip, oldest first.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Number of turns to skip, oldest first.",
+              "examples": [
+                0
+              ],
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseTurnPage"
+                }
+              }
+            },
+            "description": "A page of turns."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_api_key": {
+                    "summary": "Missing or wrong key",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "header",
+                            "x-api-key"
+                          ],
+                          "msg": "invalid or missing API key",
+                          "type": "invalid_api_key"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`X-API-Key` is missing or wrong."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "case_not_found": {
+                    "summary": "Unknown case",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "path",
+                            "case_id"
+                          ],
+                          "msg": "case not found",
+                          "type": "case_not_found"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No case with that id: `type` is `case_not_found`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "less_than_equal": {
+                    "summary": "Page too large",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "le": 50
+                          },
+                          "input": "500",
+                          "loc": [
+                            "query",
+                            "limit"
+                          ],
+                          "msg": "Input should be less than or equal to 50",
+                          "type": "less_than_equal"
+                        }
+                      ]
+                    }
+                  },
+                  "uuid_parsing": {
+                    "summary": "Malformed id",
+                    "value": {
+                      "detail": [
+                        {
+                          "ctx": {
+                            "error": "invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1"
+                          },
+                          "input": "case-1",
+                          "loc": [
+                            "path",
+                            "case_id"
+                          ],
+                          "msg": "Input should be a valid UUID, invalid character: expected an optional prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1",
+                          "type": "uuid_parsing"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`case_id` is not a UUID (`uuid_parsing`), or `limit` or `offset` is out of range (`greater_than_equal`, `less_than_equal`)."
+          }
+        },
+        "security": [
+          {
+            "AdminApiKey": []
+          }
+        ],
+        "summary": "List a case's turns",
         "tags": [
           "cases"
         ]

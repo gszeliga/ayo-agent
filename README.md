@@ -72,6 +72,7 @@ error `type` and example.
 | `GET /copilot/sessions/{session_id}` | A session's case: phase, facts, annotations, actions, messages |
 | `GET /admin/cases` | The copilot's cases from every channel (filter by tenant, phase, open or closed, text) |
 | `GET /admin/cases/{case_id}` | One case: header, facts, annotations, actions (with `overdue`) |
+| `GET /admin/cases/{case_id}/turns` | A case's turns, oldest first, in pages: messages and trace |
 | `GET /health` | Liveness, no key |
 
 The `X-API-Key` authentication is provisional: one shared key, to be replaced by real

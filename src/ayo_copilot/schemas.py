@@ -9,10 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 from pydantic_core import PydanticCustomError
 
 from ayo_copilot.cases import CaseDetail as CaseDetailData
+from ayo_copilot.cases import CaseTurns
 from ayo_copilot.config import MAX_SEARCH_TOP_K, Settings
 from ayo_copilot.conversation.case import FIELDS, Event, Phase
 from ayo_copilot.conversation.store import SessionAction, SessionView
-from ayo_copilot.db.conversations import CaseRow
+from ayo_copilot.db.conversations import CaseRow, StoredTrace
 from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusCounts, TenantRow
 from ayo_copilot.ingestion import signatures
 from ayo_copilot.ingestion.service import IngestResult, current_configs, document_status
@@ -1244,4 +1245,202 @@ class CaseDetail(BaseModel):
             fields=CopilotSessionFields(**{name: case.get_field(name) for name in FIELDS}),
             events=[CopilotSessionEvent.from_event(event) for event in detail.events],
             actions=[CopilotSessionAction.from_item(item) for item in detail.actions],
+        )
+
+
+# --- Case turns (admin) ------------------------------------------------------------------
+
+TURN_PAGE_MAX = 50
+
+
+class CaseTurnMessage(BaseModel):
+    """One message of a turn."""
+
+    content: str = Field(
+        description="The message.",
+        examples=["Tenemos un 4 % de merma en la llenadora de la línea 2."],
+    )
+    state_at_time: Phase = Field(
+        description="The phase when it was sent: the user message carries the phase its turn"
+        " started in, the reply the phase it ended in.",
+        examples=["understand"],
+    )
+    created_at: datetime = Field(
+        description="When it was stored (UTC).", examples=["2026-11-12T09:30:58Z"]
+    )
+
+    @classmethod
+    def from_event(cls, event: Event) -> "CaseTurnMessage":
+        return cls(
+            content=event.content,
+            state_at_time=event.state_at_time,
+            created_at=_utc(event.created_at),
+        )
+
+
+class CaseToolCall(BaseModel):
+    """One tool call of the turn: its name and outcome, never its arguments or result."""
+
+    name: str = Field(
+        description="The tool: `record_field`, `log_event`, `add_action`, `update_action` or"
+        " `propose_transition` (any other name was refused).",
+        examples=["propose_transition"],
+    )
+    ok: bool = Field(
+        description="Whether it was accepted. A refused call changed nothing.", examples=[False]
+    )
+    error_code: str | None = Field(
+        description="Why it was refused (`invalid_arguments`, `criteria_not_met`,"
+        " `transition_not_allowed`, ...); null when accepted.",
+        examples=["criteria_not_met"],
+    )
+    target: Phase | None = Field(
+        description="`propose_transition` only: the phase proposed. Null for other tools, for"
+        " a proposal with invalid arguments and in traces recorded before it was stored.",
+        examples=["analyse"],
+    )
+    missing: list[str] = Field(
+        description="`propose_transition` refused with `criteria_not_met`: the codes of what"
+        " the target phase still needs (`what`, `evidence`, ...); empty otherwise.",
+        examples=[["evidence"]],
+    )
+
+
+class CaseRetrievedChunk(BaseModel):
+    """One knowledge chunk retrieved for the turn: ids, document and similarity, never its
+    text."""
+
+    chunk_id: UUID = Field(
+        description="The chunk, as it was then (reprocessing a document replaces its chunks).",
+        examples=["5b0d7c2e-9a41-4f3e-8c6d-2e1f0a9b7c34"],
+    )
+    doc_id: str = Field(description="The document it came from.", examples=["upload-1f2e3d4c5b6a"])
+    document_title: str | None = Field(
+        description="The document's current title; null when it has none or was deleted.",
+        examples=["Procedimiento de calibración de la llenadora"],
+    )
+    document_deleted: bool = Field(
+        description="The document no longer exists in the case's tenant.", examples=[False]
+    )
+    similarity: float = Field(description="Cosine similarity to the query.", examples=[0.82])
+
+
+class CaseTrace(BaseModel):
+    """The turn's metrics. No prompts, messages, tool arguments or retrieved text."""
+
+    model: str | None = Field(
+        description="The model that answered; null if no call returned.",
+        examples=["openai/gpt-4.1-mini"],
+    )
+    prompts_version: str = Field(
+        description="The prompt files' version used.", examples=["draft-1"]
+    )
+    llm_calls: int = Field(ge=0, description="Model calls in the turn.", examples=[2])
+    prompt_tokens: int | None = Field(
+        description="Input tokens over the turn's calls; null if unknown.", examples=[3120]
+    )
+    completion_tokens: int | None = Field(
+        description="Output tokens over the turn's calls; null if unknown.", examples=[210]
+    )
+    total_tokens: int | None = Field(
+        description="Total tokens over the turn's calls; null if unknown.", examples=[3330]
+    )
+    cost: float | None = Field(
+        description="Cost reported by the provider, in USD; null if unknown.", examples=[0.0021]
+    )
+    duration_ms: int = Field(ge=0, description="How long the turn took.", examples=[2450])
+    capped: bool = Field(
+        description="The turn hit `MAX_TOOL_ROUNDS` or `TURN_TIMEOUT_SECONDS` and ended with"
+        " the fallback message.",
+        examples=[False],
+    )
+    retrieval_error: str | None = Field(
+        description="Why the knowledge search failed (`embedding_failed`); null when it ran"
+        " or was not needed.",
+        examples=[None],
+    )
+    tool_calls: list[CaseToolCall] = Field(description="The tool calls, in order.")
+    retrieved: list[CaseRetrievedChunk] = Field(
+        description="The chunks retrieved, in the order the copilot saw them; empty when"
+        " the phase does not search."
+    )
+
+
+class CaseTurn(BaseModel):
+    """One committed turn: the user's message, the copilot's reply and the trace."""
+
+    turn: int = Field(ge=1, description="The turn's number in the case, from 1.", examples=[3])
+    phase_before: Phase = Field(
+        description="The phase the turn started in.", examples=["challenge"]
+    )
+    phase_after: Phase = Field(description="The phase it ended in.", examples=["analyse"])
+    created_at: datetime = Field(
+        description="When the turn was committed (UTC).", examples=["2026-11-12T09:31:05Z"]
+    )
+    user_message: CaseTurnMessage = Field(description="What the user sent.")
+    reply: CaseTurnMessage = Field(description="What the copilot answered.")
+    trace: CaseTrace = Field(description="The turn's metrics.")
+
+    @classmethod
+    def build(
+        cls, stored: StoredTrace, user_message: Event, reply: Event, titles: dict[str, str | None]
+    ) -> "CaseTurn":
+        trace = stored.trace
+        return cls(
+            turn=stored.turn_no,
+            phase_before=stored.phase_before,
+            phase_after=stored.phase_after,
+            created_at=_utc(stored.created_at),
+            user_message=CaseTurnMessage.from_event(user_message),
+            reply=CaseTurnMessage.from_event(reply),
+            trace=CaseTrace(
+                model=trace.model,
+                prompts_version=trace.prompts_version,
+                llm_calls=trace.llm_calls,
+                prompt_tokens=trace.prompt_tokens,
+                completion_tokens=trace.completion_tokens,
+                total_tokens=trace.total_tokens,
+                cost=trace.cost,
+                duration_ms=trace.duration_ms,
+                capped=trace.capped,
+                retrieval_error=trace.retrieval_error,
+                tool_calls=[
+                    CaseToolCall(
+                        name=call.name,
+                        ok=call.ok,
+                        error_code=call.error_code,
+                        target=call.target,
+                        missing=list(call.missing),
+                    )
+                    for call in trace.tool_calls
+                ],
+                retrieved=[
+                    CaseRetrievedChunk(
+                        chunk_id=chunk.chunk_id,
+                        doc_id=chunk.doc_id,
+                        document_title=titles.get(chunk.doc_id),
+                        document_deleted=chunk.doc_id not in titles,
+                        similarity=chunk.similarity,
+                    )
+                    for chunk in trace.retrieved
+                ],
+            ),
+        )
+
+
+class CaseTurnPage(Page[CaseTurn]):
+    """A page of a case's turns, oldest first."""
+
+    total: int = Field(description="The case's committed turns.", examples=[4])
+
+    @classmethod
+    def from_turns(cls, turns: CaseTurns, *, limit: int, offset: int) -> "CaseTurnPage":
+        return cls(
+            items=[
+                CaseTurn.build(t.trace, t.user_message, t.reply, turns.document_titles)
+                for t in turns.turns
+            ],
+            total=turns.total,
+            limit=limit,
+            offset=offset,
         )
