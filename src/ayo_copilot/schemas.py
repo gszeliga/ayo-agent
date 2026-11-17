@@ -8,9 +8,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic_core import PydanticCustomError
 
+from ayo_copilot.cases import CaseDetail as CaseDetailData
 from ayo_copilot.config import MAX_SEARCH_TOP_K, Settings
-from ayo_copilot.conversation.case import Phase
-from ayo_copilot.conversation.store import SessionView
+from ayo_copilot.conversation.case import FIELDS, Event, Phase
+from ayo_copilot.conversation.store import SessionAction, SessionView
 from ayo_copilot.db.conversations import CaseRow
 from ayo_copilot.db.repository import ChunkRow, DeletedRow, DocumentRow, StatusCounts, TenantRow
 from ayo_copilot.ingestion import signatures
@@ -1014,6 +1015,16 @@ class CopilotSessionEvent(BaseModel):
         description="When it was recorded (UTC).", examples=["2026-11-12T09:31:04Z"]
     )
 
+    @classmethod
+    def from_event(cls, event: Event) -> "CopilotSessionEvent":
+        return cls(
+            id=event.id,
+            event_type=event.event_type,
+            content=event.content,
+            state_at_time=event.state_at_time,
+            created_at=_utc(event.created_at),
+        )
+
 
 class CopilotSessionAction(BaseModel):
     """An agreed action."""
@@ -1031,6 +1042,17 @@ class CopilotSessionAction(BaseModel):
         description="Pending and past its due date, in `APP_TIMEZONE` (computed, not stored).",
         examples=[False],
     )
+
+    @classmethod
+    def from_item(cls, item: SessionAction) -> "CopilotSessionAction":
+        return cls(
+            id=item.action.id,
+            description=item.action.description,
+            owner=item.action.owner,
+            due_date=item.action.due_date,
+            status=item.action.status,
+            overdue=item.overdue,
+        )
 
 
 class CopilotSessionMessage(BaseModel):
@@ -1080,27 +1102,8 @@ class CopilotSession(BaseModel):
             version=view.version,
             turns=view.turns,
             fields=CopilotSessionFields(**view.fields),
-            events=[
-                CopilotSessionEvent(
-                    id=event.id,
-                    event_type=event.event_type,
-                    content=event.content,
-                    state_at_time=event.state_at_time,
-                    created_at=_utc(event.created_at),
-                )
-                for event in view.events
-            ],
-            actions=[
-                CopilotSessionAction(
-                    id=item.action.id,
-                    description=item.action.description,
-                    owner=item.action.owner,
-                    due_date=item.action.due_date,
-                    status=item.action.status,
-                    overdue=item.overdue,
-                )
-                for item in view.actions
-            ],
+            events=[CopilotSessionEvent.from_event(event) for event in view.events],
+            actions=[CopilotSessionAction.from_item(item) for item in view.actions],
             messages=[
                 CopilotSessionMessage(
                     role=message.role,
@@ -1185,3 +1188,60 @@ class CaseListItem(BaseModel):
 
 class CasePage(Page[CaseListItem]):
     """A page of cases."""
+
+
+class CaseDetail(BaseModel):
+    """One case, from any channel: its header, the four facts, the annotations and the
+    actions. The conversation and the turn traces are not here."""
+
+    case_id: UUID = Field(description="The case.", examples=[CASE_ID_EXAMPLE])
+    tenant: str = Field(description="The case's tenant.", examples=["cliente-acme"])
+    title: str | None = Field(
+        description=f"What happens (`what`), on one line and cut to {CASE_TITLE_MAX_CHARS}"
+        " characters; null until the copilot records it (as in the listing).",
+        examples=["Merma del 4 % en el envasado de la línea 2"],
+    )
+    phase: Phase = Field(
+        description=f"The current phase: {_PHASE_DESCRIPTION}", examples=["analyse"]
+    )
+    version: int = Field(ge=0, description="Bumped by every committed turn.", examples=[7])
+    turns: int = Field(ge=0, description="Committed turns.", examples=[4])
+    created_at: datetime = Field(
+        description="When the case was opened (UTC).", examples=["2026-11-12T09:30:58Z"]
+    )
+    updated_at: datetime = Field(
+        description="When the last turn was committed, else when it was opened (UTC).",
+        examples=["2026-11-13T16:02:11Z"],
+    )
+    closed_at: datetime | None = Field(
+        description="When it was closed (UTC); null while open.", examples=[None]
+    )
+    web_session_id: UUID | None = Field(
+        description="The web session linked to the case, to keep talking through"
+        " `POST /copilot/messages`; null for a case opened from another channel.",
+        examples=[SESSION_ID_EXAMPLE],
+    )
+    fields: CopilotSessionFields = Field(description="The four facts.")
+    events: list[CopilotSessionEvent] = Field(description="The annotations, oldest first.")
+    actions: list[CopilotSessionAction] = Field(
+        description="The actions, oldest first; `overdue` is computed by the API."
+    )
+
+    @classmethod
+    def from_detail(cls, detail: CaseDetailData) -> "CaseDetail":
+        row, case = detail.row, detail.case
+        return cls(
+            case_id=row.id,
+            tenant=row.tenant,
+            title=case_title(case.what),
+            phase=case.state,
+            version=case.version,
+            turns=row.turns,
+            created_at=_utc(row.created_at),
+            updated_at=_utc(row.updated_at),
+            closed_at=_utc(row.closed_at),
+            web_session_id=None if row.web_session_id is None else UUID(row.web_session_id),
+            fields=CopilotSessionFields(**{name: case.get_field(name) for name in FIELDS}),
+            events=[CopilotSessionEvent.from_event(event) for event in detail.events],
+            actions=[CopilotSessionAction.from_item(item) for item in detail.actions],
+        )

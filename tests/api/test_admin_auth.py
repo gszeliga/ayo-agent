@@ -18,7 +18,10 @@ from ayo_copilot.config import Settings
 pytestmark = pytest.mark.integration
 
 # A well-formed id, so path validation can't answer before authentication.
-PATH_VALUES = {"doc_id": "upload-000000000000"}
+PATH_VALUES = {
+    "doc_id": "upload-000000000000",
+    "case_id": "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52",
+}
 
 
 def admin_routes() -> list[tuple[str, str]]:

@@ -7,16 +7,25 @@ that leads to one. Logs never carry case content or the search text.
 
 from datetime import date
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi import Path as PathParam
 from psycopg_pool import ConnectionPool
 
-from ayo_copilot.cases import read_case_page
+from ayo_copilot.cases import read_case_detail, read_case_page
 from ayo_copilot.conversation.case import Phase
 from ayo_copilot.dependencies import get_pool, get_today
+from ayo_copilot.errors import ApiError
 from ayo_copilot.ingestion.storage import TENANT_PATTERN
 from ayo_copilot.routers.admin import UNAUTHORIZED_RESPONSE, require_admin_key
-from ayo_copilot.schemas import CaseListItem, CasePage, ErrorResponse
+from ayo_copilot.schemas import (
+    CASE_ID_EXAMPLE,
+    CaseDetail,
+    CaseListItem,
+    CasePage,
+    ErrorResponse,
+)
 
 
 def _error(type: str, loc: list[str | int], msg: str, **extra: object) -> dict[str, object]:
@@ -150,3 +159,68 @@ def list_cases(
     return CasePage(
         items=[CaseListItem.from_row(row) for row in rows], total=total, limit=limit, offset=offset
     )
+
+
+GET_DESCRIPTION = """One case, from any channel: its header (tenant, title, phase,
+version, turn count, times, `web_session_id`), the four facts, the annotations (evidence,
+hypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`
+computed in `APP_TIMEZONE`.
+
+The conversation and the turn traces are not part of it.
+
+| Status | Meaning |
+|---|---|
+| `200` | The case. |
+| `401` | `X-API-Key` missing or wrong. |
+| `404` | No case with that id (`case_not_found`). |
+| `422` | `case_id` is not a UUID (FastAPI validation). |
+"""
+
+CASE_ID_PARAM = "The case id (a UUID), as `case_id` in the listing or the copilot's replies."
+CASE_NOT_FOUND = _error("case_not_found", ["path", "case_id"], "case not found")
+
+
+@router.get(
+    "/{case_id}",
+    operation_id="get_case",
+    summary="Get a case",
+    description=GET_DESCRIPTION,
+    responses={
+        # The 200 sample comes from the field examples (see `schemas.CaseDetail`).
+        200: {"description": "The case."},
+        404: {
+            "model": ErrorResponse,
+            "description": "No case with that id: `type` is `case_not_found`.",
+            "content": _examples(case_not_found=("Unknown case", CASE_NOT_FOUND)),
+        },
+        422: {
+            "model": ErrorResponse,
+            "description": "`case_id` is not a UUID: `type` is `uuid_parsing`.",
+            "content": _examples(
+                uuid_parsing=(
+                    "Malformed id",
+                    _error(
+                        "uuid_parsing",
+                        ["path", "case_id"],
+                        "Input should be a valid UUID, invalid character: expected an optional"
+                        " prefix of `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1",
+                        input="case-1",
+                        ctx={
+                            "error": "invalid character: expected an optional prefix of"
+                            " `urn:uuid:` followed by [0-9a-fA-F-], found `c` at 1"
+                        },
+                    ),
+                ),
+            ),
+        },
+    },
+)
+def get_case(
+    pool: Annotated[ConnectionPool, Depends(get_pool)],
+    today: Annotated[date, Depends(get_today)],
+    case_id: Annotated[UUID, PathParam(description=CASE_ID_PARAM, examples=[CASE_ID_EXAMPLE])],
+) -> CaseDetail:
+    detail = read_case_detail(pool, case_id, today=today)
+    if detail is None:
+        raise ApiError(404, "case_not_found", "case not found", ["path", "case_id"])
+    return CaseDetail.from_detail(detail)

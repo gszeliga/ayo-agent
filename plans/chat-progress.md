@@ -7,7 +7,7 @@ backend task"; there is no such task or spec, so the C steps below fill that gap
 file is their reference. The decisions here win over the spec, the plan and the log.
 
 ## Next (resume here)
-C1-C3 and the access-log side step done (2026-11-16). Next: C4, brief first.
+C1-C4 and the access-log side step done (2026-11-17). Next: C5, brief first.
 
 ## Decisions (agreed 2026-11-16)
 1. **Backend first.** The cases API does not exist, so it is built (C1-C7) before the UI,
@@ -35,6 +35,16 @@ C1-C3 and the access-log side step done (2026-11-16). Next: C4, brief first.
    reach the Neon dev branch only with the user's OK.
 9. **No e2e test**: the UI has no e2e tooling (Vitest + MSW only), and Playwright would be
    a heavy addition.
+10. **Turns are paged apart from the case** (agreed 2026-11-17, C4 brief): `get_case`
+    carries the header, facts, annotations and actions only. Messages and traces come
+    from `GET /admin/cases/{case_id}/turns` (C5), one item per turn (user message, reply,
+    trace), newest first, with a `before_turn` cursor (stable while new turns are
+    committed, unlike an offset), so the UI loads older turns as you scroll. This adds a
+    step: delete, summary table and summary generation move to C6-C8.
+11. **`chunk_id` is exposed** in the trace's retrieved chunks (an id, never text), next to
+    `doc_id`, the document title and `document_deleted` (agreed 2026-11-17).
+12. **The admin view is cross-tenant**: no tenant parameter on `/admin/cases/*`
+    (agreed 2026-11-17).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -45,20 +55,27 @@ C1-C3 and the access-log side step done (2026-11-16). Next: C4, brief first.
   `created_at`/`updated_at`/`closed_at`, `web_session_id` (null for other channels).
 - [x] **C3** The trace records the target of `propose_transition` (decision 6), and the
   missing item codes on `criteria_not_met` (agreed in the C3 brief).
-- [ ] **C4** `GET /admin/cases/{case_id}` (`get_case`): facts, events, actions (API
-  `overdue`), messages with `turn`, traces (phases, tool calls with outcome and target,
-  model, tokens, cost, calls, latency, capped, retrieval error, chunks with `doc_id`,
+- [x] **C4** `GET /admin/cases/{case_id}` (`get_case`): header, facts, events, actions
+  (API `overdue`); `404 case_not_found`. No messages or traces (decision 10).
+- [ ] **C5** `GET /admin/cases/{case_id}/turns` (`list_case_turns`): newest first,
+  `before_turn` cursor and `limit`; each turn its user message, reply (both with `turn`)
+  and trace (phases, tool calls with outcome, target and missing codes, model, tokens,
+  cost, calls, latency, capped, retrieval error, chunks with `chunk_id`, `doc_id`,
   document title, similarity; `document_deleted` when gone). No chunk text, no tool
   arguments.
-- [ ] **C5** `DELETE /admin/cases/{case_id}` (`delete_case`): `204`, `404 case_not_found`.
-- [ ] **C6** Migration 0004 (`case_summaries`), repository, `summary` + `stale` in
+- [ ] **C6** `DELETE /admin/cases/{case_id}` (`delete_case`): `204`, `404 case_not_found`.
+- [ ] **C7** Migration 0004 (`case_summaries`), repository, `summary` + `stale` in
   `get_case`; no LLM.
-- [ ] **C7** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`): draft summary
+- [ ] **C8** `POST /admin/cases/{case_id}/summary` (`generate_case_summary`): draft summary
   prompt (Spanish, for review), one LLM call, store and return; LLM errors as in
   `/copilot`; fake-provider tests only.
-- [ ] UI steps: briefed once C7 is done.
+- [ ] UI steps: briefed once C8 is done.
 
 ## Open items
+- **Future milestone, not in these steps: tenant-bound keys** (raised 2026-11-17). Each
+  `/copilot` key is tied to a fixed tenant; retrieval then searches that tenant's
+  knowledge base together with AYO's shared one (`ayo`). `/admin` stays cross-tenant
+  (decision 12).
 - Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK.
 - A proxy or platform in front of the service (deployment, D1) keeps its own access log:
   it must not record query strings either (`docs/operations.md`, "Logs").
@@ -112,3 +129,18 @@ C1-C3 and the access-log side step done (2026-11-16). Next: C4, brief first.
   proposal in one turn, reasoning absent from the trace), transcript (five renderings),
   the transcript API test with the real codes, the golden path's stored refusal. Full suite
   green (1434 passed).
+- **C4 (2026-11-17).** `GET /admin/cases/{case_id}` (`get_case`) in `routers/cases.py`:
+  `200`, `401`, `404 case_not_found`, `422` (`uuid_parsing`). `db/conversations.py`: the
+  listing's select is shared (`_CASE_ROW_SELECT`) and `get_case_row` reads one case with
+  the same turn count and web link. `cases.read_case_detail` (repeatable read, read only):
+  the row, the case (facts, version), the annotations and the actions with `overdue`.
+  `schemas.CaseDetail`; the session view's event and action models are reused through
+  `CopilotSessionEvent.from_event` and `CopilotSessionAction.from_item`
+  (`CopilotSession.from_view` now uses them too). No messages or traces (decision 10). README
+  table, `docs/copilot.md`, `docs/openapi.json`, `schema.d.ts`. Tests
+  (`tests/api/test_cases.py`, 9): every field with a fixed `today` (overdue, due today,
+  done), annotations only and in order, no messages or traces in the body, a closed case
+  from another channel, a case left by a failed first message, equality with the session
+  view after a real `/copilot` turn that records `what`, 404, 422, 401, no content in the
+  app's logs. Contract cases for 200 (open, closed), 401, 404 and 422;
+  `test_admin_auth.py` gets a `case_id` path value. Full suite green (1451 passed).

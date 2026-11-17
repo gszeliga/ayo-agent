@@ -66,6 +66,14 @@ curl -s "http://127.0.0.1:8000/admin/cases?tenant=cliente-acme&closed=false" \
 - `q` is never logged: the access log drops query strings (see
   [Logs](operations.md#logs)).
 
+`GET /admin/cases/{case_id}` returns one case from any channel: the header (tenant,
+title, phase, version, turn count, times, `web_session_id`), the four facts, the
+annotations and the actions, with `overdue` computed as in the session view. An unknown
+id is `404 case_not_found`, a malformed one `422`. The conversation and the turn traces
+are not part of it: they come in pages of turns from a separate endpoint (next step, C5),
+so a long case never loads at once. The admin view is cross-tenant: there is no tenant
+parameter.
+
 ## The flow of a turn
 
 1. The channel finds the session's case (or opens one with its link) and loads a

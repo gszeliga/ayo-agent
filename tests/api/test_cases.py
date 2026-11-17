@@ -1,5 +1,6 @@
 """The cases endpoints through HTTP and the real database: the listing's filters, order,
-pagination and row fields. Cases are written with SQL, so times and counts are exact."""
+pagination and row fields, and one case's detail. Cases are written with SQL, so times and
+counts are exact."""
 
 from collections.abc import Iterator
 from datetime import date
@@ -13,7 +14,12 @@ from psycopg_pool import ConnectionPool
 from ayo_copilot.app import create_app
 from ayo_copilot.config import Settings
 from ayo_copilot.dependencies import get_llm_provider, get_today
-from ayo_copilot.llm.fake import FakeLLMProvider, text_response
+from ayo_copilot.llm.fake import (
+    FakeLLMProvider,
+    text_response,
+    tool_call,
+    tool_calls_response,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -264,3 +270,199 @@ def test_search_text_is_not_logged(
     # (tests/unit/test_access_log.py). The test client logs full URLs, so it is excluded.
     app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
     assert not any("confidencial" in message for message in app_messages)
+
+
+# --- get_case ------------------------------------------------------------------------------
+
+
+def get_case(client: TestClient, case_id: object, headers: dict[str, str] = HEADERS):
+    return client.get(f"/admin/cases/{case_id}", headers=headers)
+
+
+def add_detail(pool: ConnectionPool, problem_id: UUID) -> None:
+    """Facts, a version, two messages, three annotations and two actions on a case."""
+    with pool.connection() as conn:
+        conn.execute(
+            "update problems set what = %s, where_ = %s, since = %s, standard = null,"
+            " version = 5 where id = %s",
+            ("Merma del 4 %\nen el envasado", "Línea 2", "Desde el lunes", problem_id),
+        )
+        for role, event_type, content, phase, at in [
+            ("user", "message", "Hay merma", "understand", "2026-11-13 09:00+00"),
+            (
+                "assistant",
+                "evidence",
+                "El sensor marca 3 mm de más",
+                "challenge",
+                "2026-11-13 09:01+00",
+            ),
+            ("assistant", "message", "¿Desde cuándo?", "challenge", "2026-11-13 09:02+00"),
+            ("assistant", "hypothesis", "Sensor descalibrado", "challenge", "2026-11-13 09:03+00"),
+            (
+                "assistant",
+                "hypothesis_discarded",
+                "Cambio de lote",
+                "analyse",
+                "2026-11-13 09:04+00",
+            ),
+        ]:
+            conn.execute(
+                "insert into problem_events"
+                " (problem_id, role, event_type, content, state_at_time, created_at)"
+                " values (%s, %s, %s, %s, %s, %s)",
+                (problem_id, role, event_type, content, phase, at),
+            )
+
+
+def test_case_detail_fields(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, thread = add_case(
+        db_pool,
+        state="action",
+        updated="2026-11-13 16:02:11+00",
+        turns=2,
+        actions=(("pending", "2026-11-15"), ("pending", "2026-11-16"), ("done", "2026-11-01")),
+    )
+    add_detail(db_pool, problem_id)
+
+    response = get_case(client, problem_id)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    events = body.pop("events")
+    actions = body.pop("actions")
+    assert body == {
+        "case_id": str(problem_id),
+        "tenant": "cliente-acme",
+        "title": "Merma del 4 % en el envasado",
+        "phase": "action",
+        "version": 5,
+        "turns": 2,
+        "created_at": "2026-11-12T16:02:11Z",
+        "updated_at": "2026-11-13T16:02:11Z",
+        "closed_at": None,
+        "web_session_id": thread,
+        "fields": {
+            "what": "Merma del 4 %\nen el envasado",
+            "where": "Línea 2",
+            "since": "Desde el lunes",
+            "standard": None,
+        },
+    }
+    # Annotations only, oldest first; messages are not part of the case detail.
+    assert [
+        (e["event_type"], e["content"], e["state_at_time"], e["created_at"]) for e in events
+    ] == [
+        ("evidence", "El sensor marca 3 mm de más", "challenge", "2026-11-13T09:01:00Z"),
+        ("hypothesis", "Sensor descalibrado", "challenge", "2026-11-13T09:03:00Z"),
+        ("hypothesis_discarded", "Cambio de lote", "analyse", "2026-11-13T09:04:00Z"),
+    ]
+    assert [e["id"] for e in events] == sorted(e["id"] for e in events)
+    # Due today is not overdue yet; done never is.
+    assert [(a["status"], a["due_date"], a["overdue"]) for a in actions] == [
+        ("pending", "2026-11-15", True),
+        ("pending", "2026-11-16", False),
+        ("done", "2026-11-01", False),
+    ]
+    assert set(actions[0]) == {"id", "description", "owner", "due_date", "status", "overdue"}
+    assert (actions[0]["description"], actions[0]["owner"]) == ("Recalibrar el sensor", "Ana")
+
+
+def test_case_detail_has_no_messages_or_traces(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool, turns=1)
+    add_detail(db_pool, problem_id)
+
+    body = get_case(client, problem_id).json()
+
+    assert not {"messages", "traces"} & set(body)
+    assert "Hay merma" not in str(body)
+
+
+def test_closed_case_from_another_channel(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(
+        db_pool, state="closed", updated="2026-11-14 08:00+00", link=("slack", "C123")
+    )
+
+    body = get_case(client, problem_id).json()
+
+    assert (body["phase"], body["closed_at"], body["web_session_id"]) == (
+        "closed",
+        "2026-11-14T08:00:00Z",
+        None,
+    )
+
+
+def test_case_left_by_a_failed_first_message(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+
+    body = get_case(client, problem_id).json()
+
+    assert (body["turns"], body["version"], body["title"], body["events"], body["actions"]) == (
+        0,
+        0,
+        None,
+        [],
+        [],
+    )
+    assert body["fields"] == {"what": None, "where": None, "since": None, "standard": None}
+
+
+def test_case_detail_matches_the_session_view(client: TestClient) -> None:
+    llm = FakeLLMProvider(
+        [
+            tool_calls_response(tool_call("record_field", {"field": "what", "value": "Merma"})),
+            text_response("¿En qué línea?"),
+        ]
+    )
+    client.app.dependency_overrides[get_llm_provider] = lambda: llm
+    session_id = str(uuid4())
+    sent = client.post(
+        "/copilot/messages",
+        json={"session_id": session_id, "tenant": "cliente-acme", "text": "Hay merma"},
+        headers=HEADERS,
+    ).json()
+    session = client.get(f"/copilot/sessions/{session_id}", headers=HEADERS).json()
+
+    body = get_case(client, sent["case_id"]).json()
+
+    assert (body["web_session_id"], body["title"], body["turns"]) == (session_id, "Merma", 1)
+    for key in ("case_id", "tenant", "phase", "version", "fields", "events", "actions"):
+        assert body[key] == session[key], key
+
+
+def test_unknown_case_is_404(client: TestClient, db_pool: ConnectionPool) -> None:
+    add_case(db_pool)
+
+    response = get_case(client, uuid4())
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": [{"type": "case_not_found", "loc": ["path", "case_id"], "msg": "case not found"}]
+    }
+
+
+def test_malformed_case_id_is_422(client: TestClient) -> None:
+    response = get_case(client, "case-1")
+
+    assert response.status_code == 422
+    [error] = response.json()["detail"]
+    assert (error["loc"], error["type"]) == (["path", "case_id"], "uuid_parsing")
+
+
+def test_case_detail_needs_the_key(client: TestClient, db_pool: ConnectionPool) -> None:
+    problem_id, _ = add_case(db_pool)
+
+    assert get_case(client, problem_id, headers={}).status_code == 401
+
+
+def test_case_content_is_not_logged(
+    client: TestClient, db_pool: ConnectionPool, caplog: pytest.LogCaptureFixture
+) -> None:
+    problem_id, _ = add_case(db_pool)
+    add_detail(db_pool, problem_id)
+
+    with caplog.at_level("DEBUG"):
+        assert get_case(client, problem_id).status_code == 200
+
+    app_messages = [r.getMessage() for r in caplog.records if r.name.startswith("ayo_copilot")]
+    for secret in ("Merma", "Línea 2", "Sensor descalibrado", "Recalibrar", "Ana"):
+        assert not any(secret in message for message in app_messages), secret

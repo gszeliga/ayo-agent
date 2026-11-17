@@ -36,6 +36,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/cases/{case_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a case
+         * @description One case, from any channel: its header (tenant, title, phase,
+         *     version, turn count, times, `web_session_id`), the four facts, the annotations (evidence,
+         *     hypotheses, discarded hypotheses, the validated cause) and the actions, with `overdue`
+         *     computed in `APP_TIMEZONE`.
+         *
+         *     The conversation and the turn traces are not part of it.
+         *
+         *     | Status | Meaning |
+         *     |---|---|
+         *     | `200` | The case. |
+         *     | `401` | `X-API-Key` missing or wrong. |
+         *     | `404` | No case with that id (`case_not_found`). |
+         *     | `422` | `case_id` is not a UUID (FastAPI validation). |
+         */
+        get: operations["get_case"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/documents": {
         parameters: {
             query?: never;
@@ -560,6 +592,89 @@ export interface components {
              * @example PRO-014 Control de sellado
              */
             title?: string | null;
+        };
+        /**
+         * CaseDetail
+         * @description One case, from any channel: its header, the four facts, the annotations and the
+         *     actions. The conversation and the turn traces are not here.
+         */
+        CaseDetail: {
+            /**
+             * Actions
+             * @description The actions, oldest first; `overdue` is computed by the API.
+             */
+            actions: components["schemas"]["CopilotSessionAction"][];
+            /**
+             * Case Id
+             * Format: uuid
+             * @description The case.
+             * @example 8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52
+             */
+            case_id: string;
+            /**
+             * Closed At
+             * @description When it was closed (UTC); null while open.
+             * @example null
+             */
+            closed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the case was opened (UTC).
+             * @example 2026-11-12T09:30:58Z
+             */
+            created_at: string;
+            /**
+             * Events
+             * @description The annotations, oldest first.
+             */
+            events: components["schemas"]["CopilotSessionEvent"][];
+            /** @description The four facts. */
+            fields: components["schemas"]["CopilotSessionFields"];
+            /**
+             * Phase
+             * @description The current phase: `understand` (the four facts), `challenge` (evidence), `analyse` (the cause), `action` (actions with owner and date), `followup` (tracking them) or `closed`.
+             * @example analyse
+             * @enum {string}
+             */
+            phase: "understand" | "challenge" | "analyse" | "action" | "followup" | "closed";
+            /**
+             * Tenant
+             * @description The case's tenant.
+             * @example cliente-acme
+             */
+            tenant: string;
+            /**
+             * Title
+             * @description What happens (`what`), on one line and cut to 80 characters; null until the copilot records it (as in the listing).
+             * @example Merma del 4 % en el envasado de la línea 2
+             */
+            title: string | null;
+            /**
+             * Turns
+             * @description Committed turns.
+             * @example 4
+             */
+            turns: number;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description When the last turn was committed, else when it was opened (UTC).
+             * @example 2026-11-13T16:02:11Z
+             */
+            updated_at: string;
+            /**
+             * Version
+             * @description Bumped by every committed turn.
+             * @example 7
+             */
+            version: number;
+            /**
+             * Web Session Id
+             * @description The web session linked to the case, to keep talking through `POST /copilot/messages`; null for a case opened from another channel.
+             * @example 3f1c2a9e-7b4d-4e8a-9c61-0d5b2f7a8e14
+             */
+            web_session_id: string | null;
         };
         /**
          * CaseListItem
@@ -1994,6 +2109,56 @@ export interface operations {
                 };
             };
             /** @description A query parameter is not acceptable. `type` is a FastAPI validation code such as `literal_error` (unknown `phase`), `bool_parsing` (`closed`), `greater_than_equal` or `less_than_equal` (`limit`, `offset`), `string_too_long` (`q`) or `string_pattern_mismatch` (`tenant`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The case id (a UUID), as `case_id` in the listing or the copilot's replies. */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The case. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseDetail"];
+                };
+            };
+            /** @description `X-API-Key` is missing or wrong. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No case with that id: `type` is `case_not_found`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `case_id` is not a UUID: `type` is `uuid_parsing`. */
             422: {
                 headers: {
                     [name: string]: unknown;

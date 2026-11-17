@@ -416,6 +416,20 @@ class CaseRow:
         return f"CaseRow(id={self.id}, tenant={self.tenant!r}, state={self.state!r})"
 
 
+# The columns of `CaseRow`, in order; `%(today)s` decides what is overdue.
+_CASE_ROW_SELECT = """
+    select p.id, p.tenant, p.state, p.what,
+      (select count(*) from turn_traces t where t.problem_id = p.id),
+      (select count(*) from actions a where a.problem_id = p.id and a.status = 'pending'),
+      (select count(*) from actions a
+        where a.problem_id = p.id and a.status = 'pending' and a.due_date < %(today)s),
+      p.created_at, p.updated_at, p.closed_at,
+      (select l.external_thread_id from conversation_links l
+        where l.problem_id = p.id and l.channel_type = 'web'
+        order by l.created_at, l.id limit 1)
+    from problems p"""
+
+
 def list_cases(
     conn: Connection,
     *,
@@ -448,19 +462,18 @@ def list_cases(
     assert total_row is not None
     rows = conn.execute(
         f"""
-        select p.id, p.tenant, p.state, p.what,
-          (select count(*) from turn_traces t where t.problem_id = p.id),
-          (select count(*) from actions a where a.problem_id = p.id and a.status = 'pending'),
-          (select count(*) from actions a
-            where a.problem_id = p.id and a.status = 'pending' and a.due_date < %(today)s),
-          p.created_at, p.updated_at, p.closed_at,
-          (select l.external_thread_id from conversation_links l
-            where l.problem_id = p.id and l.channel_type = 'web'
-            order by l.created_at, l.id limit 1)
-        from problems p {where}
+        {_CASE_ROW_SELECT} {where}
         order by p.updated_at desc, p.id
         limit %(limit)s offset %(offset)s
         """,
         params,
     ).fetchall()
     return [CaseRow(*row) for row in rows], total_row[0]
+
+
+def get_case_row(conn: Connection, problem_id: UUID, *, today: date) -> CaseRow | None:
+    """One case as `list_cases` shows it (same counts and web link); None if unknown."""
+    row = conn.execute(
+        f"{_CASE_ROW_SELECT} where p.id = %(id)s", {"id": problem_id, "today": today}
+    ).fetchone()
+    return None if row is None else CaseRow(*row)

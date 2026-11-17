@@ -82,6 +82,7 @@ SEARCH = ("post", "/admin/search")
 COPILOT_SEND = ("post", "/copilot/messages")
 COPILOT_SESSION = ("get", "/copilot/sessions/{session_id}")
 LIST_CASES = ("get", "/admin/cases")
+GET_CASE = ("get", "/admin/cases/{case_id}")
 OPERATIONS = [
     UPLOAD,
     LIST,
@@ -99,6 +100,7 @@ OPERATIONS = [
     COPILOT_SEND,
     COPILOT_SESSION,
     LIST_CASES,
+    GET_CASE,
 ]
 
 
@@ -236,6 +238,13 @@ def copilot_closed(client: TestClient):
 def copilot_failing(client: TestClient):
     client.app.dependency_overrides[get_llm_provider] = RaisingLLM
     return copilot_send(client, COPILOT_MESSAGE)
+
+
+CASE_ID = "8d2e4b71-5c3a-4f09-a6e2-1b7c9d0e3f52"
+
+
+def case_detail(client: TestClient, case_id: str, headers=None):
+    return get(client, f"/admin/cases/{case_id}", headers=headers)
 
 
 def session(client: TestClient, session_id: str = SESSION_ID, headers=None):
@@ -430,6 +439,15 @@ CASES = {
     "cases list 401 no key": (LIST_CASES, 401, lambda c: get(c, "/admin/cases", headers={})),
     "cases list 422 phase": (LIST_CASES, 422, lambda c: get(c, "/admin/cases", phase="done")),
     "cases list 422 limit": (LIST_CASES, 422, lambda c: get(c, "/admin/cases", limit=500)),
+    "case get 200": (GET_CASE, 200, lambda c: case_detail(c, copilot_sent(c).json()["case_id"])),
+    "case get 200 closed": (
+        GET_CASE,
+        200,
+        lambda c: (copilot_closed(c), case_detail(c, session(c).json()["case_id"]))[1],
+    ),
+    "case get 401 no key": (GET_CASE, 401, lambda c: case_detail(c, CASE_ID, headers={})),
+    "case get 404": (GET_CASE, 404, lambda c: case_detail(c, CASE_ID)),
+    "case get 422 malformed id": (GET_CASE, 422, lambda c: case_detail(c, "case-1")),
 }
 # Triggered by dedicated tests below.
 EXTRA_TRIGGERED = {UPLOAD: {502}, REPROCESS: {409, 502}, SEARCH: {502}}
