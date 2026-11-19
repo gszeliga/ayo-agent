@@ -1215,8 +1215,8 @@ class LLMUsage(BaseModel):
     )
     cost: float | None = Field(
         ge=0,
-        description="Cost in the provider's billing unit (OpenRouter credits, about USD);"
-        " null if not reported.",
+        description="Cost in US dollars (OpenRouter credits, which are dollar-denominated; the"
+        " fee on buying credits is not included); null if not reported.",
         examples=[0.0021],
     )
 

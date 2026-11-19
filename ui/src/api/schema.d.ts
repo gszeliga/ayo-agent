@@ -2100,7 +2100,7 @@ export interface components {
             completion_tokens: number | null;
             /**
              * Cost
-             * @description Cost in the provider's billing unit (OpenRouter credits, about USD); null if not reported.
+             * @description Cost in US dollars (OpenRouter credits, which are dollar-denominated; the fee on buying credits is not included); null if not reported.
              * @example 0.0021
              */
             cost: number | null;

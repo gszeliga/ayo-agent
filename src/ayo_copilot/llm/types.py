@@ -128,7 +128,8 @@ class Usage:
     total_tokens: int | None = None
     # Part of completion_tokens, when the model reasons and the provider reports it.
     reasoning_tokens: int | None = None
-    # In the provider's billing unit (OpenRouter: credits, about USD).
+    # In US dollars (OpenRouter credits, which are dollar-denominated; the fee on buying
+    # credits is not included).
     cost: float | None = None
 
     def __post_init__(self) -> None:

@@ -72,8 +72,8 @@ annotations, the actions, with `overdue` computed as in the session view, the AI
 summary and `usage`. An unknown id is `404 case_not_found`, a malformed one `422`.
 
 **Usage** has one shape wherever it appears (`LLMUsage`): `llm_calls`, `prompt_tokens`,
-`completion_tokens`, `total_tokens` and `cost` (the provider's billing unit: OpenRouter
-credits, about USD). A turn's trace has its own, the AI summary has its one call (only its
+`completion_tokens`, `total_tokens` and `cost` (in US dollars: OpenRouter credits, which
+are dollar-denominated; the fee on buying credits is not included). A turn's trace has its own, the AI summary has its one call (only its
 total tokens and cost are stored, so prompt and completion are null), and the case's
 `usage` adds every turn and the stored summary. A total sums what was reported and is null
 only when nothing reported it. Regenerating the summary replaces it, so an earlier

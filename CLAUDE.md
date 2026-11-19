@@ -12,8 +12,9 @@ working rules, update this file in that step's commit.
 - **Active (2026-11-16): test chat and case inspector.** Spec
   `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
   log in `plans/chat-progress.md`. **Read both first.** C1-C8 (the cases API) and the
-  approved clickable prototype (T0, an Artifact), C9 (`chunk_index` in the trace) and
-  C10 (one usage shape: `LLMUsage`) are done; next are the UI steps T1-T5.
+  approved clickable prototype (T0, an Artifact), C9 (`chunk_index` in the trace),
+  C10 (one usage shape: `LLMUsage`) and T1 (`/chat`, cases list) are done; next are the UI
+  steps T2-T5.
   `POST /admin/cases/{case_id}/summary` makes a real, billed model call: never call it
   against a configured provider without the user's OK.
 - **Paused (2026-11-16): conversation engine core.** Spec

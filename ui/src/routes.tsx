@@ -22,6 +22,16 @@ const SettingsPage = lazy(() =>
 const SearchPage = lazy(() =>
   import('@/search/SearchPage').then((module) => ({ default: module.SearchPage })),
 )
+// And the test chat: the cases list, a case's conversation and its inspector.
+const ChatPage = lazy(() =>
+  import('@/chat/ChatPage').then((module) => ({ default: module.ChatPage })),
+)
+const NoCaseSelected = lazy(() =>
+  import('@/chat/ChatPage').then((module) => ({ default: module.NoCaseSelected })),
+)
+const CaseView = lazy(() =>
+  import('@/chat/ChatPage').then((module) => ({ default: module.CaseView })),
+)
 
 export function AppRoutes() {
   return (
@@ -55,6 +65,17 @@ export function AppRoutes() {
               </Suspense>
             }
           />
+          <Route
+            path={ROUTES.chat}
+            element={
+              <Suspense fallback={<Skeleton aria-label="Loading chat" className="h-40" />}>
+                <ChatPage />
+              </Suspense>
+            }
+          >
+            <Route index element={<NoCaseSelected />} />
+            <Route path={ROUTES.chatCase} element={<CaseView />} />
+          </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

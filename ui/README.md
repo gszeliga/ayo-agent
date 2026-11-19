@@ -1,8 +1,9 @@
 # AYO admin UI
 
 Browser UI for the documents API (`/admin`): list, inspect, upload, replace, reprocess and
-delete knowledge documents, try questions against them (test search), and see the indexing
-settings and service status. React +
+delete knowledge documents, try questions against them (test search), see the indexing
+settings and service status, and browse the copilot's cases (test chat, being built: see
+`../plans/chat-progress.md`). React +
 Vite + TypeScript, Tailwind CSS v4 and shadcn/ui components. **Internal use only:** it
 sends the shared admin key from the browser.
 
@@ -192,9 +193,28 @@ size 800 → 1000"): `settings/configDiff.ts` splits the backend's config string
 parts; its test pins the format against `docs/openapi.json`, and an unreadable string falls
 back to "Differs from the current settings".
 
+## Test chat
+
+`/chat` and `/chat/:caseId` (`src/chat/`, lazy-loaded; plan, decisions and steps in
+`../plans/chat-progress.md`). "Test chat" comes first in the navigation, as an accent pill;
+the knowledge pages follow under "Knowledge". Connecting still lands on Documents, and a
+link to a case survives the connect screen. The page uses the whole window (the shell drops
+its width limit on these paths).
+
+The **cases list** (`GET /admin/cases`, every channel): a search on what happens (debounced
+300 ms), tenant (those `/admin/tenants` knows, plus the selected one), phase, and
+All/Open/Closed. The filters live in memory only, never in the URL: the search is
+conversation content. Pages of 20 with **Load more**; a case seen on two pages (updated
+in between) is listed once. A row shows the title or "Untitled case", the phase, tenant,
+turns, pending actions, an overdue badge from the API's `overdue_actions` (never recomputed),
+"Other channel" when there is no web session, and the last update. The list collapses to a
+rail with the count; filters, loaded pages and the collapse survive switching cases (the
+page is a layout route). The case itself is the next step (T2).
+
 ## Routes
 
-`/connect`, `/documents`, `/documents/:docId`, `/settings`, `/search`; everything but `/connect` needs
+`/connect`, `/documents`, `/documents/:docId`, `/settings`, `/search`, `/chat`,
+`/chat/:caseId`; everything but `/connect` needs
 a connection. They are listed in `src/paths.ts`. **No UI route may start with an API path**
 (`/admin`, `/health`, `/docs`, `/redoc`, `/openapi.json`): on a shared origin the proxy
 sends those to the API. `src/paths.test.ts` reads the API's paths from `docs/openapi.json`
@@ -298,6 +318,9 @@ src/
                       states), searchParams (URL <-> options, request, limits), useSearch
                       (the mutation, the last search in the cache), TenantPicker,
                       SearchOptionsPopover, SearchSummary, ResultCard, format
+  chat/               the test chat (lazy-loaded layout route): ChatPage (list beside the
+                      case, NoCaseSelected, CaseView), CasesList (+ CasesRail),
+                      CaseFiltersBar, CaseRow, queries (filters, useCases, flattenCases), phases
   hooks/              useDebouncedValue, useDocumentTitle
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping
@@ -311,6 +334,6 @@ src/
   public/theme-boot.js  applies the theme before the first paint
   test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
                       render.tsx (renderApp(path, {connected}): router, query client,
-                      location probe and Back), fixtures/ (Spanish documents, a procedure
+                      location probe and Back), fixtures/ (Spanish documents and cases, a procedure
                       in Markdown with a table, links, an image and raw HTML)
 ```

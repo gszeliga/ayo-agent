@@ -8,4 +8,11 @@ export const ROUTES = {
   document: '/documents/:docId',
   settings: '/settings',
   search: '/search',
+  chat: '/chat',
+  chatCase: '/chat/:caseId',
 } as const
+
+/** The test chat on one case. */
+export function chatCasePath(caseId: string): string {
+  return `${ROUTES.chat}/${encodeURIComponent(caseId)}`
+}

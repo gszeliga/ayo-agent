@@ -9,8 +9,9 @@ file is their reference. The decisions here win over the spec, the plan and the 
 ## Next (resume here)
 C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`); the
 clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) and C10 (one usage
-shape) are done and pushed. Next: **brief T1** (it also carries the `cost` wording fix
-listed under it), then T2-T5 one at a time, each briefed first. Nothing is in progress.
+shape) are done and pushed. T1 (route, nav, cases list, the `cost` wording) is done
+(2026-11-19). Next: **brief T2**, then T3-T5 one at a time, each briefed first. Nothing is
+in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -122,6 +123,13 @@ What the UI steps start from:
     inspector can be hidden and is a drawer on narrow screens. "Load earlier turns" is a
     button, not loading on scroll. Export (Markdown, JSON) fetches the turns not loaded
     yet first (reads only), so the file has the whole case.
+26. **The list's filters live in memory** (agreed 2026-11-19, T1 brief): search, tenant,
+    phase and state are page state, never in the URL (the search is content; the others
+    would have to ride along on every case switch). They survive switching cases, not a
+    reload. The page is a layout route, so the loaded pages survive too.
+27. **"New conversation" comes with T3** (agreed 2026-11-19, T1 brief), where it works; the
+    T1 rail shows only Show cases and the count.
+28. **The collapsed list is not remembered** (agreed 2026-11-19, T1 brief): memory only.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -151,7 +159,7 @@ What the UI steps start from:
   longer stored; decision 23). Split from C10 at its brief (agreed 2026-11-17).
 - [x] **C10** One usage shape (`LLMUsage`, decision 24 as revised): `trace.usage`,
   `summary.usage` and the case's `usage` (turns plus summary) in `get_case`.
-- [ ] **T1** Route `/chat` and `/chat/:caseId`, nav, cases list (filters, load more,
+- [x] **T1** Route `/chat` and `/chat/:caseId`, nav, cases list (filters, load more,
   collapse), empty state.
   Also (agreed 2026-11-17): `LLMUsage.cost` reads "US dollars (OpenRouter credits, which
   are dollar-denominated; the fee on buying credits is not included)" instead of "about
@@ -381,3 +389,27 @@ What the UI steps start from:
   summary tests read the new shape), unit (`tests/unit/test_schemas.py`, the three
   constructors). The prototype's "Case totals" card trimmed to match (version 17). Full
   suite green (1563 passed), `pnpm check` green.
+- **T1 (2026-11-19).** Routes `/chat` and `/chat/:caseId` (`paths.ts`, `chatCasePath`): a
+  lazy layout route, `ChatPage`, with the case routes inside (`NoCaseSelected`; `CaseView`
+  is a placeholder until T2) behind their own `Suspense`. `AppShell`: "Test chat" first as
+  an accent pill (`MessagesSquare`), a divider, then a "Knowledge" group (Documents,
+  Search, Indexing settings); on `/chat*` the shell fills the window without the width
+  limit. `src/chat/`: `queries.ts` (`CaseFilters`, `toQuery`, `useCases` as an infinite
+  query of 20 per page, `flattenCases` keeping a case once when an update moves it between
+  pages), `CaseFiltersBar` (search, max 200 as the API; tenant from `/admin/tenants` plus
+  the selected one; phase; All/Open/Closed as `aria-pressed` buttons), `CaseRow` (title or
+  "Untitled case", phase badge, tenant, turns, pending, overdue badge from the API value,
+  "Other channel", relative update with the UTC time as tooltip; `aria-current` when
+  selected), `CasesList` (loading, error with Retry, "No conversations yet", "No cases
+  match" with Clear filters, Load more and its error) and `CasesRail` (Show cases, count),
+  `phases.ts`. Decisions 26-28. The `cost` wording (US dollars, credits, fee not included)
+  in `schemas.py`, `llm/types.py`, `docs/copilot.md`, `docs/openapi.json`, `schema.d.ts`.
+  `ui/README.md` (Test chat section, routes, layout), CLAUDE.md. Tests
+  (`src/chat/ChatPage.test.tsx`, 15): nav order, group and active pill; landing still on
+  Documents; a case link through the connect screen; every row field; the overdue badge
+  not recomputed; selecting a row; each filter and combinations; the search debounced,
+  trimmed and not in the URL; Load more and its end; a case on two pages listed once;
+  empty and no-match states; a failed load and Retry; collapse to the rail and back with
+  the filters kept and no refetch; switching cases keeping the loaded pages. `paths.test.ts`
+  covers the new routes. Not checked in a real browser against the API. Full suite green
+  (1563 passed), `pnpm check` green (374 tests).
