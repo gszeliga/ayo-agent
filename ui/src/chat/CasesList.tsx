@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,6 +21,7 @@ interface Props {
   onFiltersChange: (filters: CaseFilters) => void
   selectedCaseId: string | undefined
   onCollapse: () => void
+  onNewConversation: () => void
 }
 
 /** The cases column: filters, rows, Load more, and its empty, loading and error states. */
@@ -31,6 +32,7 @@ export function CasesList({
   onFiltersChange,
   selectedCaseId,
   onCollapse,
+  onNewConversation,
 }: Props) {
   const tenants = useTenants()
   const items = cases.data ? flattenCases(cases.data.pages) : []
@@ -51,6 +53,10 @@ export function CasesList({
           <PanelLeftClose aria-hidden="true" />
         </Button>
       </div>
+      <Button className="mb-3 w-full" onClick={onNewConversation}>
+        <Plus aria-hidden="true" />
+        New conversation
+      </Button>
       <CaseFiltersBar filters={filters} tenants={tenants.data} onChange={onFiltersChange} />
       <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto px-1 pb-2">
         {cases.isPending ? (
@@ -133,14 +139,19 @@ export function CasesList({
 export function CasesRail({
   total,
   onExpand,
+  onNewConversation,
 }: {
   total: number | undefined
   onExpand: () => void
+  onNewConversation: () => void
 }) {
   return (
     <div className="flex flex-col items-center gap-2">
       <Button variant="ghost" size="icon" aria-label="Show cases" onClick={onExpand}>
         <PanelLeftOpen aria-hidden="true" />
+      </Button>
+      <Button size="icon" aria-label="New conversation" onClick={onNewConversation}>
+        <Plus aria-hidden="true" />
       </Button>
       {total !== undefined && (
         <span className="text-muted-foreground text-xs tabular-nums">

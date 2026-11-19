@@ -9,10 +9,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { CaseHeader } from './CaseHeader'
 import { CaseNotFound } from './CaseNotFound'
+import { Composer } from './Composer'
 import { caseTurnsKey, useCase, useCaseTurns } from './queries'
 import { readOnlyReason } from './readOnly'
 import { ReadOnlyNotice } from './ReadOnlyNotice'
+import { SendError } from './SendError'
 import { TurnList } from './TurnList'
+import { useChatInput } from './useChatInput'
 
 type CaseDetail = components['schemas']['CaseDetail']
 
@@ -22,7 +25,7 @@ function isMissing(error: unknown): boolean {
 }
 
 /**
- * `/chat/:caseId`: the case read-only (T2). The tab keeps the page's title: a case title is
+ * `/chat/:caseId`: the case, and its message box when it can be continued. The tab keeps the page's title: a case title is
  * conversation content, and the tab title reaches the browser's history.
  */
 export function CaseView() {
@@ -71,6 +74,8 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
   const turns = useCaseTurns(caseId, true)
   const [refreshing, setRefreshing] = useState(false)
   const reason = readOnlyReason(detail)
+  // A writable case always has its web session (readOnlyReason checks it).
+  const input = useChatInput({ sessionId: detail.web_session_id ?? '', tenant: detail.tenant })
 
   async function refresh() {
     setRefreshing(true)
@@ -95,10 +100,31 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
       {/* Reversed, so it opens at the newest turn and keeps its place when older ones load. */}
       <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto pr-1">
         <div className="py-2">
-          <TurnList turns={turns} />
+          <TurnList turns={turns} pending={input.pendingText} />
         </div>
       </div>
-      {reason !== null && <ReadOnlyNotice reason={reason} />}
+      {reason !== null ? (
+        <ReadOnlyNotice reason={reason} />
+      ) : (
+        <div className="space-y-2">
+          {input.error && !input.sending && (
+            <SendError
+              error={input.error}
+              onSendAgain={input.submit}
+              onReload={() => {
+                input.clearError()
+                void refresh()
+              }}
+            />
+          )}
+          <Composer
+            value={input.text}
+            onChange={input.setText}
+            onSend={input.submit}
+            sending={input.sending}
+          />
+        </div>
+      )}
     </div>
   )
 }

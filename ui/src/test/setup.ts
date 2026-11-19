@@ -1,8 +1,13 @@
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 
 import { server } from './server'
+
+// The first test of a file waits for the lazy routes and the Markdown renderer to load
+// cold; with every file running in parallel that can pass the default 1 s of `findBy*` and
+// `waitFor`. A real failure still fails, only later.
+configure({ asyncUtilTimeout: 3000 })
 
 // jsdom has no matchMedia; the toaster's system theme asks for it. Tests run light.
 if (typeof window.matchMedia !== 'function') {

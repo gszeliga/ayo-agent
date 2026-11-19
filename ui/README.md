@@ -229,10 +229,29 @@ another channel or a closed one says it can be read but not continued. A `404` o
 reads "This case no longer exists"; other errors offer Retry, and earlier turns that fail
 keep the ones shown.
 
+**Sending** (`POST /copilot/messages`, the same admin key; every message is a real, billed
+model call, so it is a mutation, never retried). **New conversation** (top of the list, or
+the rail) asks for the tenant (those `/admin/tenants` knows; the last one is preselected:
+its name is the only thing the chat keeps in browser storage, `ayo.chat.last-tenant`) and
+opens `/chat/new` with a new `session_id` (a UUID v4, `crypto.randomUUID` or
+`getRandomValues` outside secure contexts) held in the chat page's memory. The first reply
+replaces the URL with `/chat/:caseId`; `/chat/new` without a draft offers to start one. An
+open web case has a message box under its turns, sending with its `web_session_id`.
+Enter sends, Shift+Enter adds a line, an empty message can't be sent. While a turn runs
+the message shows as "Sending…" with a typing indicator and the box is disabled. After the
+reply the case is read again, the new turn alone is fetched (`offset = turn - 1`,
+`limit=1`) and added after the loaded ones, and the list refreshes; the "Sending…" bubble
+stays until then (`useSendMessage.ts`). A failed turn stores nothing: the alert above the
+box says why and the text goes back in it (`sendErrors.ts`): `409 case_changed` and
+`case_closed` offer **Reload case**, `502` and a network failure **Send again**, `422` gives
+the API's message, `503` says no model is configured; a `401` returns to the connect
+screen as anywhere. Moving to another case while a turn runs doesn't cancel it: the caches
+still catch up, but no alert shows on the other case.
+
 ## Routes
 
 `/connect`, `/documents`, `/documents/:docId`, `/settings`, `/search`, `/chat`,
-`/chat/:caseId`; everything but `/connect` needs
+`/chat/new`, `/chat/:caseId`; everything but `/connect` needs
 a connection. They are listed in `src/paths.ts`. **No UI route may start with an API path**
 (`/admin`, `/health`, `/docs`, `/redoc`, `/openapi.json`): on a shared origin the proxy
 sends those to the API. `src/paths.test.ts` reads the API's paths from `docs/openapi.json`
@@ -339,8 +358,11 @@ src/
   chat/               the test chat (lazy-loaded layout route): ChatPage (list beside the
                       case, NoCaseSelected), CasesList (+ CasesRail), CaseFiltersBar, CaseRow,
                       CaseView (+ CaseHeader, PhaseStepper, TurnList, TurnBlock, PhaseMarker,
-                      ReadOnlyNotice + readOnly, CaseNotFound), queries (useCases, useCase,
-                      useCaseTurns paging back), format (cost, tokens), phases
+                      ReadOnlyNotice + readOnly, CaseNotFound), NewConversation (/chat/new) +
+                      NewConversationDialog + chatContext (the draft), Composer, PendingTurn,
+                      SendError + sendErrors, useChatInput, useSendMessage, lastTenant,
+                      sessionId, queries (useCases, useCase, useCaseTurns paging back),
+                      format (cost, tokens), phases
   hooks/              useDebouncedValue, useDocumentTitle
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping
@@ -352,7 +374,8 @@ src/
   lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes), theme.ts,
                       chunkError.ts
   public/theme-boot.js  applies the theme before the first paint
-  test/               setup.ts (jest-dom, MSW, storage reset), server.ts, handlers.ts,
+  test/               setup.ts (jest-dom, MSW, storage reset, 3 s async timeout), server.ts,
+                      handlers.ts, chatApi.ts (a stand-in for the chat's endpoints),
                       render.tsx (renderApp(path, {connected}): router, query client,
                       location probe and Back), fixtures/ (Spanish documents and cases, a procedure
                       in Markdown with a table, links, an image and raw HTML)

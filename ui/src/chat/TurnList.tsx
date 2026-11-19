@@ -3,11 +3,18 @@ import { LoadError } from '@/components/LoadError'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { PendingTurn } from './PendingTurn'
 import type { useCaseTurns } from './queries'
 import { TurnBlock } from './TurnBlock'
 
+interface Props {
+  turns: ReturnType<typeof useCaseTurns>
+  /** A message being answered, shown after the turns until the turn is stored. */
+  pending?: string | null
+}
+
 /** The conversation, oldest first, with "Load earlier turns" above it. */
-export function TurnList({ turns }: { turns: ReturnType<typeof useCaseTurns> }) {
+export function TurnList({ turns, pending = null }: Props) {
   if (turns.isPending) {
     return (
       <div className="space-y-4" aria-label="Loading conversation">
@@ -53,14 +60,20 @@ export function TurnList({ turns }: { turns: ReturnType<typeof useCaseTurns> }) 
         )}
       </div>
       <div role="log" aria-live="polite" aria-label="Conversation">
-        {items.length === 0 ? (
+        {items.length === 0 && pending === null && (
           <p className="text-muted-foreground text-center">No messages yet.</p>
-        ) : (
+        )}
+        {items.length > 0 && (
           <ol className="space-y-6">
             {items.map((turn) => (
               <TurnBlock key={turn.turn} turn={turn} />
             ))}
           </ol>
+        )}
+        {pending !== null && (
+          <div className={items.length > 0 ? 'mt-6' : undefined}>
+            <PendingTurn text={pending} />
+          </div>
         )}
       </div>
     </div>

@@ -11,8 +11,8 @@ C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`)
 clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) and C10 (one usage
 shape) are done and pushed. T1 (route, nav, cases list, the `cost` wording) and the
 schema-revision side step are done and pushed (2026-11-19, up to `a62e26f`); T2 (a case,
-read-only) is done (2026-11-19). Next: **brief T3**, then T4-T5 one at a time, each briefed
-first. Nothing is in progress.
+read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). Next: **brief T4**, then
+T5, each briefed first. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -143,6 +143,17 @@ What the UI steps start from:
 32. **The header grows with its steps** (agreed 2026-11-19, T2 brief): T2 has Refresh only;
     Export, Delete and the inspector toggle come with T4 and T5. The tab title stays "Test
     chat" (a case title is content and tab titles reach the browser's history).
+33. **`/chat/new` is its own route** (agreed 2026-11-19, T3 brief); the draft (`session_id`,
+    tenant) lives in the chat page's memory, passed to the view as outlet context, never in
+    the URL or location state. Without a draft it offers to start one.
+34. **A turn is not cancelled by leaving its case** (agreed 2026-11-19, T3 brief): the cache
+    updates run from the mutation's own options (they outlive the view); the alert, the
+    text put back and the navigation of a new conversation run from `mutate`'s callbacks,
+    only while the view is shown.
+35. **The new conversation's tenant comes from `/admin/tenants`** (agreed 2026-11-19, T3
+    brief): tenants with documents only; no free typing. The last one is remembered as a
+    name in `localStorage` (`ayo.chat.last-tenant`).
+36. **No trace chip yet** (agreed 2026-11-19, T3 brief): "Turn N" opens the trace in T4.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -181,7 +192,7 @@ What the UI steps start from:
   `docs/openapi.json` and `schema.d.ts`.
 - [x] **T2** A case read-only: header, phase stepper, turns paged back, safe Markdown, phase
   markers, Copy, read-only and 404 states.
-- [ ] **T3** Sending: new conversation (tenant, in-memory `session_id`), resume, in-flight
+- [x] **T3** Sending: new conversation (tenant, in-memory `session_id`), resume, in-flight
   state, errors by status with the text kept, refetch after a turn.
 - [ ] **T4** Inspector: State, Actions, Trace (with case totals and chunk links), hide and
   drawer.
@@ -197,8 +208,8 @@ What the UI steps start from:
   the case's tenant) must include `ayo` too, or its documents read as deleted (noted in C9).
 - **The summary prompt (`prompts/summary.md`) is a draft** for the user (and AYO) to
   review; no real model has run it yet. A manual try is billed: ask first.
-- Applying migrations 0003 and 0004 to the Neon dev branch: needs the user's OK (0004
-  exists since C7; local test databases only so far).
+- Migrations 0003 and 0004 are on the Neon dev branch (applied by the user, reported
+  2026-11-19).
 - A proxy or platform in front of the service (deployment, D1) keeps its own access log:
   it must not record query strings either (`docs/operations.md`, "Logs").
 
@@ -463,3 +474,31 @@ What the UI steps start from:
   turns, read-only for another channel and closed, none for an open web case, 404 with the
   way back, 422, another error with Retry, switching cases keeping the list),
   `format.test.ts` (11). Not checked in a real browser. `pnpm check` green (407 tests).
+- **T3 (2026-11-19).** Sending messages. `useSendMessage` (`POST /copilot/messages`, `retry:
+  false`; its own `onSuccess` invalidates the list and the case, fetches the new turn alone
+  at `offset = turn - 1`, `limit=1`, and appends it to the last loaded page, or resets the
+  turns when that read fails, so a stored turn always shows), `useChatInput` (the text,
+  trimmed; cleared on send, put back on error; `pendingText`, `error`, `clearError`),
+  `Composer` (labelled textarea, Enter sends, Shift+Enter and IME composition don't, Send
+  disabled when empty or sending, the billed note), `PendingTurn` ("Sending…" and a
+  `role="status"` typing indicator, inside the log), `SendError` + `sendErrors.ts` (wording
+  and action per status: 409 `case_changed` / `case_closed` with Reload case, 422 with the
+  API's message, 502 and network with Send again, 503 none), `NewConversationDialog` (the
+  tenant select, last used preselected), `NewConversation` (`/chat/new`: the draft, or a
+  way to start one; the first reply replaces the URL with the case), `chatContext.ts`
+  (`Draft`, outlet context), `lastTenant.ts`, `sessionId.ts` (UUID v4 with a
+  `getRandomValues` fallback). `ChatPage` holds the draft and the dialog; New conversation
+  in the list and the rail; `CaseView` shows the box for a writable case and the pending
+  turn in `TurnList`. `ROUTES.chatNew`. Decisions 33-36; the migration open item updated
+  (applied by the user). Tests: `Send.test.tsx` (18: the new conversation end to end with
+  the generated UUID, the tenant and the remembered name; the dialog's default and Cancel;
+  the rail's button; `/chat/new` without a draft; a reply on an open case with the
+  follow-up reads; Enter, Shift+Enter, empty; the in-flight state; five statuses keeping
+  the text with the right action; network then Send again; Reload case clearing the error;
+  no box when read-only; leaving mid-turn, success and failure; nothing but the tenant name
+  in storage), `sessionId.test.ts` (2), `src/test/chatApi.ts` (a stand-in API that stores
+  turns). The T1 test's stand-in now serves the case endpoints (navigation into the chat's
+  lazy views finishes asynchronously). The test setup raises Testing Library's async
+  timeout to 3 s: the first test of a file waits for cold lazy modules, which under the
+  parallel run passed 1 s (`a11y.test.tsx` and `CaseView.test.tsx` failed that way). Not
+  checked in a real browser; no real model call. `pnpm check` green (427 tests).

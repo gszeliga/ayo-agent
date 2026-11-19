@@ -9,6 +9,7 @@ export const ROUTES = {
   settings: '/settings',
   search: '/search',
   chat: '/chat',
+  chatNew: '/chat/new',
   chatCase: '/chat/:caseId',
 } as const
 

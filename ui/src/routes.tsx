@@ -29,6 +29,9 @@ const ChatPage = lazy(() =>
 const NoCaseSelected = lazy(() =>
   import('@/chat/ChatPage').then((module) => ({ default: module.NoCaseSelected })),
 )
+const NewConversation = lazy(() =>
+  import('@/chat/NewConversation').then((module) => ({ default: module.NewConversation })),
+)
 const CaseView = lazy(() =>
   import('@/chat/CaseView').then((module) => ({ default: module.CaseView })),
 )
@@ -74,6 +77,7 @@ export function AppRoutes() {
             }
           >
             <Route index element={<NoCaseSelected />} />
+            <Route path={ROUTES.chatNew} element={<NewConversation />} />
             <Route path={ROUTES.chatCase} element={<CaseView />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />

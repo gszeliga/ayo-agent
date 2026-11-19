@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
-import { CASES, makeCaseItem } from '@/test/fixtures/cases'
+import { CASES, makeCaseDetail, makeCaseItem } from '@/test/fixtures/cases'
 import { TENANTS } from '@/test/fixtures/documents'
 import { API, KEY, renderApp } from '@/test/render'
 import { server } from '@/test/server'
@@ -37,6 +37,19 @@ function serve(cases: CaseListItem[] = CASES) {
       })
     }),
     http.get(`${API}/admin/tenants`, () => HttpResponse.json(TENANTS)),
+    // An opened case: its detail, no turns (the case view has its own tests).
+    http.get(`${API}/admin/cases/:caseId`, ({ params }) => {
+      const item = cases.find((c) => c.case_id === params.caseId)
+      return item
+        ? HttpResponse.json(makeCaseDetail(item, { turns: 0 }))
+        : HttpResponse.json(
+            { detail: [{ type: 'case_not_found', loc: ['path', 'case_id'], msg: 'No case.' }] },
+            { status: 404 },
+          )
+    }),
+    http.get(`${API}/admin/cases/:caseId/turns`, () =>
+      HttpResponse.json({ items: [], total: 0, limit: 20, offset: 0 }),
+    ),
   )
   return queries
 }
@@ -154,7 +167,9 @@ test('selecting a row opens its case and marks it', async () => {
   if (!action) throw new Error('no row')
   await user.click(action)
 
-  expect(location()).toBe(`/chat/${CASES[1]?.case_id ?? ''}`)
+  await waitFor(() => {
+    expect(location()).toBe(`/chat/${CASES[1]?.case_id ?? ''}`)
+  })
   expect(action).toHaveAttribute('aria-current', 'page')
   expect(screen.getByRole('link', { name: 'Test chat' })).toHaveAttribute('aria-current', 'page')
 })
