@@ -30,7 +30,7 @@ const NoCaseSelected = lazy(() =>
   import('@/chat/ChatPage').then((module) => ({ default: module.NoCaseSelected })),
 )
 const CaseView = lazy(() =>
-  import('@/chat/ChatPage').then((module) => ({ default: module.CaseView })),
+  import('@/chat/CaseView').then((module) => ({ default: module.CaseView })),
 )
 
 export function AppRoutes() {

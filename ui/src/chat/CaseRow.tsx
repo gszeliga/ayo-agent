@@ -6,13 +6,10 @@ import { formatUtc, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { chatCasePath } from '@/paths'
 
+import { plural } from './format'
 import { PHASE_LABELS } from './phases'
 
 type CaseListItem = components['schemas']['CaseListItem']
-
-function plural(count: number, one: string, many: string): string {
-  return `${String(count)} ${count === 1 ? one : many}`
-}
 
 /** One case in the list: a link that opens it. */
 export function CaseRow({ item, selected }: { item: CaseListItem; selected: boolean }) {

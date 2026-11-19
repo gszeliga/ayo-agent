@@ -9,9 +9,10 @@ file is their reference. The decisions here win over the spec, the plan and the 
 ## Next (resume here)
 C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`); the
 clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) and C10 (one usage
-shape) are done and pushed. T1 (route, nav, cases list, the `cost` wording) is done
-(2026-11-19). Next: **brief T2**, then T3-T5 one at a time, each briefed first. Nothing is
-in progress.
+shape) are done and pushed. T1 (route, nav, cases list, the `cost` wording) and the
+schema-revision side step are done and pushed (2026-11-19, up to `a62e26f`); T2 (a case,
+read-only) is done (2026-11-19). Next: **brief T3**, then T4-T5 one at a time, each briefed
+first. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -130,6 +131,18 @@ What the UI steps start from:
 27. **"New conversation" comes with T3** (agreed 2026-11-19, T1 brief), where it works; the
     T1 rail shows only Show cases and the count.
 28. **The collapsed list is not remembered** (agreed 2026-11-19, T1 brief): memory only.
+29. **Refresh starts the turns over** (agreed 2026-11-19, T2 brief): it re-reads the case,
+    then resets the turns to the latest page (computed from the case's new turn count when
+    fetched); re-fetching the loaded offsets would miss turns added elsewhere.
+30. **Scroll position** (agreed 2026-11-19, T2 brief, as browser scroll anchoring; built
+    as a `flex-col-reverse` scroll area instead, which does the same in every browser,
+    Safari included, without scroll code): opens at the newest turn, keeps its place when
+    older turns load.
+31. **Usage format** (agreed 2026-11-19, T2 brief): `$0.0021` below a cent, `$0.02` from a
+    cent, `<$0.0001` for less; `850 tokens`, `12.3k tokens`, `1.2M tokens`.
+32. **The header grows with its steps** (agreed 2026-11-19, T2 brief): T2 has Refresh only;
+    Export, Delete and the inspector toggle come with T4 and T5. The tab title stays "Test
+    chat" (a case title is content and tab titles reach the browser's history).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -166,7 +179,7 @@ What the UI steps start from:
   USD" (OpenRouter's docs: `cost` is in credits, whose base currency is US dollars; the
   5.5% fee is charged on buying credits, not per call), with `docs/copilot.md`,
   `docs/openapi.json` and `schema.d.ts`.
-- [ ] **T2** A case read-only: header, phase stepper, turns paged back, safe Markdown, phase
+- [x] **T2** A case read-only: header, phase stepper, turns paged back, safe Markdown, phase
   markers, Copy, read-only and 404 states.
 - [ ] **T3** Sending: new conversation (tenant, in-memory `session_id`), resume, in-flight
   state, errors by status with the text kept, refetch after a turn.
@@ -427,3 +440,26 @@ What the UI steps start from:
   `migrations/`, one head; current, each older revision, unlisted ones, none) and
   `tests/integration/test_app_startup.py` (current at head; a scratch database at 0003
   warns and still serves `/health`; an unknown revision; a dropped `alembic_version`).
+- **T2 (2026-11-19).** `/chat/:caseId` reads a case (`CaseView`, lazy, its own module).
+  `queries.ts`: `useCase` (`caseKey`), `useCaseTurns` (`caseTurnsKey`, an infinite query
+  paging backwards: the first page param is `latest`, resolved in the query function from
+  the cached case's turn count, so a reset after a refresh starts from the new latest page;
+  `latestTurnsPage`, `earlierTurnsPage` with `limit = min(20, offset)` for the last step).
+  `CaseHeader` (title or "Untitled case", tenant, turns, cost and tokens when reported,
+  Refresh), `PhaseStepper` (five steps, checks, `aria-current="step"`, state words for
+  screen readers; closed: all done and a Closed badge), `TurnList` (Load earlier turns,
+  its error with Retry keeping the turns, "Start of the conversation", "No messages yet",
+  the `role="log"`), `TurnBlock` (user text as typed with `whitespace-pre-wrap`, the reply
+  through `LazyMarkdown`, "Turn N" with the UTC time, Copy reply), `PhaseMarker`,
+  `ReadOnlyNotice` + `readOnly.ts` (closed first, then another channel), `CaseNotFound`
+  (404 and 422), `format.ts` (cost, tokens, `plural`, now shared with `CaseRow`). The centre
+  column is a flex column; the conversation scrolls in a `flex-col-reverse` area (decision
+  30). Decisions 29-32. Fixtures: `makeCaseDetail`, `makeTurn`. `ui/README.md`, CLAUDE.md.
+  Tests: `CaseView.test.tsx` (22: header and facts, usage left out, untitled, the stepper
+  at three phases and closed, turn order with the user text not rendered and the reply
+  rendered, an inert reply (script, raw img, Markdown image, `javascript:` link), Copy,
+  markers only on a change, paging 45 turns as 25/20, 5/20, 0/5 with the order kept, an
+  earlier page failing then retried, Refresh with two new turns starting at offset 7, no
+  turns, read-only for another channel and closed, none for an open web case, 404 with the
+  way back, 422, another error with Retry, switching cases keeping the list),
+  `format.test.ts` (11). Not checked in a real browser. `pnpm check` green (407 tests).

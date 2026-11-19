@@ -209,7 +209,25 @@ in between) is listed once. A row shows the title or "Untitled case", the phase,
 turns, pending actions, an overdue badge from the API's `overdue_actions` (never recomputed),
 "Other channel" when there is no web session, and the last update. The list collapses to a
 rail with the count; filters, loaded pages and the collapse survive switching cases (the
-page is a layout route). The case itself is the next step (T2).
+page is a layout route).
+
+**A case** (`/chat/:caseId`, `CaseView`; `GET /admin/cases/{case_id}` and its `/turns`): the
+title (or "Untitled case"), tenant, turns, cost and tokens from `usage` (left out when not
+reported), **Refresh**, and a phase stepper (numbers, checks, the current step with
+`aria-current="step"`, words for screen readers; a closed case has every step done and a
+Closed badge). The tab title stays "Test chat": a case title is conversation content, and
+tab titles reach the browser's history. The conversation (`role="log"`) loads the latest 20
+turns (`offset = max(0, turns - 20)`), then **Load earlier turns** steps back by 20, the
+last step asking only for what is left. The scroll area is `flex-col-reverse`, so it opens
+at the newest turn and keeps its place when older turns are added above (any browser).
+Each turn: the user's text as typed (never Markdown), the reply through the safe renderer
+(`document/LazyMarkdown`: no raw HTML, no `javascript:` links, no images), "Turn N" with
+its time, **Copy** (the reply's text), and "Moved to X (from Y)" when the turn changed
+phase (`phase_before`/`phase_after`). Refresh re-reads the case and starts the turns again
+from the latest page (a turn added elsewhere lies past the loaded offsets). A case from
+another channel or a closed one says it can be read but not continued. A `404` or `422`
+reads "This case no longer exists"; other errors offer Retry, and earlier turns that fail
+keep the ones shown.
 
 ## Routes
 
@@ -319,8 +337,10 @@ src/
                       (the mutation, the last search in the cache), TenantPicker,
                       SearchOptionsPopover, SearchSummary, ResultCard, format
   chat/               the test chat (lazy-loaded layout route): ChatPage (list beside the
-                      case, NoCaseSelected, CaseView), CasesList (+ CasesRail),
-                      CaseFiltersBar, CaseRow, queries (filters, useCases, flattenCases), phases
+                      case, NoCaseSelected), CasesList (+ CasesRail), CaseFiltersBar, CaseRow,
+                      CaseView (+ CaseHeader, PhaseStepper, TurnList, TurnBlock, PhaseMarker,
+                      ReadOnlyNotice + readOnly, CaseNotFound), queries (useCases, useCase,
+                      useCaseTurns paging back), format (cost, tokens), phases
   hooks/              useDebouncedValue, useDocumentTitle
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping

@@ -59,3 +59,87 @@ export const CASES: CaseListItem[] = [
   }),
   makeCaseItem({ title: null, phase: 'understand', turns: 1, hoursAgo: 80 }),
 ]
+
+type CaseDetail = components['schemas']['CaseDetail']
+type CaseTurn = components['schemas']['CaseTurn']
+type Phase = CaseDetail['phase']
+
+/** A case as `get_case` returns it, matching `item` (by default the first of `CASES`). */
+export function makeCaseDetail(
+  item: CaseListItem = CASES[0] ?? makeCaseItem(),
+  overrides: Partial<CaseDetail> = {},
+): CaseDetail {
+  return {
+    case_id: item.case_id,
+    tenant: item.tenant,
+    title: item.title,
+    phase: item.phase,
+    version: item.turns + 1,
+    turns: item.turns,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    closed_at: item.closed_at,
+    web_session_id: item.web_session_id,
+    fields: {
+      what: item.title,
+      where: 'Línea 2, envasadora',
+      since: 'Desde el lunes 9',
+      standard: 'Merma máxima del 1 %',
+    },
+    events: [],
+    actions: [],
+    summary: null,
+    usage: {
+      llm_calls: item.turns,
+      prompt_tokens: 3000 * item.turns,
+      completion_tokens: 330 * item.turns,
+      total_tokens: 3330 * item.turns,
+      cost: 0.0021 * item.turns,
+    },
+    ...overrides,
+  }
+}
+
+/** Turn `turn` of a case: a question and a reply, in `phase` unless `phaseAfter` moves it. */
+export function makeTurn(
+  turn: number,
+  {
+    phase = 'analyse',
+    phaseAfter,
+    reply,
+  }: { phase?: Phase; phaseAfter?: Phase; reply?: string } = {},
+): CaseTurn {
+  const at = new Date(Date.UTC(2026, 10, 12, 9, turn)).toISOString()
+  return {
+    turn,
+    created_at: at,
+    phase_before: phase,
+    phase_after: phaseAfter ?? phase,
+    user_message: {
+      content: `Mensaje ${String(turn)} del operario`,
+      created_at: at,
+      state_at_time: phase,
+    },
+    reply: {
+      content: reply ?? `Respuesta ${String(turn)} del copiloto`,
+      created_at: at,
+      state_at_time: phaseAfter ?? phase,
+    },
+    trace: {
+      capped: false,
+      duration_ms: 2400,
+      model: 'openai/gpt-5-mini',
+      prompts_version: 'draft-3',
+      retrieval_error: null,
+      retrieved: [],
+      tool_calls: [],
+      usage: {
+        llm_calls: 1,
+        prompt_tokens: 3000,
+        completion_tokens: 330,
+        total_tokens: 3330,
+        cost: 0.0021,
+      },
+    },
+  }
+}

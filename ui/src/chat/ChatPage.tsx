@@ -54,7 +54,7 @@ export function ChatPage() {
           />
         )}
       </aside>
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* The routes inside are lazy too: only they wait, not the list. */}
         <Suspense fallback={<Skeleton aria-label="Loading case" className="h-40" />}>
           <Outlet />
@@ -71,18 +71,6 @@ export function NoCaseSelected() {
       as="h1"
       title="Pick a case"
       description="Choose a case from the list to read its conversation."
-      className="mt-10"
-    />
-  )
-}
-
-/** `/chat/:caseId`: the case view comes in the next step (T2). */
-export function CaseView() {
-  return (
-    <EmptyState
-      as="h1"
-      title="Case"
-      description="The conversation view is not built yet."
       className="mt-10"
     />
   )
