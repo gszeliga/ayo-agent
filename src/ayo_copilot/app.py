@@ -11,6 +11,7 @@ from ayo_copilot.config import BuildSettings, Settings, database_host, default_e
 from ayo_copilot.conversation.prompt_files import PromptError, PromptSet, load_prompts
 from ayo_copilot.db.pool import open_pool, set_db_log_level
 from ayo_copilot.db.repository import embedding_dimensions
+from ayo_copilot.db.schema import describe_schema, read_schema_revision
 from ayo_copilot.errors import install_error_handlers
 from ayo_copilot.health import EmbeddingMonitor, TrackedEmbedder
 from ayo_copilot.ingestion.embedding import (
@@ -137,6 +138,7 @@ def _make_lifespan(
                 " the migrations ran (`uv run alembic upgrade head`)"
             ) from None
         try:
+            _log_schema_revision(pool)
             _check_embedding_dimensions(pool, resolved.embedding_dimensions)
             logger.info("database ready at %r, vector(%d)", host, resolved.embedding_dimensions)
             embedder = build_embedder(resolved)
@@ -203,6 +205,15 @@ def _log_embedder(embedder: Embedder, settings: Settings) -> None:
         )
     else:
         logger.info("embedder: %s", type(embedder).__name__)
+
+
+def _log_schema_revision(pool: ConnectionPool) -> None:
+    """Say whether the database is at the revision this code expects. Only logs: a missing
+    table still stops startup in the dimension check."""
+    with pool.connection() as conn:
+        revision = read_schema_revision(conn)
+    level, message = describe_schema(revision)
+    logger.log(level, "%s", message)
 
 
 def _check_embedding_dimensions(pool: ConnectionPool, expected: int) -> None:

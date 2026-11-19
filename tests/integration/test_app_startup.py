@@ -3,6 +3,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from alembic import command
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -10,8 +11,10 @@ from ayo_copilot import app as app_module
 from ayo_copilot.app import StartupError, create_app
 from ayo_copilot.config import Settings
 from ayo_copilot.conversation import prompt_files
+from ayo_copilot.db.schema import SCHEMA_REVISIONS
 from ayo_copilot.llm import LLMConfigError, Message
 from ayo_copilot.llm.openrouter import OpenRouterProvider
+from tests.integration.support import alembic_config
 
 pytestmark = pytest.mark.integration
 
@@ -192,3 +195,67 @@ def test_startup_fails_on_a_broken_prompt_file(
 
     with pytest.raises(StartupError, match=r"prompts: prompt file understand\.md is missing"):
         start(app)
+
+
+def _schema_lines(caplog: pytest.LogCaptureFixture) -> list[tuple[int, str]]:
+    return [
+        (record.levelno, record.getMessage())
+        for record in caplog.records
+        if record.name == "ayo_copilot.app" and record.getMessage().startswith("database schema")
+    ]
+
+
+def test_startup_logs_a_current_schema(
+    migrated_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="ayo_copilot.app")
+
+    start(create_app(make_settings(migrated_database_url)))
+
+    assert _schema_lines(caplog) == [
+        (logging.INFO, f"database schema: revision {SCHEMA_REVISIONS[-1]} (current)")
+    ]
+
+
+def test_startup_warns_about_an_outdated_schema_and_still_starts(
+    scratch_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    command.upgrade(alembic_config(scratch_database_url), SCHEMA_REVISIONS[-2])
+    caplog.set_level(logging.INFO, logger="ayo_copilot.app")
+
+    with TestClient(create_app(make_settings(scratch_database_url))) as client:
+        assert client.get("/health").status_code == 200
+
+    [(level, message)] = _schema_lines(caplog)
+    assert level == logging.WARNING
+    assert f"revision {SCHEMA_REVISIONS[-2]}, outdated" in message
+
+
+def test_startup_warns_about_an_unknown_revision(
+    scratch_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+    with psycopg.connect(scratch_database_url, autocommit=True) as conn:
+        conn.execute("update alembic_version set version_num = '9999'")
+    caplog.set_level(logging.INFO, logger="ayo_copilot.app")
+
+    start(create_app(make_settings(scratch_database_url)))
+
+    [(level, message)] = _schema_lines(caplog)
+    assert level == logging.WARNING
+    assert "revision 9999 unknown to this code" in message
+
+
+def test_startup_warns_without_an_alembic_version_table(
+    scratch_database_url: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    command.upgrade(alembic_config(scratch_database_url), "head")
+    with psycopg.connect(scratch_database_url, autocommit=True) as conn:
+        conn.execute("drop table alembic_version")
+    caplog.set_level(logging.INFO, logger="ayo_copilot.app")
+
+    start(create_app(make_settings(scratch_database_url)))
+
+    [(level, message)] = _schema_lines(caplog)
+    assert level == logging.WARNING
+    assert "no Alembic revision recorded" in message

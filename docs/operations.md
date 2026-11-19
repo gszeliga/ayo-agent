@@ -64,3 +64,18 @@ with the client, method, path and status. **The access log drops the query strin
 /admin/cases?q=...` searches case text, and is logged as `"GET /admin/cases HTTP/1.1" 200`.
 A proxy or platform in front of the service keeps its own access log; configure it not to
 record query strings either.
+
+At startup the app logs the database's schema revision (Alembic's `alembic_version`)
+against the one the code expects (`SCHEMA_REVISIONS` in `src/ayo_copilot/db/schema.py`):
+
+```text
+database schema: revision 0004 (current)
+database schema: revision 0003, outdated (code expects 0004): run `uv run alembic upgrade head`
+database schema: revision 0005 unknown to this code (expects 0004): the database is newer
+  than the code, or was migrated from another branch
+database schema: no Alembic revision recorded: run `uv run alembic upgrade head`
+```
+
+All but the first are warnings, and the app still starts: an outdated schema fails only
+where the code needs what is missing. A database without the `chunks` table stops startup
+as before. Against Neon, run the migrations on the direct endpoint (see above).

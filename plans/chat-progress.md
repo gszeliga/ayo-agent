@@ -413,3 +413,17 @@ What the UI steps start from:
   the filters kept and no refetch; switching cases keeping the loaded pages. `paths.test.ts`
   covers the new routes. Not checked in a real browser against the API. Full suite green
   (1563 passed), `pnpm check` green (374 tests).
+- **Side step (2026-11-19), not a T step, agreed with the user after T1.** Startup logs the
+  database's schema revision: `db/schema.py` holds `SCHEMA_REVISIONS` (`0001`-`0004`, the
+  last one the head the code expects; listed in code because `migrations/` is not part of
+  the package), `read_schema_revision` (`to_regclass` first, so no table is None, not an
+  error; an empty table is None; several rows joined with `+`) and `describe_schema`
+  (INFO current; WARNING outdated, unknown to this code, or none recorded, the first and
+  last with `uv run alembic upgrade head`). `app._log_schema_revision` runs after the pool
+  opens, before the dimension check. Warnings only: the app still starts (refusing can
+  wait for D1). Not in `/admin/health` (an API change, its own step if wanted).
+  `docs/operations.md` ("Logs"), CLAUDE.md (layout, the migration convention). Tests:
+  `tests/unit/test_db_schema.py` (the tuple equals Alembic's chain read from
+  `migrations/`, one head; current, each older revision, unlisted ones, none) and
+  `tests/integration/test_app_startup.py` (current at head; a scratch database at 0003
+  warns and still serves `/health`; an unknown revision; a dropped `alembic_version`).

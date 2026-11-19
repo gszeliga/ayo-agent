@@ -137,6 +137,7 @@ src/ayo_copilot/
   db/pool.py           open_pool (register_vector per connection), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
   db/conversations.py  hand-written SQL for cases, events, actions, links, traces, summaries (TraceRecord, StoredTrace, SummaryRecord)
+  db/schema.py         SCHEMA_REVISIONS (every Alembic revision; the head is expected) + the startup log line
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
   ingestion/signatures.py  content/chunk/embed signatures, make_doc_id, CHUNKER_VERSION
   ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2), FakeEmbedder
@@ -195,6 +196,8 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
 - HTTP client is `httpx2` (pydantic's fork), not `httpx`; tests mock it with `MockTransport`.
 - Changing chunking behaviour or the embedded text format: bump `CHUNKER_VERSION`.
   Changing the vector size needs a new migration (startup checks it).
+- A new migration also goes at the end of `SCHEMA_REVISIONS` (`db/schema.py`); startup logs
+  whether the database is current, and `tests/unit/test_db_schema.py` checks the chain.
 - Settings tests pass `_env_file=None` (or a tmp file) so they never read the real `.env`.
   `.env` is read from the project root whatever the cwd (`AYO_ENV_FILE` overrides it);
   empty values count as unset.
