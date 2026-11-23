@@ -7,6 +7,7 @@ import { CASES } from '@/test/fixtures/cases'
 import { renderApp } from '@/test/render'
 
 import { WIDE_QUERY } from './inspectorState'
+import { INSPECTOR_LIMITS } from './panelWidth'
 
 type CaseEvent = components['schemas']['CopilotSessionEvent']
 type CaseAction = components['schemas']['CopilotSessionAction']
@@ -73,6 +74,8 @@ async function openFirst(served: ServedCase[]) {
   return { ...rendered, api }
 }
 
+const WIDTH_KEY = 'ayo.chat.inspector-width'
+const resizer = () => screen.findByRole('separator', { name: 'Resize inspector' })
 const panel = () => screen.findByRole('complementary', { name: 'Inspector' })
 const toggle = () => screen.findByRole('button', { name: 'Inspector' })
 const section = (root: HTMLElement, name: string) =>
@@ -138,23 +141,18 @@ test('the Actions tab lists every action and takes overdue from the API', async 
 
   const inspector = await panel()
   await user.click(within(inspector).getByRole('tab', { name: 'Actions' }))
-  const table = within(inspector).getByRole('table', { name: 'Actions' })
-  expect(
-    within(table)
-      .getAllByRole('columnheader')
-      .map((h) => h.textContent),
-  ).toEqual(['Action', 'Owner', 'Due', 'Status'])
-  const rows = within(table).getAllByRole('row').slice(1)
-  expect(rows).toHaveLength(3)
-  const [past, future, done] = rows as [HTMLElement, HTMLElement, HTMLElement]
+  const list = within(inspector).getByRole('list', { name: 'Actions' })
+  const items = within(list).getAllByRole('listitem')
+  expect(items).toHaveLength(3)
+  const [past, future, done] = items as [HTMLElement, HTMLElement, HTMLElement]
   expect(past).toHaveTextContent('Cambiar la junta')
-  expect(past).toHaveTextContent('Marta (mantenimiento)')
-  expect(past).toHaveTextContent('2020-01-01')
-  expect(past).toHaveTextContent('Pending')
+  expect(within(past).getByText('Owner').nextSibling).toHaveTextContent('Marta (mantenimiento)')
+  expect(within(past).getByText('Due').nextSibling).toHaveTextContent('2020-01-01')
+  expect(within(past).getByText('Pending')).toBeVisible()
   expect(within(past).queryByText('Overdue')).toBeNull()
   expect(within(future).getByText('Overdue')).toBeVisible()
-  expect(done).toHaveTextContent('Luis')
-  expect(done).toHaveTextContent('Done')
+  expect(within(done).getByText('Owner').nextSibling).toHaveTextContent('Luis')
+  expect(within(done).getByText('Done')).toBeVisible()
 })
 
 test('a case without actions says so', async () => {
@@ -240,4 +238,121 @@ test('the inspector has no accessibility violations', async () => {
   expect(await a11yViolations(inspector)).toEqual([])
   await user.click(within(inspector).getByRole('tab', { name: 'Actions' }))
   expect(await a11yViolations(inspector)).toEqual([])
+})
+
+test('the inspector is resized from its edge with the keyboard, within its limits', async () => {
+  screenWidth(true)
+  const { user } = await openFirst(cases())
+  const handle = await resizer()
+  expect(handle).toHaveAttribute('aria-orientation', 'vertical')
+  expect(handle).toHaveAttribute('aria-valuenow', String(INSPECTOR_LIMITS.default))
+  expect(handle).toHaveAttribute('aria-valuemin', '320')
+  expect(handle).toHaveAttribute('aria-valuemax', '800')
+  expect(await panel()).toHaveStyle({ width: '448px' })
+
+  handle.focus()
+  await user.keyboard('{ArrowLeft}{ArrowLeft}')
+  expect(handle).toHaveAttribute('aria-valuenow', '480')
+  expect(await panel()).toHaveStyle({ width: '480px' })
+  await user.keyboard('{ArrowRight}')
+  expect(handle).toHaveAttribute('aria-valuenow', '464')
+  await user.keyboard('{End}{ArrowLeft}')
+  expect(handle).toHaveAttribute('aria-valuenow', '800')
+  await user.keyboard('{Home}{ArrowRight}')
+  expect(handle).toHaveAttribute('aria-valuenow', '320')
+  await user.dblClick(handle)
+  expect(handle).toHaveAttribute('aria-valuenow', '448')
+  expect(await a11yViolations(await panel())).toEqual([])
+})
+
+test('dragging the edge left widens the inspector', async () => {
+  screenWidth(true)
+  const { user } = await openFirst(cases())
+  const handle = await resizer()
+  await user.pointer([
+    { keys: '[MouseLeft>]', target: handle, coords: { clientX: 600 } },
+    { target: handle, coords: { clientX: 500 } },
+    { keys: '[/MouseLeft]', target: handle, coords: { clientX: 500 } },
+  ])
+  expect(handle).toHaveAttribute('aria-valuenow', '548')
+  // A move after letting go changes nothing.
+  await user.pointer({ target: handle, coords: { clientX: 300 } })
+  expect(handle).toHaveAttribute('aria-valuenow', '548')
+})
+
+test('the width survives switching cases and a reload, as a number only', async () => {
+  screenWidth(true)
+  const served = cases()
+  const { user, unmount } = await openFirst(served)
+  ;(await resizer()).focus()
+  await user.keyboard('{ArrowLeft}')
+  expect(window.localStorage.getItem(WIDTH_KEY)).toBe('464')
+
+  await user.click(screen.getByRole('link', { name: /Paradas repetidas/ }))
+  await screen.findByRole('heading', { level: 1, name: /Paradas repetidas/ })
+  expect(await resizer()).toHaveAttribute('aria-valuenow', '464')
+
+  unmount()
+  await openFirst(served)
+  expect(await resizer()).toHaveAttribute('aria-valuenow', '464')
+})
+
+test('the cases list is resized from its right edge too, and remembered', async () => {
+  screenWidth(true)
+  const served = cases()
+  const { user, unmount } = await openFirst(served)
+  const handle = await screen.findByRole('separator', { name: 'Resize cases list' })
+  const list = screen.getByRole('complementary', { name: 'Cases list' })
+  expect(handle).toHaveAttribute('aria-valuenow', '320')
+  expect(list).toHaveStyle({ width: '320px' })
+
+  handle.focus()
+  await user.keyboard('{ArrowRight}{ArrowRight}')
+  expect(handle).toHaveAttribute('aria-valuenow', '352')
+  expect(list).toHaveStyle({ width: '352px' })
+  await user.keyboard('{ArrowLeft}{Home}{ArrowLeft}')
+  expect(handle).toHaveAttribute('aria-valuenow', '240')
+  await user.keyboard('{End}')
+  expect(handle).toHaveAttribute('aria-valuenow', '560')
+
+  // Dragging right widens it (the opposite of the inspector).
+  await user.dblClick(handle)
+  await user.pointer([
+    { keys: '[MouseLeft>]', target: handle, coords: { clientX: 300 } },
+    { target: handle, coords: { clientX: 350 } },
+    { keys: '[/MouseLeft]', target: handle, coords: { clientX: 350 } },
+  ])
+  expect(handle).toHaveAttribute('aria-valuenow', '370')
+  expect(window.localStorage.getItem('ayo.chat.cases-width')).toBe('370')
+
+  // Collapsed to the rail, there is nothing to resize; expanded, the width is back.
+  await user.click(screen.getByRole('button', { name: 'Hide cases' }))
+  expect(screen.queryByRole('separator', { name: 'Resize cases list' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Show cases' }))
+  expect(await screen.findByRole('separator', { name: 'Resize cases list' })).toHaveAttribute(
+    'aria-valuenow',
+    '370',
+  )
+
+  unmount()
+  await openFirst(served)
+  expect(await screen.findByRole('separator', { name: 'Resize cases list' })).toHaveAttribute(
+    'aria-valuenow',
+    '370',
+  )
+  expect(await a11yViolations(screen.getByRole('complementary', { name: 'Cases list' }))).toEqual(
+    [],
+  )
+})
+
+test('a stored width that is not a usable number gives the default', async () => {
+  screenWidth(true)
+  window.localStorage.setItem(WIDTH_KEY, '9999')
+  window.localStorage.setItem('ayo.chat.cases-width', '12px')
+  await openFirst(cases())
+  expect(await resizer()).toHaveAttribute('aria-valuenow', '448')
+  expect(await screen.findByRole('separator', { name: 'Resize cases list' })).toHaveAttribute(
+    'aria-valuenow',
+    '320',
+  )
 })

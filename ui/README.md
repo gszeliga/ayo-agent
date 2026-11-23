@@ -232,7 +232,8 @@ keep the ones shown.
 **Sending** (`POST /copilot/messages`, the same admin key; every message is a real, billed
 model call, so it is a mutation, never retried). **New conversation** (top of the list, or
 the rail) asks for the tenant (those `/admin/tenants` knows; the last one is preselected:
-its name is the only thing the chat keeps in browser storage, `ayo.chat.last-tenant`) and
+its name is kept in browser storage, `ayo.chat.last-tenant`, with the two column widths:
+nothing of the conversations) and
 opens `/chat/new` with a new `session_id` (a UUID v4, `crypto.randomUUID` or
 `getRandomValues` outside secure contexts) held in the chat page's memory. The first reply
 replaces the URL with `/chat/:caseId`; `/chat/new` without a draft offers to start one. An
@@ -252,13 +253,21 @@ still catch up, but no alert shows on the other case.
 request of its own; it follows the case refetched after each turn). **State**: the four
 facts ("Not recorded yet" when empty), then hypotheses, discarded hypotheses (a discard is
 its own annotation, not linked to its hypothesis: a note says so), the validated cause and
-the evidence, each with the phase it was recorded in and its UTC time. **Actions**: a table
-of description, owner, due date and status, with an overdue badge from the API's `overdue`
-(never recomputed). All of it is plain text, never Markdown. From 1024 px wide
-(`inspectorState.ts`) it is a column the header's **Inspector** toggle hides and shows
-(`aria-pressed`); narrower, the toggle opens it as a drawer (a dialog: Esc closes it, focus
-goes back to the toggle). Hidden or not and the tab chosen live in the chat page's memory,
-so they survive switching cases, not a reload.
+the evidence, each with the phase it was recorded in and its UTC time. **Actions**: one card
+per action (description, owner, due date, status), with an overdue badge from the API's
+`overdue` (never recomputed). All of it is plain text, never Markdown, and long words
+wrap. From 1024 px wide (`inspectorState.ts`) it is a column the header's **Inspector**
+toggle hides and shows (`aria-pressed`); narrower, the toggle opens it as a drawer (a
+dialog: Esc closes it, focus goes back to the toggle). Hidden or not and the tab chosen
+live in the chat page's memory, so they survive switching cases, not a reload.
+
+**Resizing.** The inspector (from its left edge, 320-800 px, default 448, at most 60% of
+the row) and the expanded cases list (from its right edge, 240-560 px, default 320, at most
+40% of the page) are resized by a handle (`PanelResizer`, `role="separator"` with its
+width announced): drag it, or focus it and use the arrows (the one pointing away from the
+column widens it), Home and End; a double click restores the default. Each width is kept in
+`localStorage` as a number only (`ayo.chat.inspector-width`, `ayo.chat.cases-width`;
+`panelWidth.ts`): a stored value out of range reads as the default.
 
 ## Routes
 
@@ -375,7 +384,8 @@ src/
                       SendError + sendErrors, useChatInput, useSendMessage, lastTenant,
                       sessionId, queries (useCases, useCase, useCaseTurns paging back),
                       format (cost, tokens), phases, Inspector (column or drawer) +
-                      inspectorState + StateTab (+ events) + ActionsTab
+                      inspectorState + StateTab (+ events) + ActionsTab, PanelResizer +
+                      panelWidth (the inspector and cases list widths)
   hooks/              useDebouncedValue, useDocumentTitle, useMediaQuery
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping

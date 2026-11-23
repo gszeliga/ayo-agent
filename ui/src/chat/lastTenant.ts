@@ -1,8 +1,8 @@
 const KEY = 'ayo.chat.last-tenant'
 
 /**
- * The tenant of the last new conversation: a name, never content, the only thing the test
- * chat keeps in browser storage. A per-browser convenience: losing it only clears the
+ * The tenant of the last new conversation: a name, never content. With the column widths
+ * (`panelWidth.ts`), all the test chat keeps in browser storage. A per-browser convenience: losing it only clears the
  * preselection.
  */
 export function loadLastTenant(): string | null {

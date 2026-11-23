@@ -31,7 +31,7 @@ export function StateTab({ detail }: { detail: CaseDetail }) {
             return (
               <div key={key}>
                 <dt className="text-muted-foreground text-xs font-medium">{label}</dt>
-                <dd className="whitespace-pre-wrap">
+                <dd className="break-words whitespace-pre-wrap">
                   {value ?? <span className="text-muted-foreground italic">Not recorded yet</span>}
                 </dd>
               </div>
@@ -72,7 +72,7 @@ function EventGroup({ id, title, events, children }: GroupProps) {
         <ul className="space-y-2">
           {events.map((event) => (
             <li key={event.id} className="rounded-md border px-3 py-2 text-sm">
-              <p className="whitespace-pre-wrap">{event.content}</p>
+              <p className="break-words whitespace-pre-wrap">{event.content}</p>
               <p className="text-muted-foreground mt-1 text-xs">
                 In {PHASE_LABELS[event.state_at_time]} ·{' '}
                 <time dateTime={event.created_at}>{formatUtc(event.created_at)}</time>

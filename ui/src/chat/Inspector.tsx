@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { ActionsTab } from './ActionsTab'
 import type { InspectorTab } from './inspectorState'
+import { PanelResizer } from './PanelResizer'
+import { INSPECTOR_LIMITS } from './panelWidth'
 import { StateTab } from './StateTab'
 
 type CaseDetail = components['schemas']['CaseDetail']
@@ -40,10 +42,29 @@ function InspectorTabs({ detail, tab, onTabChange }: TabsProps) {
   )
 }
 
-/** The inspector as a column beside the chat (wide screens). */
-export function InspectorPanel(props: TabsProps) {
+interface PanelProps extends TabsProps {
+  width: number
+  onResize: (width: number) => void
+}
+
+/**
+ * The inspector as a column beside the chat (wide screens), resized from its left edge.
+ * CSS keeps it within 60% of the row too, should the window shrink after a resize.
+ */
+export function InspectorPanel({ width, onResize, ...props }: PanelProps) {
   return (
-    <aside aria-label="Inspector" className="flex min-h-0 w-96 flex-none flex-col border-l pl-4">
+    <aside
+      aria-label="Inspector"
+      style={{ width }}
+      className="relative flex max-w-[60%] min-w-80 flex-none flex-col pl-4"
+    >
+      <PanelResizer
+        label="Resize inspector"
+        edge="left"
+        width={width}
+        limits={INSPECTOR_LIMITS}
+        onResize={onResize}
+      />
       <InspectorTabs {...props} />
     </aside>
   )

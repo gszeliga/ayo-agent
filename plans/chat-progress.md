@@ -13,7 +13,8 @@ shape) are done and pushed. T1 (route, nav, cases list, the `cost` wording) and 
 schema-revision side step are done and pushed (2026-11-19, up to `a62e26f`); T2 (a case,
 read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). T4 was split (decision
 37); T4a (the inspector's frame, State and Actions) is done (2026-11-23). Demo cases are
-seeded on the Neon dev branch (side step, 2026-11-23). Next: **brief T4b**, then T5, each
+seeded on the Neon dev branch (side step, 2026-11-23); the inspector and the cases list are
+resizable (T4a fix, decision 38). Next: **brief T4b**, then T5, each
 briefed first. Nothing is in progress.
 
 What the UI steps start from:
@@ -160,6 +161,11 @@ What the UI steps start from:
     toggle, drawer below 1024 px), State and Actions; T4b the Trace tab, case totals, chunk
     links and the "Turn N" chip. The inspector's hidden state and tab live in the chat
     page's memory (as decision 28); the drawer starts closed on each case.
+38. **Resizable columns** (agreed 2026-11-23, after T4a: the inspector's content did not fit,
+    and the user asked for the cases list too): both are resized by a handle on their inner
+    edge, mouse and keyboard, with fixed limits and a share of the row; each width is kept in
+    `localStorage` as a number only (the user's choice over memory only). The actions are
+    cards instead of a table (the user's choice), so they fit any width.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -545,3 +551,21 @@ What the UI steps start from:
   branch** with the user's choice of target (2026-11-23): before, it was at 0004 with no
   cases and two documents, none in `demo-*` tenants; after, the five cases read back as
   expected through the API.
+- **T4a fix (2026-11-23), after the user's review.** The inspector's fixed `w-96` was too
+  narrow, and the user asked for the cases list to be adjustable too (decision 38).
+  `PanelResizer` (`role="separator"`, `aria-valuenow`/`min`/`max`/`valuetext`, focusable;
+  pointer drag with capture, arrows by 16 px with the outward one widening, Home, End,
+  double click for the default) on the inspector's left edge and the expanded cases list's
+  right edge (its line is the column's border now). `panelWidth.ts`: `PanelLimits`
+  (inspector 320/448/800 at most 60% of its row; cases 240/320/560 at most 40%),
+  `clampWidth` (the row's share once measured), `loadWidth` / `saveWidth` (a number in
+  `localStorage`, out of range or malformed reads as the default); CSS `max-w-[60%]` /
+  `max-w-[40%]` as well, should the window shrink after a resize. Widths in the chat page's
+  state (`ChatContext.inspector.width`). `ActionsTab` is cards (description, owner, due,
+  status and overdue badges); long words wrap in the State tab. `ui/README.md`. Tests
+  (`Inspector.test.tsx`, 12 now): the actions as cards; the inspector's keys, limits,
+  double click and axe; a drag left widening it and a move after release doing nothing;
+  its width kept across cases and a remount, stored as a number; the cases list's keys,
+  limits, drag right, storage, gone when collapsed and back when expanded, a remount, axe;
+  malformed stored widths giving the defaults. Not checked in a real browser. `pnpm check`
+  green (439 tests).

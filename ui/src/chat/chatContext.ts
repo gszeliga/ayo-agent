@@ -13,7 +13,8 @@ export interface ChatContext {
   draft: Draft | null
   clearDraft: () => void
   openNewConversation: () => void
-  /** The inspector, in memory: hidden or not on wide screens, and its tab. */
+  /** The inspector: hidden or not on wide screens and its tab (memory), its width (also
+   * in localStorage, a number only). */
   inspector: InspectorState
 }
 
@@ -22,6 +23,8 @@ export interface InspectorState {
   setHidden: (hidden: boolean) => void
   tab: InspectorTab
   setTab: (tab: InspectorTab) => void
+  width: number
+  setWidth: (width: number) => void
 }
 
 export function useChatContext(): ChatContext {

@@ -13,6 +13,15 @@ import type { ChatContext, Draft } from './chatContext'
 import type { InspectorTab } from './inspectorState'
 import { saveLastTenant } from './lastTenant'
 import { NewConversationDialog } from './NewConversationDialog'
+import { PanelResizer } from './PanelResizer'
+import {
+  CASES_LIMITS,
+  CASES_WIDTH_KEY,
+  INSPECTOR_LIMITS,
+  INSPECTOR_WIDTH_KEY,
+  loadWidth,
+  saveWidth,
+} from './panelWidth'
 import { hasFilters, NO_FILTERS, useCases, type CaseFilters } from './queries'
 import { newSessionId } from './sessionId'
 
@@ -23,8 +32,9 @@ export const SEARCH_DEBOUNCE_MS = 300
  * `/chat`, `/chat/new` and `/chat/:caseId`: the cases list beside the selected case or a
  * new conversation. A layout route, so the filters, the loaded pages, the collapsed list and
  * a new conversation's draft survive switching views. Nothing here goes in the URL but the
- * case id, nor in browser storage but the last tenant's name. The inspector's state (hidden,
- * its tab) lives here too, so it survives switching cases.
+ * case id, nor in browser storage but the last tenant's name and the two column widths (numbers,
+ * `panelWidth.ts`). The inspector's state (hidden, its tab, its width) lives here too, so it
+ * survives switching cases.
  */
 export function ChatPage() {
   useDocumentTitle('Test chat')
@@ -40,6 +50,10 @@ export function ChatPage() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [inspectorHidden, setInspectorHidden] = useState(false)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('state')
+  const [inspectorWidth, setInspectorWidth] = useState(() =>
+    loadWidth(INSPECTOR_WIDTH_KEY, INSPECTOR_LIMITS),
+  )
+  const [casesWidth, setCasesWidth] = useState(() => loadWidth(CASES_WIDTH_KEY, CASES_LIMITS))
 
   function openNewConversation() {
     setDialogOpen(true)
@@ -63,6 +77,11 @@ export function ChatPage() {
       setHidden: setInspectorHidden,
       tab: inspectorTab,
       setTab: setInspectorTab,
+      width: inspectorWidth,
+      setWidth: (width) => {
+        setInspectorWidth(width)
+        saveWidth(INSPECTOR_WIDTH_KEY, width)
+      },
     },
   }
 
@@ -70,8 +89,24 @@ export function ChatPage() {
     <div className="flex h-full min-h-0 gap-4">
       <aside
         aria-label="Cases list"
-        className={cn('flex-none border-r pr-4', collapsed ? 'w-auto' : 'w-80')}
+        style={collapsed ? undefined : { width: casesWidth }}
+        className={cn(
+          'relative flex-none pr-4',
+          collapsed ? 'w-auto border-r' : 'max-w-[40%] min-w-60',
+        )}
       >
+        {!collapsed && (
+          <PanelResizer
+            label="Resize cases list"
+            edge="right"
+            width={casesWidth}
+            limits={CASES_LIMITS}
+            onResize={(width) => {
+              setCasesWidth(width)
+              saveWidth(CASES_WIDTH_KEY, width)
+            }}
+          />
+        )}
         {collapsed ? (
           <CasesRail
             total={total}

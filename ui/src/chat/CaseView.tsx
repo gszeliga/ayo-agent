@@ -147,7 +147,9 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
         )}
       </div>
       {wide ? (
-        !inspector.hidden && <InspectorPanel {...tabs} />
+        !inspector.hidden && (
+          <InspectorPanel width={inspector.width} onResize={inspector.setWidth} {...tabs} />
+        )
       ) : (
         <InspectorDrawer
           open={drawerOpen}
