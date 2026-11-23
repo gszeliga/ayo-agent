@@ -12,8 +12,9 @@ clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) and C10 (one
 shape) are done and pushed. T1 (route, nav, cases list, the `cost` wording) and the
 schema-revision side step are done and pushed (2026-11-19, up to `a62e26f`); T2 (a case,
 read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). T4 was split (decision
-37); T4a (the inspector's frame, State and Actions) is done (2026-11-23). Next: **brief
-T4b**, then T5, each briefed first. Nothing is in progress.
+37); T4a (the inspector's frame, State and Actions) is done (2026-11-23). Demo cases are
+seeded on the Neon dev branch (side step, 2026-11-23). Next: **brief T4b**, then T5, each
+briefed first. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -527,3 +528,20 @@ What the UI steps start from:
   turn that records evidence; axe on both tabs. The other tests run narrow (the setup's
   `matchMedia` stub matches nothing), so nothing changes for them. Not checked in a real
   browser. `pnpm check` green (434 tests).
+- **Side step (2026-11-23), not a T step, asked for by the user after T4a.** Demo data to
+  try the chat by hand without billed calls: `scripts/seed_demo_cases.py` writes five
+  Spanish cases (Analyse with refusals, a retrieval failure and a deleted document's chunk;
+  Action with done, pending and overdue actions and a stale summary; closed with a current
+  summary; another channel with a capped turn; an untitled first turn) through
+  `resolve_case` / `load_snapshot` / `commit_turn`, with made-up metrics, then moves their
+  times back. Tenants `demo-acme`, `demo-norte`, `demo-sur` only; cases marked
+  `created_by = demo-seed`; two fixture documents in `demo-acme` with the fake embedder (a
+  third is ingested and deleted, so a trace points at a deleted document). Refuses a second
+  run; `--reset` lists, `--reset --yes` deletes the demo cases and the demo tenants'
+  documents. Localhost only unless `--host` names the URL's host exactly; prints the host
+  only, no content. No tests (a personal tool, like `db_shell.sh`). `docs/development.md`
+  ("Demo cases"), README. Checked on the local database (seed, refusing a second run, reset
+  dry run and real, the host guard), read back through the API. **Seeded on the Neon dev
+  branch** with the user's choice of target (2026-11-23): before, it was at 0004 with no
+  cases and two documents, none in `demo-*` tenants; after, the five cases read back as
+  expected through the API.

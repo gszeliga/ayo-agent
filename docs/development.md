@@ -52,6 +52,31 @@ conversation's content, so it is only written to the git-ignored `eval/conversat
 (never logged or printed: the command prints the file's path). An existing file is never
 overwritten.
 
+## Demo cases
+
+```sh
+uv run python scripts/seed_demo_cases.py               # local database (DATABASE_URL)
+uv run python scripts/seed_demo_cases.py --host HOST   # a remote one: the Neon dev branch only
+uv run python scripts/seed_demo_cases.py --reset       # says what it would delete
+uv run python scripts/seed_demo_cases.py --reset --yes # deletes it
+```
+
+Five Spanish cases for trying the test chat and its inspector without a model call or any
+cost: an Analyse case with hypotheses, a discarded one, evidence, refused and accepted
+transitions, a retrieval failure and retrieved chunks (one from a deleted document); an
+Action case with a done, a pending and an overdue action and a stale AI summary; a closed
+case with a current summary; a case from another channel (read-only, a capped turn); an
+untitled first turn. They are written through the engine's own path (`resolve_case`,
+`commit_turn`), with made-up metrics, then their times are moved back over a few days.
+
+Everything lives in the `demo-acme`, `demo-norte` and `demo-sur` tenants: the cases
+(`created_by = demo-seed`) and two fixture documents in `demo-acme`, embedded with the
+fake embedder (their vectors mean nothing, so searching them finds nothing useful). It
+refuses to run twice (reset first). `--reset` deletes the demo cases and every document in
+those tenants, nothing else. A host other than localhost is refused unless passed exactly as
+`--host` (and the app's `ALLOW_REMOTE_DATABASE` guard still applies); only the host is
+printed. Sending a message on a demo case is a real, billed model call.
+
 ## API contract
 
 `docs/openapi.json` is the OpenAPI spec, generated from the code and committed, so API
