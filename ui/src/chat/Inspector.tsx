@@ -1,0 +1,78 @@
+import type { RefObject } from 'react'
+
+import type { components } from '@/api/schema'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+import { ActionsTab } from './ActionsTab'
+import type { InspectorTab } from './inspectorState'
+import { StateTab } from './StateTab'
+
+type CaseDetail = components['schemas']['CaseDetail']
+
+interface TabsProps {
+  detail: CaseDetail
+  tab: InspectorTab
+  onTabChange: (tab: InspectorTab) => void
+}
+
+/** The tabs: what the case holds, from the case already loaded (no request of its own). */
+function InspectorTabs({ detail, tab, onTabChange }: TabsProps) {
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        onTabChange(value as InspectorTab)
+      }}
+      className="min-h-0 flex-1"
+    >
+      <TabsList aria-label="Inspector" className="w-full">
+        <TabsTrigger value="state">State</TabsTrigger>
+        <TabsTrigger value="actions">Actions</TabsTrigger>
+      </TabsList>
+      <TabsContent value="state" className="min-h-0 overflow-y-auto pr-1">
+        <StateTab detail={detail} />
+      </TabsContent>
+      <TabsContent value="actions" className="min-h-0 overflow-y-auto pr-1">
+        <ActionsTab detail={detail} />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+/** The inspector as a column beside the chat (wide screens). */
+export function InspectorPanel(props: TabsProps) {
+  return (
+    <aside aria-label="Inspector" className="flex min-h-0 w-96 flex-none flex-col border-l pl-4">
+      <InspectorTabs {...props} />
+    </aside>
+  )
+}
+
+interface DrawerProps extends TabsProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** Where focus goes back on close: the toggle (Radix only knows its own trigger). */
+  returnFocusTo: RefObject<HTMLElement | null>
+}
+
+/** The inspector as a drawer from the right (narrow screens); Esc or Close shuts it. */
+export function InspectorDrawer({ open, onOpenChange, returnFocusTo, ...props }: DrawerProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          returnFocusTo.current?.focus()
+        }}
+        className="top-0 right-0 left-auto flex h-full w-full max-w-md translate-x-0 translate-y-0 flex-col rounded-none border-l sm:max-w-md data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100"
+      >
+        <DialogTitle>Inspector</DialogTitle>
+        <DialogDescription className="sr-only">
+          What the case holds: its facts, annotations and actions.
+        </DialogDescription>
+        <InspectorTabs {...props} />
+      </DialogContent>
+    </Dialog>
+  )
+}

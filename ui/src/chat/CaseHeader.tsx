@@ -1,4 +1,6 @@
-import { RefreshCw } from 'lucide-react'
+import { PanelRight, RefreshCw } from 'lucide-react'
+
+import type { RefObject } from 'react'
 
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
@@ -13,10 +15,19 @@ interface Props {
   detail: CaseDetail
   refreshing: boolean
   onRefresh: () => void
+  /** On wide screens the toggle shows or hides the column (pressed when shown); on narrow
+   * ones it opens the drawer. */
+  inspector: {
+    wide: boolean
+    shown: boolean
+    onToggle: () => void
+  }
+  /** The inspector toggle: the drawer gives focus back to it when it closes. */
+  toggleRef: RefObject<HTMLButtonElement | null>
 }
 
-/** Title, tenant, turns, what the case used, Refresh, and the phase stepper. */
-export function CaseHeader({ detail, refreshing, onRefresh }: Props) {
+/** Title, tenant, turns, what the case used, Refresh, the inspector toggle, the stepper. */
+export function CaseHeader({ detail, refreshing, onRefresh, inspector, toggleRef }: Props) {
   const { cost, total_tokens: tokens } = detail.usage
   const facts = [
     detail.tenant,
@@ -40,10 +51,23 @@ export function CaseHeader({ detail, refreshing, onRefresh }: Props) {
             {facts.join(' · ')}
           </p>
         </div>
-        <Button variant="outline" disabled={refreshing} onClick={onRefresh}>
-          <RefreshCw aria-hidden="true" className={cn(refreshing && 'animate-spin')} />
-          Refresh
-        </Button>
+        <div className="flex flex-none gap-2">
+          <Button variant="outline" disabled={refreshing} onClick={onRefresh}>
+            <RefreshCw aria-hidden="true" className={cn(refreshing && 'animate-spin')} />
+            Refresh
+          </Button>
+          <Button
+            ref={toggleRef}
+            variant="outline"
+            onClick={inspector.onToggle}
+            {...(inspector.wide
+              ? { 'aria-pressed': inspector.shown }
+              : { 'aria-haspopup': 'dialog' as const })}
+          >
+            <PanelRight aria-hidden="true" />
+            Inspector
+          </Button>
+        </div>
       </div>
       <PhaseStepper phase={detail.phase} />
     </header>

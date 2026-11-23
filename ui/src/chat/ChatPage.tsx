@@ -10,6 +10,7 @@ import { ROUTES } from '@/paths'
 
 import { CasesList, CasesRail } from './CasesList'
 import type { ChatContext, Draft } from './chatContext'
+import type { InspectorTab } from './inspectorState'
 import { saveLastTenant } from './lastTenant'
 import { NewConversationDialog } from './NewConversationDialog'
 import { hasFilters, NO_FILTERS, useCases, type CaseFilters } from './queries'
@@ -22,7 +23,8 @@ export const SEARCH_DEBOUNCE_MS = 300
  * `/chat`, `/chat/new` and `/chat/:caseId`: the cases list beside the selected case or a
  * new conversation. A layout route, so the filters, the loaded pages, the collapsed list and
  * a new conversation's draft survive switching views. Nothing here goes in the URL but the
- * case id, nor in browser storage but the last tenant's name.
+ * case id, nor in browser storage but the last tenant's name. The inspector's state (hidden,
+ * its tab) lives here too, so it survives switching cases.
  */
 export function ChatPage() {
   useDocumentTitle('Test chat')
@@ -36,6 +38,8 @@ export function ChatPage() {
   const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [inspectorHidden, setInspectorHidden] = useState(false)
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('state')
 
   function openNewConversation() {
     setDialogOpen(true)
@@ -54,6 +58,12 @@ export function ChatPage() {
       setDraft(null)
     },
     openNewConversation,
+    inspector: {
+      hidden: inspectorHidden,
+      setHidden: setInspectorHidden,
+      tab: inspectorTab,
+      setTab: setInspectorTab,
+    },
   }
 
   return (

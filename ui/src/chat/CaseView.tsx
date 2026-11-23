@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useParams } from 'react-router'
 
 import { ApiError } from '@/api/errors'
@@ -8,8 +8,11 @@ import { LoadError } from '@/components/LoadError'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { CaseHeader } from './CaseHeader'
+import { useChatContext } from './chatContext'
 import { CaseNotFound } from './CaseNotFound'
 import { Composer } from './Composer'
+import { InspectorDrawer, InspectorPanel } from './Inspector'
+import { useWideScreen } from './inspectorState'
 import { caseTurnsKey, useCase, useCaseTurns } from './queries'
 import { readOnlyReason } from './readOnly'
 import { ReadOnlyNotice } from './ReadOnlyNotice'
@@ -73,6 +76,11 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
   const queryClient = useQueryClient()
   const turns = useCaseTurns(caseId, true)
   const [refreshing, setRefreshing] = useState(false)
+  const { inspector } = useChatContext()
+  const wide = useWideScreen()
+  // The drawer is per case and starts closed; the column's hidden state is the page's.
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const toggleRef = useRef<HTMLButtonElement>(null)
   const reason = readOnlyReason(detail)
   // A writable case always has its web session (readOnlyReason checks it).
   const input = useChatInput({ sessionId: detail.web_session_id ?? '', tenant: detail.tenant })
@@ -88,42 +96,65 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
     }
   }
 
+  const tabs = { detail, tab: inspector.tab, onTabChange: inspector.setTab }
+
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <CaseHeader
-        detail={detail}
-        refreshing={refreshing}
-        onRefresh={() => {
-          void refresh()
-        }}
-      />
-      {/* Reversed, so it opens at the newest turn and keeps its place when older ones load. */}
-      <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto pr-1">
-        <div className="py-2">
-          <TurnList turns={turns} pending={input.pendingText} />
+    <div className="flex h-full min-h-0 gap-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <CaseHeader
+          detail={detail}
+          refreshing={refreshing}
+          onRefresh={() => {
+            void refresh()
+          }}
+          inspector={{
+            wide,
+            shown: !inspector.hidden,
+            onToggle: () => {
+              if (wide) inspector.setHidden(!inspector.hidden)
+              else setDrawerOpen(true)
+            },
+          }}
+          toggleRef={toggleRef}
+        />
+        {/* Reversed, so it opens at the newest turn and keeps its place when older ones load. */}
+        <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto pr-1">
+          <div className="py-2">
+            <TurnList turns={turns} pending={input.pendingText} />
+          </div>
         </div>
-      </div>
-      {reason !== null ? (
-        <ReadOnlyNotice reason={reason} />
-      ) : (
-        <div className="space-y-2">
-          {input.error && !input.sending && (
-            <SendError
-              error={input.error}
-              onSendAgain={input.submit}
-              onReload={() => {
-                input.clearError()
-                void refresh()
-              }}
+        {reason !== null ? (
+          <ReadOnlyNotice reason={reason} />
+        ) : (
+          <div className="space-y-2">
+            {input.error && !input.sending && (
+              <SendError
+                error={input.error}
+                onSendAgain={input.submit}
+                onReload={() => {
+                  input.clearError()
+                  void refresh()
+                }}
+              />
+            )}
+            <Composer
+              value={input.text}
+              onChange={input.setText}
+              onSend={input.submit}
+              sending={input.sending}
             />
-          )}
-          <Composer
-            value={input.text}
-            onChange={input.setText}
-            onSend={input.submit}
-            sending={input.sending}
-          />
-        </div>
+          </div>
+        )}
+      </div>
+      {wide ? (
+        !inspector.hidden && <InspectorPanel {...tabs} />
+      ) : (
+        <InspectorDrawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          returnFocusTo={toggleRef}
+          {...tabs}
+        />
       )}
     </div>
   )

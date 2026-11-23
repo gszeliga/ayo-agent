@@ -11,8 +11,9 @@ C1-C8 and the access-log side step done and pushed (2026-11-17, up to `7cc0378`)
 clickable prototype T0 is approved (2026-11-17); C9 (`chunk_index`) and C10 (one usage
 shape) are done and pushed. T1 (route, nav, cases list, the `cost` wording) and the
 schema-revision side step are done and pushed (2026-11-19, up to `a62e26f`); T2 (a case,
-read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). Next: **brief T4**, then
-T5, each briefed first. Nothing is in progress.
+read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). T4 was split (decision
+37); T4a (the inspector's frame, State and Actions) is done (2026-11-23). Next: **brief
+T4b**, then T5, each briefed first. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -154,6 +155,10 @@ What the UI steps start from:
     brief): tenants with documents only; no free typing. The last one is remembered as a
     name in `localStorage` (`ayo.chat.last-tenant`).
 36. **No trace chip yet** (agreed 2026-11-19, T3 brief): "Turn N" opens the trace in T4.
+37. **T4 is split** (agreed 2026-11-23, T4 brief): T4a is the inspector's frame (column,
+    toggle, drawer below 1024 px), State and Actions; T4b the Trace tab, case totals, chunk
+    links and the "Turn N" chip. The inspector's hidden state and tab live in the chat
+    page's memory (as decision 28); the drawer starts closed on each case.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -194,8 +199,8 @@ What the UI steps start from:
   markers, Copy, read-only and 404 states.
 - [x] **T3** Sending: new conversation (tenant, in-memory `session_id`), resume, in-flight
   state, errors by status with the text kept, refetch after a turn.
-- [ ] **T4** Inspector: State, Actions, Trace (with case totals and chunk links), hide and
-  drawer.
+- [x] **T4a** Inspector: the column, hide, drawer, State, Actions (decision 37).
+- [ ] **T4b** Trace tab (with case totals and chunk links), the "Turn N" chip.
 - [ ] **T5** Summary tab and generation, delete, export, the browser-storage and axe tests,
   README section, final report.
 
@@ -502,3 +507,23 @@ What the UI steps start from:
   timeout to 3 s: the first test of a file waits for cold lazy modules, which under the
   parallel run passed 1 s (`a11y.test.tsx` and `CaseView.test.tsx` failed that way). Not
   checked in a real browser; no real model call. `pnpm check` green (427 tests).
+- **T4a (2026-11-23).** The inspector (`Inspector.tsx`): `InspectorTabs` (State, Actions;
+  from the loaded `get_case`, no request of its own) shown as `InspectorPanel` (an `aside`
+  column, `w-96`) from 1024 px or as `InspectorDrawer` (the `dialog` primitive from the
+  right, its own title; focus goes back to the toggle on close, since Radix only returns
+  it to its own trigger). `inspectorState.ts` (`InspectorTab`, `WIDE_QUERY`,
+  `useWideScreen`), `hooks/useMediaQuery.ts` (`useSyncExternalStore` over `matchMedia`).
+  `StateTab` (the four facts, "Not recorded yet"; hypotheses, discarded with the note,
+  validated cause, evidence, each with phase and UTC time; plain text) over `events.ts`
+  (`EVENT_GROUPS`, `groupEvents`); `ActionsTab` (description, owner, due, status, the
+  API's `overdue`; "No actions yet"). `CaseHeader` gains the Inspector toggle
+  (`aria-pressed` when wide, `aria-haspopup="dialog"` when narrow); `ChatContext.inspector`
+  holds hidden and the tab (decision 37). `ui/README.md`, CLAUDE.md. Tests
+  (`Inspector.test.tsx`, 7): the facts with one unrecorded, groups in order with counts, HTML
+  in an annotation shown as text, the note and an empty group; every action column, an old
+  date with `overdue: false` without the badge and a future one with `true` with it, done;
+  no actions; hide and show with the hidden state and the tab kept across cases; the
+  drawer when narrow (closed at first, opened, Esc, focus back, axe); the inspector after a
+  turn that records evidence; axe on both tabs. The other tests run narrow (the setup's
+  `matchMedia` stub matches nothing), so nothing changes for them. Not checked in a real
+  browser. `pnpm check` green (434 tests).

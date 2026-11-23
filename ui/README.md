@@ -248,6 +248,18 @@ the API's message, `503` says no model is configured; a `401` returns to the con
 screen as anywhere. Moving to another case while a turn runs doesn't cancel it: the caches
 still catch up, but no alert shows on the other case.
 
+**The inspector** (`Inspector.tsx`): tabs beside the chat, from the case already loaded (no
+request of its own; it follows the case refetched after each turn). **State**: the four
+facts ("Not recorded yet" when empty), then hypotheses, discarded hypotheses (a discard is
+its own annotation, not linked to its hypothesis: a note says so), the validated cause and
+the evidence, each with the phase it was recorded in and its UTC time. **Actions**: a table
+of description, owner, due date and status, with an overdue badge from the API's `overdue`
+(never recomputed). All of it is plain text, never Markdown. From 1024 px wide
+(`inspectorState.ts`) it is a column the header's **Inspector** toggle hides and shows
+(`aria-pressed`); narrower, the toggle opens it as a drawer (a dialog: Esc closes it, focus
+goes back to the toggle). Hidden or not and the tab chosen live in the chat page's memory,
+so they survive switching cases, not a reload.
+
 ## Routes
 
 `/connect`, `/documents`, `/documents/:docId`, `/settings`, `/search`, `/chat`,
@@ -359,11 +371,12 @@ src/
                       case, NoCaseSelected), CasesList (+ CasesRail), CaseFiltersBar, CaseRow,
                       CaseView (+ CaseHeader, PhaseStepper, TurnList, TurnBlock, PhaseMarker,
                       ReadOnlyNotice + readOnly, CaseNotFound), NewConversation (/chat/new) +
-                      NewConversationDialog + chatContext (the draft), Composer, PendingTurn,
+                      NewConversationDialog + chatContext (the draft, the inspector), Composer, PendingTurn,
                       SendError + sendErrors, useChatInput, useSendMessage, lastTenant,
                       sessionId, queries (useCases, useCase, useCaseTurns paging back),
-                      format (cost, tokens), phases
-  hooks/              useDebouncedValue, useDocumentTitle
+                      format (cost, tokens), phases, Inspector (column or drawer) +
+                      inspectorState + StateTab (+ events) + ActionsTab
+  hooks/              useDebouncedValue, useDocumentTitle, useMediaQuery
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),
                       ConfirmByTyping
   pages/              ConnectPage, NotFoundPage
