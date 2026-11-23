@@ -9,6 +9,9 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
+- **Active (2026-11-23): UI languages (English + Spanish).** No spec file; plan, decisions,
+  steps I1-I8, the I1 brief and log in `plans/i18n-progress.md`. **Read it first.** Planned
+  only: I1 is next (show its brief and wait for the OK). Front end only, no billed calls.
 - Done (2026-11-23): test chat and case inspector (`/chat`; C1-C10, T0-T5b and side
   steps). Spec `plans/claude-code-prompt-test-chat.md`; decisions, log, final report and
   "Open items" in `plans/chat-progress.md`. `POST /admin/cases/{case_id}/summary` and every
@@ -58,8 +61,8 @@ working rules, update this file in that step's commit.
   `search.md`, `copilot.md`); a setting in `docs/configuration.md`; a command in the
   README and `docs/development.md` or `docs/operations.md`. A new topic doc is listed in
   the README's "Where to find what" (`tests/unit/test_docs_links.py` checks the links).
-- After the step: update the active milestone's progress file (none is active now; the
-  last was `plans/chat-progress.md`), make **exactly one commit** (code + tests + log together),
+- After the step: update the active milestone's progress file (now
+  `plans/i18n-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.
