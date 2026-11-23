@@ -159,7 +159,7 @@ test('export fetches the turns not loaded yet, previews and downloads the whole 
   first.detail = { ...first.detail, turns: 45 }
   const { api } = serve(cases)
   const { user } = await open(first)
-  const log = screen.getByRole('log', { name: 'Conversation' })
+  const log = await screen.findByRole('log', { name: 'Conversation' })
   await waitFor(() => {
     expect(within(log).getAllByRole('listitem', { name: /^Turn \d+$/ })).toHaveLength(20)
   })

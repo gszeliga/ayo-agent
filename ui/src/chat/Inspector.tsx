@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ActionsTab } from './ActionsTab'
 import type { InspectorTab, TraceView } from './inspectorState'
 import { PanelResizer } from './PanelResizer'
+import { PanelToggle } from './PanelToggle'
 import { INSPECTOR_LIMITS } from './panelWidth'
 import { StateTab } from './StateTab'
 import { SummaryTab } from './SummaryTab'
@@ -56,13 +57,15 @@ function InspectorTabs({ detail, tab, onTabChange, trace }: TabsProps) {
 interface PanelProps extends TabsProps {
   width: number
   onResize: (width: number) => void
+  /** Collapses it to its rail. */
+  onHide: () => void
 }
 
 /**
  * The inspector as a column beside the chat (wide screens), resized from its left edge.
  * CSS keeps it within 60% of the row too, should the window shrink after a resize.
  */
-export function InspectorPanel({ width, onResize, ...props }: PanelProps) {
+export function InspectorPanel({ width, onResize, onHide, ...props }: PanelProps) {
   return (
     <aside
       aria-label="Inspector"
@@ -76,6 +79,11 @@ export function InspectorPanel({ width, onResize, ...props }: PanelProps) {
         limits={INSPECTOR_LIMITS}
         onResize={onResize}
       />
+      {/* Mirrors the cases list's header: the toggle on the inner corner, by the chat. */}
+      <div className="flex items-center gap-2 pb-3">
+        <PanelToggle side="right" noun="inspector" expanded onClick={onHide} />
+        <h2 className="font-semibold">Inspector</h2>
+      </div>
       <InspectorTabs {...props} />
     </aside>
   )
@@ -84,7 +92,8 @@ export function InspectorPanel({ width, onResize, ...props }: PanelProps) {
 interface DrawerProps extends TabsProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Where focus goes back on close: the toggle (Radix only knows its own trigger). */
+  /** Where focus goes back on close: the button that opened it (Radix only knows its own
+   * trigger). */
   returnFocusTo: RefObject<HTMLElement | null>
 }
 

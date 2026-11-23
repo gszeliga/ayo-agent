@@ -1,6 +1,4 @@
-import { Download, PanelRight, RefreshCw, Trash2 } from 'lucide-react'
-
-import type { RefObject } from 'react'
+import { Download, RefreshCw, Trash2 } from 'lucide-react'
 
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
@@ -17,30 +15,13 @@ interface Props {
   onRefresh: () => void
   onExport: () => void
   onDelete: () => void
-  /** On wide screens the toggle shows or hides the column (pressed when shown); on narrow
-   * ones it opens the drawer. */
-  inspector: {
-    wide: boolean
-    shown: boolean
-    onToggle: () => void
-  }
-  /** The inspector toggle: the drawer gives focus back to it when it closes. */
-  toggleRef: RefObject<HTMLButtonElement | null>
 }
 
 /**
- * Title, tenant, turns, what the case used; Refresh, Export, Delete and the inspector
- * toggle; the stepper. Export and Delete work on read-only cases too.
+ * Title, tenant, turns, what the case used; Refresh, Export and Delete; the stepper.
+ * Export and Delete work on read-only cases too. The inspector has its own toggle.
  */
-export function CaseHeader({
-  detail,
-  refreshing,
-  onRefresh,
-  onExport,
-  onDelete,
-  inspector,
-  toggleRef,
-}: Props) {
+export function CaseHeader({ detail, refreshing, onRefresh, onExport, onDelete }: Props) {
   const { cost, total_tokens: tokens } = detail.usage
   const facts = [
     detail.tenant,
@@ -81,17 +62,6 @@ export function CaseHeader({
           >
             <Trash2 aria-hidden="true" />
             Delete
-          </Button>
-          <Button
-            ref={toggleRef}
-            variant="outline"
-            onClick={inspector.onToggle}
-            {...(inspector.wide
-              ? { 'aria-pressed': inspector.shown }
-              : { 'aria-haspopup': 'dialog' as const })}
-          >
-            <PanelRight aria-hidden="true" />
-            Inspector
           </Button>
         </div>
       </div>

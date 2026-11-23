@@ -180,6 +180,13 @@ What the UI steps start from:
     the same day): the T5a dialog reads it from the `['settings']` query with its own
     `staleTime: Infinity` (it changes only with a restart), prefetched when the Summary tab
     opens; the Settings page keeps the default refresh (its document counts change).
+41. **One pattern for both side panels** (agreed 2026-11-23 after the milestone, the user:
+    the two collapse buttons were different and confusing; "mirrored rails" chosen from
+    three mock-ups): each panel's toggle is an icon button at its inner top corner ("Hide
+    cases" / "Hide inspector", `aria-expanded`, a tooltip); hidden, each leaves a rail on
+    its page edge led by "Show cases" / "Show inspector"; the inspector rail has a button
+    per tab and the API's overdue dot; narrow screens always show the inspector rail, which
+    opens the drawer. The case header's "Inspector" button is gone.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -284,6 +291,7 @@ state). The summary prompt has never run against a real model.
   (decision 12). When it lands, the turn page's document lookups (titles,
   `document_deleted`, `chunk_index`: `document_titles` and `chunk_indexes`, both filtered by
   the case's tenant) must include `ayo` too, or its documents read as deleted (noted in C9).
+- **Side panels made consistent** (decision 41, after the report): done 2026-11-23.
 - **A manual pass in a browser** over the whole chat, on the demo cases (see the final
   report): nothing of the UI was checked outside tests.
 - **The seeded demo case on the dev branch** still has `retrieval_error: "timeout"` (the
@@ -728,3 +736,24 @@ state). The summary prompt has never run against a real model.
   (numbers and a tenant name) and the connection in storage, no cookie; axe on the page,
   the export dialog and the delete dialog). `pnpm check` green (488 tests). Not checked in
   a real browser.
+- **Follow-up (2026-11-23), after the final report: consistent side panels** (decision 41).
+  `PanelToggle.tsx`: `PanelButton` (ghost or default icon button with its name as a
+  tooltip towards the chat), `PanelToggle` ("Hide/Show <noun>", the mirrored
+  `Panel{Left,Right}{Close,Open}` icon, `aria-expanded`, `aria-haspopup="dialog"` when it
+  opens the drawer), `PanelRail` (a labelled column on the page edge). `CasesList`'s header
+  and `CasesRail` use them (labels unchanged); the inspector column gains a header (the
+  toggle, then "Inspector"); `InspectorRail` (an `aside` "Inspector (collapsed)": Show
+  inspector, then Show state / actions / trace / summary, the Actions label and dot from
+  the API's `overdue` count). `CaseView.openInspector(tab?)` serves the rail and the trace
+  chip: unhide when wide, else the drawer with focus given back to the button that opened
+  it (`document.activeElement` at the time). `CaseHeader` loses its toggle. Test setup:
+  a no-op `ResizeObserver` (Radix tooltips measure with it; jsdom has none). Tests
+  (`Inspector.test.tsx`, 16 now): hide to the rail and back across cases with axe on the
+  rail; both panels' toggles alike and none in the case header; the rail's tab buttons;
+  the overdue dot from the API value and none without; the narrow rail opening the drawer
+  on its tab with focus back to each opener. `Trace.test.tsx` and the "Inspector" heading
+  updated; the export test now waits for the conversation (it raced the first page); the
+  session test gets 15 s (a whole session, past 5 s under the parallel run). One full run
+  had four timeouts under load (bulk delete and this delete test; both pass alone and on
+  the previous commit); the next two full runs were clean. `pnpm check` green (492 tests).
+  Not checked in a real browser.

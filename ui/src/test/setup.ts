@@ -52,3 +52,18 @@ beforeEach(() => {
   window.sessionStorage.clear()
   window.localStorage.clear()
 })
+// jsdom has no ResizeObserver; Radix tooltips measure their trigger with it. Nothing is laid
+// out in jsdom, so a no-op is enough.
+if (typeof window.ResizeObserver !== 'function') {
+  window.ResizeObserver = class {
+    observe() {
+      return undefined
+    }
+    unobserve() {
+      return undefined
+    }
+    disconnect() {
+      return undefined
+    }
+  }
+}

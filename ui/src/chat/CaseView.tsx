@@ -14,7 +14,8 @@ import { DeleteCaseDialog } from './DeleteCaseDialog'
 import { ExportDialog } from './ExportDialog'
 import { Composer } from './Composer'
 import { InspectorDrawer, InspectorPanel } from './Inspector'
-import { useWideScreen, type TraceFocus } from './inspectorState'
+import { InspectorRail } from './InspectorRail'
+import { useWideScreen, type InspectorTab, type TraceFocus } from './inspectorState'
 import { caseTurnsKey, useCase, useCaseTurns } from './queries'
 import { readOnlyReason } from './readOnly'
 import { ReadOnlyNotice } from './ReadOnlyNotice'
@@ -82,7 +83,8 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
   const wide = useWideScreen()
   // The drawer is per case and starts closed; the column's hidden state is the page's.
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const toggleRef = useRef<HTMLButtonElement>(null)
+  // Where the drawer gives focus back: the button that opened it (a rail button, a chip).
+  const focusReturn = useRef<HTMLElement | null>(null)
   const [dialog, setDialog] = useState<'export' | 'delete' | null>(null)
   // The Trace tab's open entries and the one opened from a chip: per case, kept while tabs
   // switch (the tab itself unmounts).
@@ -107,10 +109,20 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
   const newestTurn = turns.data?.pages.at(-1)?.items.at(-1)?.turn
   const defaultOpen = () => new Set(newestTurn !== undefined ? [newestTurn] : [])
 
+  /** Shows the inspector (the column, or the drawer when narrow), on `tab` if given. */
+  function openInspector(tab?: InspectorTab) {
+    if (tab) inspector.setTab(tab)
+    if (wide) {
+      inspector.setHidden(false)
+    } else {
+      const active = document.activeElement
+      focusReturn.current = active instanceof HTMLElement ? active : null
+      setDrawerOpen(true)
+    }
+  }
+
   function showTrace(turn: number) {
-    inspector.setTab('trace')
-    if (wide) inspector.setHidden(false)
-    else setDrawerOpen(true)
+    openInspector('trace')
     setTraceOpen((open) => new Set([...(open ?? defaultOpen()), turn]))
     setTraceFocus((focus) => ({ turn, nonce: (focus?.nonce ?? 0) + 1 }))
   }
@@ -144,15 +156,6 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
           onRefresh={() => {
             void refresh()
           }}
-          inspector={{
-            wide,
-            shown: !inspector.hidden,
-            onToggle: () => {
-              if (wide) inspector.setHidden(!inspector.hidden)
-              else setDrawerOpen(true)
-            },
-          }}
-          toggleRef={toggleRef}
           onExport={() => {
             setDialog('export')
           }}
@@ -189,15 +192,23 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
           </div>
         )}
       </div>
-      {wide ? (
-        !inspector.hidden && (
-          <InspectorPanel width={inspector.width} onResize={inspector.setWidth} {...tabs} />
-        )
+      {wide && !inspector.hidden ? (
+        <InspectorPanel
+          width={inspector.width}
+          onResize={inspector.setWidth}
+          onHide={() => {
+            inspector.setHidden(true)
+          }}
+          {...tabs}
+        />
       ) : (
+        <InspectorRail detail={detail} drawer={!wide} onOpen={openInspector} />
+      )}
+      {!wide && (
         <InspectorDrawer
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
-          returnFocusTo={toggleRef}
+          returnFocusTo={focusReturn}
           {...tabs}
         />
       )}

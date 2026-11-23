@@ -208,7 +208,7 @@ conversation content. Pages of 20 with **Load more**; a case seen on two pages (
 in between) is listed once. A row shows the title or "Untitled case", the phase, tenant,
 turns, pending actions, an overdue badge from the API's `overdue_actions` (never recomputed),
 "Other channel" when there is no web session, and the last update. The list collapses to a
-rail with the count; filters, loaded pages and the collapse survive switching cases (the
+rail (see "Both side panels" below); filters, loaded pages and the collapse survive switching cases (the
 page is a layout route).
 
 **A case** (`/chat/:caseId`, `CaseView`; `GET /admin/cases/{case_id}` and its `/turns`): the
@@ -256,10 +256,20 @@ its own annotation, not linked to its hypothesis: a note says so), the validated
 the evidence, each with the phase it was recorded in and its UTC time. **Actions**: one card
 per action (description, owner, due date, status), with an overdue badge from the API's
 `overdue` (never recomputed). All of it is plain text, never Markdown, and long words
-wrap. From 1024 px wide (`inspectorState.ts`) it is a column the header's **Inspector**
-toggle hides and shows (`aria-pressed`); narrower, the toggle opens it as a drawer (a
-dialog: Esc closes it, focus goes back to the toggle). Hidden or not and the tab chosen
-live in the chat page's memory, so they survive switching cases, not a reload.
+wrap.
+
+**Both side panels work alike, mirrored** (`PanelToggle.tsx`: `PanelToggle`, `PanelButton`,
+`PanelRail`). Each has its toggle at its inner top corner, by the chat: **Hide cases**
+(`PanelLeftClose`) and **Hide inspector** (`PanelRightClose`), with `aria-expanded` and a
+tooltip. Hidden, each leaves a rail on its page edge with **Show cases** / **Show
+inspector** first: the cases rail adds New conversation and the count; the inspector rail
+(`InspectorRail`) adds one button per tab (Show state, actions, trace, summary), opening
+the inspector on it, with a dot on Actions when the API says an action is overdue. From
+1024 px wide (`inspectorState.ts`) the inspector is a column; narrower, it is always its
+rail, whose buttons open it as a drawer on their tab (a dialog: Esc closes it, focus goes
+back to the button that opened it). The case header has no inspector button. Hidden or not
+and the tab chosen live in the chat page's memory, so they survive switching cases, not a
+reload.
 
 **Trace** (`TraceTab`, `TraceEntry`): **Case totals** first (the case's `usage`, then the
 turns, the case total less the AI summary, and the summary; `trace.ts`), a note on what is
@@ -431,7 +441,7 @@ src/
                       (+ TraceEntry, CaseTotals, trace) + SummaryTab (+ StructuredSummary,
                       structuredSummary, GenerateSummaryDialog, useGenerateSummary,
                       summaryErrors), EarlierTurns, ExportDialog + exportCase + download,
-                      DeleteCaseDialog, PanelResizer +
+                      DeleteCaseDialog, PanelToggle (toggle, button, rail) + InspectorRail, PanelResizer +
                       panelWidth (the inspector and cases list widths)
   hooks/              useDebouncedValue, useDocumentTitle, useMediaQuery
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),

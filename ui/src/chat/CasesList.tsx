@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 
 import { CaseFiltersBar } from './CaseFiltersBar'
 import { CaseRow } from './CaseRow'
+import { PanelButton, PanelRail, PanelToggle } from './PanelToggle'
 import { flattenCases, NO_FILTERS, type CaseFilters, type useCases } from './queries'
 
 interface Props {
@@ -49,9 +50,7 @@ export function CasesList({
             </span>
           )}
         </h2>
-        <Button variant="ghost" size="icon" aria-label="Hide cases" onClick={onCollapse}>
-          <PanelLeftClose aria-hidden="true" />
-        </Button>
+        <PanelToggle side="left" noun="cases" expanded onClick={onCollapse} />
       </div>
       <Button className="mb-3 w-full" onClick={onNewConversation}>
         <Plus aria-hidden="true" />
@@ -135,7 +134,7 @@ export function CasesList({
   )
 }
 
-/** The collapsed list: a way back and the case count. */
+/** The collapsed list, on the left edge: Show cases, New conversation and the case count. */
 export function CasesRail({
   total,
   onExpand,
@@ -146,19 +145,22 @@ export function CasesRail({
   onNewConversation: () => void
 }) {
   return (
-    <div className="flex flex-col items-center gap-2">
-      <Button variant="ghost" size="icon" aria-label="Show cases" onClick={onExpand}>
-        <PanelLeftOpen aria-hidden="true" />
-      </Button>
-      <Button size="icon" aria-label="New conversation" onClick={onNewConversation}>
+    <PanelRail side="left" label="Cases list (collapsed)">
+      <PanelToggle side="left" noun="cases" expanded={false} onClick={onExpand} />
+      <PanelButton
+        side="left"
+        variant="default"
+        label="New conversation"
+        onClick={onNewConversation}
+      >
         <Plus aria-hidden="true" />
-      </Button>
+      </PanelButton>
       {total !== undefined && (
         <span className="text-muted-foreground text-xs tabular-nums">
           {total}
           <span className="sr-only"> cases</span>
         </span>
       )}
-    </div>
+    </PanelRail>
   )
 }

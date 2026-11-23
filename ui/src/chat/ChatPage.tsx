@@ -91,8 +91,8 @@ export function ChatPage() {
         aria-label="Cases list"
         style={collapsed ? undefined : { width: casesWidth }}
         className={cn(
-          'relative flex-none pr-4',
-          collapsed ? 'w-auto border-r' : 'max-w-[40%] min-w-60',
+          'relative flex flex-none',
+          collapsed ? 'w-auto' : 'max-w-[40%] min-w-60 flex-col pr-4',
         )}
       >
         {!collapsed && (

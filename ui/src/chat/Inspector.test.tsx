@@ -77,7 +77,9 @@ async function openFirst(served: ServedCase[]) {
 const WIDTH_KEY = 'ayo.chat.inspector-width'
 const resizer = () => screen.findByRole('separator', { name: 'Resize inspector' })
 const panel = () => screen.findByRole('complementary', { name: 'Inspector' })
-const toggle = () => screen.findByRole('button', { name: 'Inspector' })
+const hideButton = () => screen.findByRole('button', { name: 'Hide inspector' })
+const showButton = () => screen.findByRole('button', { name: 'Show inspector' })
+const rail = () => screen.findByRole('complementary', { name: 'Inspector (collapsed)' })
 const section = (root: HTMLElement, name: string) =>
   within(within(root).getByRole('region', { name: new RegExp(`^${name}`) }))
 
@@ -104,6 +106,7 @@ test('the State tab shows the facts, then each kind of annotation as text', asyn
     .getAllByRole('heading', { level: 2 })
     .map((h) => h.textContent)
   expect(headings).toEqual([
+    'Inspector',
     'Facts',
     'Hypotheses (2)',
     'Discarded hypotheses (1)',
@@ -163,46 +166,110 @@ test('a case without actions says so', async () => {
   expect(within(inspector).getByText('No actions yet')).toBeVisible()
 })
 
-test('the inspector hides and shows, and stays as left when switching cases', async () => {
+test('the inspector hides to its rail and back, and stays as left when switching cases', async () => {
   screenWidth(true)
   const served = cases()
   const { user } = await openFirst(served)
   await panel()
-  expect(await toggle()).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('complementary', { name: 'Inspector (collapsed)' })).toBeNull()
+  expect(await hideButton()).toHaveAttribute('aria-expanded', 'true')
 
   // The tab chosen survives switching cases too.
   await user.click(within(await panel()).getByRole('tab', { name: 'Actions' }))
-  await user.click(await toggle())
+  await user.click(await hideButton())
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
-  expect(await toggle()).toHaveAttribute('aria-pressed', 'false')
+  expect(await showButton()).toHaveAttribute('aria-expanded', 'false')
+  expect(await showButton()).not.toHaveAttribute('aria-haspopup')
+  expect(await a11yViolations(await rail())).toEqual([])
 
   await user.click(screen.getByRole('link', { name: /Paradas repetidas/ }))
   await screen.findByRole('heading', { level: 1, name: /Paradas repetidas/ })
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
 
-  await user.click(await toggle())
+  await user.click(await showButton())
   const inspector = await panel()
   expect(within(inspector).getByRole('tab', { name: 'Actions', selected: true })).toBeVisible()
+  expect(screen.queryByRole('complementary', { name: 'Inspector (collapsed)' })).toBeNull()
 })
 
-test('on a narrow screen the inspector is a drawer: closed, opened, shut with Esc', async () => {
+test('both panels use the same toggle, mirrored', async () => {
+  screenWidth(true)
+  const { user } = await openFirst(cases())
+  const hideCases = screen.getByRole('button', { name: 'Hide cases' })
+  expect(hideCases).toHaveAttribute('aria-expanded', 'true')
+  expect(await hideButton()).toHaveAttribute('aria-expanded', 'true')
+  // The case header has no inspector toggle any more.
+  const header = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement
+  expect(within(header).queryByRole('button', { name: /inspector/i })).toBeNull()
+
+  await user.click(hideCases)
+  await user.click(await hideButton())
+  expect(screen.getByRole('button', { name: 'Show cases' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  expect(await showButton()).toHaveAttribute('aria-expanded', 'false')
+})
+
+test("the rail's tab buttons open the inspector on their tab", async () => {
+  screenWidth(true)
+  const { user } = await openFirst(cases())
+  await user.click(await hideButton())
+  await user.click(within(await rail()).getByRole('button', { name: 'Show trace' }))
+  expect(within(await panel()).getByRole('tab', { name: 'Trace', selected: true })).toBeVisible()
+  await user.click(await hideButton())
+  await user.click(within(await rail()).getByRole('button', { name: 'Show summary' }))
+  expect(within(await panel()).getByRole('tab', { name: 'Summary', selected: true })).toBeVisible()
+})
+
+test("the rail's Actions button shows the API's overdue count, not one worked out here", async () => {
+  screenWidth(true)
+  const served = cases(
+    [],
+    [
+      action({ due_date: '2020-01-01', overdue: false }),
+      action({ due_date: '2099-12-31', overdue: true }),
+    ],
+  )
+  const { user } = await openFirst(served)
+  await user.click(await hideButton())
+  const button = within(await rail()).getByRole('button', { name: 'Show actions (1 overdue)' })
+  expect(within(button).getByTestId('overdue-dot')).toBeInTheDocument()
+})
+
+test('a case without overdue actions has no dot on the rail', async () => {
+  screenWidth(true)
+  const { user } = await openFirst(cases([], [action({ overdue: false })]))
+  await user.click(await hideButton())
+  const button = within(await rail()).getByRole('button', { name: 'Show actions' })
+  expect(within(button).queryByTestId('overdue-dot')).toBeNull()
+})
+
+test('on a narrow screen the rail opens the drawer on its tab; Esc closes it', async () => {
   screenWidth(false)
   const { user } = await openFirst(cases([event('evidence', 'La merma sube de noche')]))
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
-  const button = await toggle()
-  expect(button).not.toHaveAttribute('aria-pressed')
+  const button = await showButton()
   expect(button).toHaveAttribute('aria-haspopup', 'dialog')
 
   await user.click(button)
   const drawer = await screen.findByRole('dialog', { name: 'Inspector' })
   expect(within(drawer).getByText('La merma sube de noche')).toBeVisible()
   expect(await a11yViolations(drawer)).toEqual([])
-
   await user.keyboard('{Escape}')
   await waitFor(() => {
     expect(screen.queryByRole('dialog', { name: 'Inspector' })).toBeNull()
   })
   expect(button).toHaveFocus()
+
+  const actions = within(await rail()).getByRole('button', { name: 'Show actions' })
+  await user.click(actions)
+  const again = await screen.findByRole('dialog', { name: 'Inspector' })
+  expect(within(again).getByRole('tab', { name: 'Actions', selected: true })).toBeVisible()
+  await user.keyboard('{Escape}')
+  await waitFor(() => {
+    expect(actions).toHaveFocus()
+  })
 })
 
 test('after a turn the inspector shows the case as the API now has it', async () => {

@@ -334,7 +334,7 @@ test('a turn chip opens the hidden inspector on that trace, open and outlined', 
   if (!first) throw new Error('no case')
   serveChat(served)
   const { user } = renderApp(`/chat/${first.detail.case_id}`, { connected: true })
-  await user.click(await screen.findByRole('button', { name: 'Inspector' }))
+  await user.click(await screen.findByRole('button', { name: 'Hide inspector' }))
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
 
   await user.click(await screen.findByRole('button', { name: 'Turn 1 · trace' }))

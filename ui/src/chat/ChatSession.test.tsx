@@ -115,7 +115,8 @@ test('a whole session keeps nothing of the conversations in browser storage', as
   expect(window.localStorage.getItem('ayo.chat.inspector-width')).toMatch(/^\d+$/)
   expect(window.localStorage.getItem('ayo.chat.cases-width')).toMatch(/^\d+$/)
   expect(document.cookie).toBe('')
-})
+  // A whole session, step by step: well past the default 5 s when every file runs at once.
+}, 15_000)
 
 test('the chat page has no accessibility violations, nor its dialogs', async () => {
   const cases = serve()
