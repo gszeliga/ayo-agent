@@ -19,10 +19,13 @@ export function ChunksTab({
   view,
   onView,
   highlight = null,
+  highlightLabel,
 }: {
   docId: string
-  /** The chunk a search result linked to: outlined and scrolled to. */
+  /** The chunk a search result or a chat trace linked to: outlined and scrolled to. */
   highlight?: number | null
+  /** Said above the outlined chunk. */
+  highlightLabel?: string
   /** The document was deleted meanwhile (a 404). */
   onGone: () => void
   page: number
@@ -81,6 +84,7 @@ export function ChunksTab({
                 chunk={chunk}
                 view={view}
                 highlighted={chunk.chunk_index === highlight}
+                highlightLabel={highlightLabel}
               />
             ))}
           </div>

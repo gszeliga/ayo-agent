@@ -17,11 +17,14 @@ export function ChunkCard({
   chunk,
   view,
   highlighted = false,
+  highlightLabel = 'From the search',
 }: {
   chunk: Chunk
   view: View
-  /** The chunk a search result linked to. */
+  /** The chunk a search result or a chat trace linked to. */
   highlighted?: boolean
+  /** Said above it when highlighted. */
+  highlightLabel?: string
 }) {
   const ref = useRef<HTMLElement>(null)
   useEffect(() => {
@@ -37,7 +40,7 @@ export function ChunkCard({
         highlighted && 'border-primary ring-primary ring-1',
       )}
     >
-      {highlighted && <p className="text-primary text-[12px] font-semibold">From the search</p>}
+      {highlighted && <p className="text-primary text-[12px] font-semibold">{highlightLabel}</p>}
       <header className="text-muted-foreground flex flex-wrap items-baseline gap-x-3 text-[13px]">
         <span className="text-foreground font-mono font-semibold">#{chunk.chunk_index}</span>
         {chunk.heading && <span className="min-w-0 flex-1 truncate">{chunk.heading}</span>}

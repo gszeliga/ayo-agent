@@ -5,10 +5,11 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { ActionsTab } from './ActionsTab'
-import type { InspectorTab } from './inspectorState'
+import type { InspectorTab, TraceView } from './inspectorState'
 import { PanelResizer } from './PanelResizer'
 import { INSPECTOR_LIMITS } from './panelWidth'
 import { StateTab } from './StateTab'
+import { TraceTab } from './TraceTab'
 
 type CaseDetail = components['schemas']['CaseDetail']
 
@@ -16,10 +17,11 @@ interface TabsProps {
   detail: CaseDetail
   tab: InspectorTab
   onTabChange: (tab: InspectorTab) => void
+  trace: TraceView
 }
 
-/** The tabs: what the case holds, from the case already loaded (no request of its own). */
-function InspectorTabs({ detail, tab, onTabChange }: TabsProps) {
+/** The tabs: what the case holds, from the case and turns already loaded. */
+function InspectorTabs({ detail, tab, onTabChange, trace }: TabsProps) {
   return (
     <Tabs
       value={tab}
@@ -31,12 +33,16 @@ function InspectorTabs({ detail, tab, onTabChange }: TabsProps) {
       <TabsList aria-label="Inspector" className="w-full">
         <TabsTrigger value="state">State</TabsTrigger>
         <TabsTrigger value="actions">Actions</TabsTrigger>
+        <TabsTrigger value="trace">Trace</TabsTrigger>
       </TabsList>
       <TabsContent value="state" className="min-h-0 overflow-y-auto pr-1">
         <StateTab detail={detail} />
       </TabsContent>
       <TabsContent value="actions" className="min-h-0 overflow-y-auto pr-1">
         <ActionsTab detail={detail} />
+      </TabsContent>
+      <TabsContent value="trace" className="min-h-0 overflow-y-auto pr-1">
+        <TraceTab detail={detail} trace={trace} />
       </TabsContent>
     </Tabs>
   )
@@ -90,7 +96,7 @@ export function InspectorDrawer({ open, onOpenChange, returnFocusTo, ...props }:
       >
         <DialogTitle>Inspector</DialogTitle>
         <DialogDescription className="sr-only">
-          What the case holds: its facts, annotations and actions.
+          What the case holds: its facts, annotations, actions and turn traces.
         </DialogDescription>
         <InspectorTabs {...props} />
       </DialogContent>

@@ -9,9 +9,16 @@ type CaseTurn = components['schemas']['CaseTurn']
 
 /**
  * One turn: the user's message (plain text, never Markdown), the reply (through the safe
- * renderer), and a marker when the turn changed phase.
+ * renderer), "Turn N · trace" opening its trace, and a marker when the turn changed phase.
  */
-export function TurnBlock({ turn }: { turn: CaseTurn }) {
+export function TurnBlock({
+  turn,
+  onShowTrace,
+}: {
+  turn: CaseTurn
+  /** Opens this turn's trace in the inspector. */
+  onShowTrace?: (turn: number) => void
+}) {
   return (
     <li className="space-y-3" aria-label={`Turn ${String(turn.turn)}`}>
       <div className="flex justify-end">
@@ -26,7 +33,20 @@ export function TurnBlock({ turn }: { turn: CaseTurn }) {
           <LazyMarkdown source={turn.reply.content} />
         </div>
         <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
-          <span title={formatUtc(turn.created_at)}>Turn {turn.turn}</span>
+          {onShowTrace ? (
+            <button
+              type="button"
+              title={formatUtc(turn.created_at)}
+              className="hover:text-foreground focus-visible:ring-ring/50 rounded-sm px-1 underline-offset-2 outline-none hover:underline focus-visible:ring-[3px]"
+              onClick={() => {
+                onShowTrace(turn.turn)
+              }}
+            >
+              Turn {turn.turn} · trace
+            </button>
+          ) : (
+            <span title={formatUtc(turn.created_at)}>Turn {turn.turn}</span>
+          )}
           <CopyButton value={turn.reply.content} label="Copy reply" />
         </div>
       </div>

@@ -21,6 +21,7 @@ import {
   backLink,
   DOC_ID_PATTERN,
   highlightedChunk,
+  highlightLabel,
   parseDetailParams,
   toDetailSearch,
   type BackLink,
@@ -157,6 +158,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
                 <ChunksTab
                   docId={docId}
                   highlight={highlightedChunk(state)}
+                  highlightLabel={highlightLabel(state)}
                   page={params.chunkPage}
                   onPage={(chunkPage) => {
                     update({ chunkPage })

@@ -12,7 +12,7 @@ import { useChatContext } from './chatContext'
 import { CaseNotFound } from './CaseNotFound'
 import { Composer } from './Composer'
 import { InspectorDrawer, InspectorPanel } from './Inspector'
-import { useWideScreen } from './inspectorState'
+import { useWideScreen, type TraceFocus } from './inspectorState'
 import { caseTurnsKey, useCase, useCaseTurns } from './queries'
 import { readOnlyReason } from './readOnly'
 import { ReadOnlyNotice } from './ReadOnlyNotice'
@@ -81,6 +81,10 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
   // The drawer is per case and starts closed; the column's hidden state is the page's.
   const [drawerOpen, setDrawerOpen] = useState(false)
   const toggleRef = useRef<HTMLButtonElement>(null)
+  // The Trace tab's open entries and the one opened from a chip: per case, kept while tabs
+  // switch (the tab itself unmounts).
+  const [traceOpen, setTraceOpen] = useState<ReadonlySet<number> | null>(null)
+  const [traceFocus, setTraceFocus] = useState<TraceFocus | null>(null)
   const reason = readOnlyReason(detail)
   // A writable case always has its web session (readOnlyReason checks it).
   const input = useChatInput({ sessionId: detail.web_session_id ?? '', tenant: detail.tenant })
@@ -96,7 +100,37 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
     }
   }
 
-  const tabs = { detail, tab: inspector.tab, onTabChange: inspector.setTab }
+  // The newest loaded turn: the Trace tab's entry open by default.
+  const newestTurn = turns.data?.pages.at(-1)?.items.at(-1)?.turn
+  const defaultOpen = () => new Set(newestTurn !== undefined ? [newestTurn] : [])
+
+  function showTrace(turn: number) {
+    inspector.setTab('trace')
+    if (wide) inspector.setHidden(false)
+    else setDrawerOpen(true)
+    setTraceOpen((open) => new Set([...(open ?? defaultOpen()), turn]))
+    setTraceFocus((focus) => ({ turn, nonce: (focus?.nonce ?? 0) + 1 }))
+  }
+
+  const tabs = {
+    detail,
+    tab: inspector.tab,
+    onTabChange: inspector.setTab,
+    trace: {
+      turns,
+      open: traceOpen,
+      setOpen: (turn: number, isOpen: boolean) => {
+        setTraceOpen((open) => {
+          // Until now only the newest was open (by default): start from that.
+          const next = new Set(open ?? defaultOpen())
+          if (isOpen) next.add(turn)
+          else next.delete(turn)
+          return next
+        })
+      },
+      focus: traceFocus,
+    },
+  }
 
   return (
     <div className="flex h-full min-h-0 gap-4">
@@ -120,7 +154,7 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
         {/* Reversed, so it opens at the newest turn and keeps its place when older ones load. */}
         <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto pr-1">
           <div className="py-2">
-            <TurnList turns={turns} pending={input.pendingText} />
+            <TurnList turns={turns} pending={input.pendingText} onShowTrace={showTrace} />
           </div>
         </div>
         {reason !== null ? (

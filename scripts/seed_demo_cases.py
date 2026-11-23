@@ -128,7 +128,7 @@ ACME = DemoCase(
             "Es una diferencia clara entre turnos. La anoto como evidencia.",
             events=[("evidence", "La merma sube al 6 % en el turno de noche (2 % de día)")],
             tools=[ok("log_event"), refused("analyse", "evidence_count")],
-            retrieval_error="timeout",
+            retrieval_error="embedding_failed",
         ),
         Turn(
             "Además, el turno de noche cambió de bobina de film la semana pasada.",

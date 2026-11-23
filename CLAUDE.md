@@ -14,7 +14,8 @@ working rules, update this file in that step's commit.
   log in `plans/chat-progress.md`. **Read both first.** C1-C8 (the cases API) and the
   approved clickable prototype (T0, an Artifact), C9 (`chunk_index` in the trace),
   C10 (one usage shape: `LLMUsage`), T1 (`/chat`, cases list), T2 (a case), T3
-  (sending) and T4a (inspector: State, Actions, drawer) are done; next are T4b (Trace) and T5.
+  (sending), T4a (inspector: State, Actions, drawer, resizable) and T4b (Trace) are done; next is
+  T5 (summary, delete, export).
   `POST /admin/cases/{case_id}/summary` makes a real, billed model call: never call it
   against a configured provider without the user's OK.
 - **Paused (2026-11-16): conversation engine core.** Spec

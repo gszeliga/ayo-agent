@@ -14,8 +14,8 @@ schema-revision side step are done and pushed (2026-11-19, up to `a62e26f`); T2 
 read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). T4 was split (decision
 37); T4a (the inspector's frame, State and Actions) is done (2026-11-23). Demo cases are
 seeded on the Neon dev branch (side step, 2026-11-23); the inspector and the cases list are
-resizable (T4a fix, decision 38). Next: **brief T4b**, then T5, each
-briefed first. Nothing is in progress.
+resizable (T4a fix, decision 38). T4b (the Trace tab) is done
+(2026-11-23). Next: **brief T5**. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -207,7 +207,7 @@ What the UI steps start from:
 - [x] **T3** Sending: new conversation (tenant, in-memory `session_id`), resume, in-flight
   state, errors by status with the text kept, refetch after a turn.
 - [x] **T4a** Inspector: the column, hide, drawer, State, Actions (decision 37).
-- [ ] **T4b** Trace tab (with case totals and chunk links), the "Turn N" chip.
+- [x] **T4b** Trace tab (with case totals and chunk links), the "Turn N" chip.
 - [ ] **T5** Summary tab and generation, delete, export, the browser-storage and axe tests,
   README section, final report.
 
@@ -569,3 +569,32 @@ What the UI steps start from:
   limits, drag right, storage, gone when collapsed and back when expanded, a remount, axe;
   malformed stored widths giving the defaults. Not checked in a real browser. `pnpm check`
   green (439 tests).
+- **T4b (2026-11-23).** The inspector's Trace tab. `TraceTab`: `CaseTotals` (the case's
+  `usage`; turns = case less `summary.usage`, `trace.turnsUsage`, a figure only the summary
+  reported reading as 0; the summary line when there is one; `usageLine`), the never-shown
+  note, then `TraceEntry` per loaded turn, newest first, from `useCaseTurns` (no request of
+  its own). `EarlierTurns` is taken out of `TurnList` and shared, so both load the same
+  pages. `TraceEntry` (the `collapsible` primitive): summary line (turn, phase or "A → B",
+  calls, cost, `formatDuration`), badges (`traceFlags`: capped, retrieval failed, N
+  refused); open, the tool calls and the retrieved documents as groups (`role="group"`:
+  several open entries made duplicate landmarks for axe), model, prompts version, calls,
+  tokens (in/out), cost, duration, time. Retrieved: similarity to two decimals; a link to
+  `chunkLink` with `FromChat` state; "Changed since" linking to the document when
+  `chunk_index` is null; "Deleted document" without a link; "Untitled document".
+  `document/params.ts`: `FromChat`, `backLink` returns `{ to: chatFrom, label: 'Chat' }`
+  only for a `/chat/<uuid>` path, `highlightLabel`; `ChunksTab` and `ChunkCard` take the
+  label ("From the chat" / "From the search"). `TurnBlock`'s "Turn N · trace" button (via
+  `TurnList`) calls `CaseView.showTrace`: tab to Trace, unhide or open the drawer, add the
+  turn to the open set (keeping the newest, open by default), focus it (`TraceFocus` with a
+  nonce, so a second click scrolls again). Open entries and focus are `LoadedCase` state,
+  kept while tabs switch. `scripts/seed_demo_cases.py` writes the real
+  `retrieval_error` code, `embedding_failed` (it wrote `timeout`; the dev branch's seeded row
+  keeps `timeout` until reseeded, which needs the user's OK). `ui/README.md`, CLAUDE.md.
+  Tests: `Trace.test.tsx` (9: an entry's every field with order, open state and badges;
+  open and closed entries kept across tabs; the four kinds of retrieved chunk with axe; a
+  chunk opened outlined "From the chat" and Chat back to the case; totals with a summary,
+  and with nothing reported; earlier turns from the tab, shown in the chat too; the chip on
+  a hidden column, keeping the newest open, a second chip moving the outline; the chip on a
+  narrow screen opening the drawer, axe), `params.test.ts` (chat back links, refused
+  `chatFrom` values, the highlight from a chat, the label). Not checked in a real browser.
+  `pnpm check` green (456 tests).

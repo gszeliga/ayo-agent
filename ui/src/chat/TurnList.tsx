@@ -1,8 +1,7 @@
-import { ErrorState } from '@/components/StateMessage'
 import { LoadError } from '@/components/LoadError'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { EarlierTurns } from './EarlierTurns'
 import { PendingTurn } from './PendingTurn'
 import type { useCaseTurns } from './queries'
 import { TurnBlock } from './TurnBlock'
@@ -11,10 +10,12 @@ interface Props {
   turns: ReturnType<typeof useCaseTurns>
   /** A message being answered, shown after the turns until the turn is stored. */
   pending?: string | null
+  /** Opens a turn's trace in the inspector. */
+  onShowTrace?: (turn: number) => void
 }
 
 /** The conversation, oldest first, with "Load earlier turns" above it. */
-export function TurnList({ turns, pending = null }: Props) {
+export function TurnList({ turns, pending = null, onShowTrace }: Props) {
   if (turns.isPending) {
     return (
       <div className="space-y-4" aria-label="Loading conversation">
@@ -38,26 +39,7 @@ export function TurnList({ turns, pending = null }: Props) {
   return (
     <div className="space-y-5">
       <div className="flex justify-center">
-        {turns.isFetchPreviousPageError ? (
-          <ErrorState
-            message="Earlier turns could not be loaded."
-            onRetry={() => {
-              void turns.fetchPreviousPage()
-            }}
-          />
-        ) : turns.hasPreviousPage ? (
-          <Button
-            variant="outline"
-            disabled={turns.isFetchingPreviousPage}
-            onClick={() => {
-              void turns.fetchPreviousPage()
-            }}
-          >
-            {turns.isFetchingPreviousPage ? 'Loading…' : 'Load earlier turns'}
-          </Button>
-        ) : (
-          <p className="text-muted-foreground text-xs">Start of the conversation</p>
-        )}
+        <EarlierTurns turns={turns} />
       </div>
       <div role="log" aria-live="polite" aria-label="Conversation">
         {items.length === 0 && pending === null && (
@@ -66,7 +48,7 @@ export function TurnList({ turns, pending = null }: Props) {
         {items.length > 0 && (
           <ol className="space-y-6">
             {items.map((turn) => (
-              <TurnBlock key={turn.turn} turn={turn} />
+              <TurnBlock key={turn.turn} turn={turn} onShowTrace={onShowTrace} />
             ))}
           </ol>
         )}

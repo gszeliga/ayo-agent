@@ -222,7 +222,7 @@ last step asking only for what is left. The scroll area is `flex-col-reverse`, s
 at the newest turn and keeps its place when older turns are added above (any browser).
 Each turn: the user's text as typed (never Markdown), the reply through the safe renderer
 (`document/LazyMarkdown`: no raw HTML, no `javascript:` links, no images), "Turn N" with
-its time, **Copy** (the reply's text), and "Moved to X (from Y)" when the turn changed
+its time (a button that opens its trace), **Copy** (the reply's text), and "Moved to X (from Y)" when the turn changed
 phase (`phase_before`/`phase_after`). Refresh re-reads the case and starts the turns again
 from the latest page (a turn added elsewhere lies past the loaded offsets). A case from
 another channel or a closed one says it can be read but not continued. A `404` or `422`
@@ -260,6 +260,22 @@ wrap. From 1024 px wide (`inspectorState.ts`) it is a column the header's **Insp
 toggle hides and shows (`aria-pressed`); narrower, the toggle opens it as a drawer (a
 dialog: Esc closes it, focus goes back to the toggle). Hidden or not and the tab chosen
 live in the chat page's memory, so they survive switching cases, not a reload.
+
+**Trace** (`TraceTab`, `TraceEntry`): **Case totals** first (the case's `usage`, then the
+turns, the case total less the AI summary, and the summary; `trace.ts`), a note on what is
+never shown (chunk text, tool arguments, reasoning: the API doesn't return them), then one
+collapsible entry per loaded turn, newest first and the newest open. It uses the
+conversation's own pages (no request of its own) and shares "Load earlier turns" with the
+chat (`EarlierTurns`). An entry: turn, phase or "From → To", calls, cost, duration, badges
+for a capped turn, a failed retrieval and refused calls; open, the tool calls (accepted, or
+refused with the API's code; `propose_transition` with its target and missing codes), the
+retrieved documents with their similarity, model, prompts version, calls, tokens, cost,
+duration, time. A retrieved chunk links to its document's Chunks tab at its page, outlined
+"From the chat", with **Chat** as the back link (location state `FromChat`, the case path
+checked before use; `document/params.ts`); "Changed since" (`chunk_index` null) opens the
+document; "Deleted document" has no link. Each turn's **Turn N · trace** opens the inspector
+(the column, or the drawer when narrow) on that entry, opened and outlined. Open entries and
+the outline are kept per case while tabs switch.
 
 **Resizing.** The inspector (from its left edge, 320-800 px, default 448, at most 60% of
 the row) and the expanded cases list (from its right edge, 240-560 px, default 320, at most
@@ -384,7 +400,8 @@ src/
                       SendError + sendErrors, useChatInput, useSendMessage, lastTenant,
                       sessionId, queries (useCases, useCase, useCaseTurns paging back),
                       format (cost, tokens), phases, Inspector (column or drawer) +
-                      inspectorState + StateTab (+ events) + ActionsTab, PanelResizer +
+                      inspectorState + StateTab (+ events) + ActionsTab + TraceTab
+                      (+ TraceEntry, CaseTotals, trace), EarlierTurns, PanelResizer +
                       panelWidth (the inspector and cases list widths)
   hooks/              useDebouncedValue, useDocumentTitle, useMediaQuery
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),

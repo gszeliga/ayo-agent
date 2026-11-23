@@ -54,13 +54,32 @@ export interface FromSearch {
   chunkIndex: number
 }
 
+/** What the test chat's trace passes to a document it links to (location state, never the
+ * URL). */
+export interface FromChat {
+  /** The case's chat path (`/chat/<case id>`). */
+  chatFrom: string
+  /** The retrieved chunk, outlined on the Chunks tab; absent when no longer stored. */
+  chunkIndex?: number
+}
+
+/** A case path and nothing else: location state is never trusted as a URL. */
+const CHAT_CASE_PATH = /^\/chat\/[0-9a-f-]{36}$/
+
+function chatFrom(state: unknown): string | null {
+  const from = (state as Partial<FromChat> | null)?.chatFrom
+  return typeof from === 'string' && CHAT_CASE_PATH.test(from) ? from : null
+}
+
 export interface BackLink {
   to: string
   label: string
 }
 
-/** Back to the search when the document was opened from it, else to the list. */
+/** Back to the chat or the search when the document was opened from one, else to the list. */
 export function backLink(state: unknown): BackLink {
+  const chat = chatFrom(state)
+  if (chat !== null) return { to: chat, label: 'Chat' }
   const from = (state as Partial<FromSearch> | null)?.searchFrom
   if (typeof from === 'string' && from.startsWith('?')) {
     return { to: from === '?' ? '/search' : `/search${from}`, label: 'Search' }
@@ -68,7 +87,12 @@ export function backLink(state: unknown): BackLink {
   return { to: backToList(state), label: 'Documents' }
 }
 
-/** The chunk to outline: the one a search result linked to, if any. */
+/** Where the outlined chunk was linked from, said above it. */
+export function highlightLabel(state: unknown): string {
+  return chatFrom(state) !== null ? 'From the chat' : 'From the search'
+}
+
+/** The chunk to outline: the one a search result or a chat trace linked to, if any. */
 export function highlightedChunk(state: unknown): number | null {
   const index = (state as Partial<FromSearch> | null)?.chunkIndex
   return typeof index === 'number' && Number.isInteger(index) && index >= 0 ? index : null

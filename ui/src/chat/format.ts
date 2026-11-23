@@ -19,3 +19,10 @@ function trim(value: number): string {
 export function plural(count: number, one: string, many: string): string {
   return `${String(count)} ${count === 1 ? one : many}`
 }
+
+/** "850 ms", "4.5 s", "12 s". */
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return `${String(Math.round(ms))} ms`
+  const seconds = ms / 1000
+  return seconds < 10 ? `${seconds.toFixed(1)} s` : `${String(Math.round(seconds))} s`
+}
