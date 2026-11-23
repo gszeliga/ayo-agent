@@ -118,6 +118,44 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
   )
 }
 
+function CopilotCard({ copilot }: { copilot: IndexingSettings['copilot'] }) {
+  const fallback = copilot.summary_model_source === 'llm_model'
+  return (
+    <Card title="Copilot">
+      <dl className="space-y-1.5">
+        <Setting label="Conversation model" env="LLM_MODEL">
+          <code className="font-mono text-[12.5px] break-all">{copilot.model}</code>
+        </Setting>
+        <Setting label="Summary model" env="SUMMARY_MODEL">
+          <code className="font-mono text-[12.5px] break-all">{copilot.summary_model}</code>
+          {fallback && (
+            <span className="text-muted-foreground ml-2 text-[12px] font-normal">
+              from <code className="font-mono">LLM_MODEL</code>
+            </span>
+          )}
+        </Setting>
+        <Setting label="Prompts version" env="PROMPTS_VERSION">
+          <code className="font-mono text-[12.5px]">{copilot.prompts_version}</code>
+        </Setting>
+        <Setting label="Summary prompt version" env="SUMMARY_PROMPTS_VERSION">
+          <code className="font-mono text-[12.5px]">{copilot.summary_prompts_version}</code>
+        </Setting>
+        <Setting label="Longest summary" env="SUMMARY_MAX_TOKENS">
+          {copilot.summary_max_tokens} tokens
+        </Setting>
+      </dl>
+      {!copilot.configured && (
+        <Alert role="note" className="bg-warning-muted text-warning border-transparent">
+          <AlertDescription className="text-warning">
+            No model provider key (<code className="font-mono">OPENROUTER_API_KEY</code>): messages
+            and summaries can&apos;t be answered.
+          </AlertDescription>
+        </Alert>
+      )}
+    </Card>
+  )
+}
+
 export function SettingsPage() {
   useDocumentTitle('Indexing settings')
   const settings = useIndexingSettings()
@@ -188,6 +226,7 @@ export function SettingsPage() {
             )}
             <Config label="Embedder config" value={data.embedding.embedder_config} />
           </Card>
+          <CopilotCard copilot={data.copilot} />
           <Card title="Uploads">
             <dl className="space-y-1.5">
               <Setting label="Largest file" env="MAX_UPLOAD_BYTES">

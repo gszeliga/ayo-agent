@@ -1239,10 +1239,11 @@ def list_tenants(pool: Annotated[ConnectionPool, Depends(get_pool)]) -> list[Ten
 
 
 SETTINGS_DESCRIPTION = """The chunking, embedding and upload settings that new uploads and
-reprocesses use, and how many stored documents, across all tenants, are `indexed` with
-them or `outdated` (by reason, as each document's `outdated_reason`). Read-only: the
-settings come from the environment and change with a restart. No keys, URLs or database
-settings are included.
+reprocesses use, how many stored documents, across all tenants, are `indexed` with them or
+`outdated` (by reason, as each document's `outdated_reason`), and the copilot's models and
+prompt versions (`copilot`: the model a new case summary uses, and whether a provider key is
+set). Read-only: the settings come from the environment and change with a restart. No keys,
+URLs or database settings are included.
 
 The `chunker_config` and `embedder_config` strings are the ones each document is compared
 with, so a client can show which part of a document's configs differs.
@@ -1257,7 +1258,7 @@ with, so a client can show which part of a document's configs differs.
 @router.get(
     "/settings",
     operation_id="get_settings",
-    summary="Get the indexing settings",
+    summary="Get the indexing and copilot settings",
     description=SETTINGS_DESCRIPTION,
     tags=["settings"],
     responses={
@@ -1284,6 +1285,15 @@ with, so a client can show which part of a document's configs differs.
                                     "embedder_config": "voyage-4/document/1024",
                                 },
                                 "uploads": {"max_upload_bytes": 5242880},
+                                "copilot": {
+                                    "configured": True,
+                                    "model": "mistralai/mistral-small-3.2-24b-instruct",
+                                    "summary_model": "mistralai/mistral-small-3.2-24b-instruct",
+                                    "summary_model_source": "llm_model",
+                                    "prompts_version": "draft-1",
+                                    "summary_prompts_version": "summary-draft-1",
+                                    "summary_max_tokens": 800,
+                                },
                                 "documents": {
                                     "total": 12,
                                     "indexed": 9,

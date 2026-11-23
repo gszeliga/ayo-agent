@@ -153,6 +153,8 @@ curl -H "$H" "http://127.0.0.1:8000/admin/settings"
 #  "embedding": {"provider": "voyage", "model": "voyage-4", "dimensions": 1024,
 #   "batch_size": 128, "embedder_config": "voyage-4/document/1024"},
 #  "uploads": {"max_upload_bytes": 5242880},
+#  "copilot": {"configured": true, "model": "mistralai/...", "summary_model": "mistralai/...",
+#   "summary_model_source": "llm_model", "prompts_version": "draft-1", ...},
 #  "documents": {"total": 12, "indexed": 9,
 #   "outdated": {"unknown": 0, "chunker_changed": 2, "embedder_changed": 1}}}
 ```
@@ -161,6 +163,11 @@ Read-only: the chunking, embedding and upload settings new uploads and reprocess
 (from the environment; no keys, URLs or database settings), and how many documents across
 all tenants are `indexed` with them or `outdated`, by the same reasons as each document's
 `outdated_reason`. The two config strings are the ones documents are compared with.
+`copilot` names the conversation model, the model a new case summary uses
+(`summary_model`: `SUMMARY_MODEL`, else `LLM_MODEL`, which `summary_model_source` says),
+both prompt versions, `SUMMARY_MAX_TOKENS`, and whether a provider key is set
+(`configured`; the key itself never). The test chat names the summary model from it before
+a billed summary call.
 
 ## Chunking
 

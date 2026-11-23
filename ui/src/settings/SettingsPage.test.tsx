@@ -72,6 +72,47 @@ test('no link when nothing is outdated', async () => {
   ).not.toBeInTheDocument()
 })
 
+test('the copilot card names the models and where the summary model comes from', async () => {
+  await openSettings()
+
+  const copilot = card('Copilot')
+  expect(copilot).toHaveTextContent(
+    'Conversation modelLLM_MODELmistralai/mistral-small-3.2-24b-instruct',
+  )
+  expect(copilot).toHaveTextContent('Summary modelSUMMARY_MODELopenai/gpt-5-mini')
+  expect(copilot).not.toHaveTextContent('from LLM_MODEL')
+  expect(copilot).toHaveTextContent('Prompts versionPROMPTS_VERSIONdraft-1')
+  expect(copilot).toHaveTextContent('Summary prompt versionSUMMARY_PROMPTS_VERSIONsummary-draft-1')
+  expect(copilot).toHaveTextContent('Longest summarySUMMARY_MAX_TOKENS800 tokens')
+  expect(within(copilot).queryByRole('note')).not.toBeInTheDocument()
+})
+
+test('a summary model from LLM_MODEL, and no provider key, are said', async () => {
+  const model = 'mistralai/mistral-small-3.2-24b-instruct'
+  server.use(
+    http.get(`${API}/admin/settings`, () =>
+      HttpResponse.json(
+        makeSettings({
+          copilot: {
+            configured: false,
+            model,
+            summary_model: model,
+            summary_model_source: 'llm_model',
+            prompts_version: 'draft-1',
+            summary_prompts_version: 'summary-draft-1',
+            summary_max_tokens: 800,
+          },
+        }),
+      ),
+    ),
+  )
+  await openSettings()
+
+  const copilot = card('Copilot')
+  expect(copilot).toHaveTextContent(`Summary modelSUMMARY_MODEL${model}from LLM_MODEL`)
+  expect(within(copilot).getByRole('note')).toHaveTextContent('No model provider key')
+})
+
 test('the fake provider is flagged', async () => {
   server.use(
     http.get(`${API}/admin/settings`, () =>

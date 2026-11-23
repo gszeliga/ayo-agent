@@ -511,12 +511,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get the indexing settings
+         * Get the indexing and copilot settings
          * @description The chunking, embedding and upload settings that new uploads and
-         *     reprocesses use, and how many stored documents, across all tenants, are `indexed` with
-         *     them or `outdated` (by reason, as each document's `outdated_reason`). Read-only: the
-         *     settings come from the environment and change with a restart. No keys, URLs or database
-         *     settings are included.
+         *     reprocesses use, how many stored documents, across all tenants, are `indexed` with them or
+         *     `outdated` (by reason, as each document's `outdated_reason`), and the copilot's models and
+         *     prompt versions (`copilot`: the model a new case summary uses, and whether a provider key is
+         *     set). Read-only: the settings come from the environment and change with a restart. No keys,
+         *     URLs or database settings are included.
          *
          *     The `chunker_config` and `embedder_config` strings are the ones each document is compared
          *     with, so a client can show which part of a document's configs differs.
@@ -1570,6 +1571,55 @@ export interface components {
             state_at_time: "understand" | "challenge" | "analyse" | "action" | "followup" | "closed";
         };
         /**
+         * CopilotSettings
+         * @description The models and prompt versions the copilot uses; never the provider key.
+         */
+        CopilotSettings: {
+            /**
+             * Configured
+             * @description Whether a model provider key is set (`OPENROUTER_API_KEY`); without one, messages and summaries answer `503 llm_not_configured`. The key is never returned.
+             * @example true
+             */
+            configured: boolean;
+            /**
+             * Model
+             * @description The conversation's model (`LLM_MODEL`).
+             * @example mistralai/mistral-small-3.2-24b-instruct
+             */
+            model: string;
+            /**
+             * Prompts Version
+             * @description The conversation prompts' version (`PROMPTS_VERSION`).
+             * @example draft-1
+             */
+            prompts_version: string;
+            /**
+             * Summary Max Tokens
+             * @description The most tokens a summary may take (`SUMMARY_MAX_TOKENS`).
+             * @example 800
+             */
+            summary_max_tokens: number;
+            /**
+             * Summary Model
+             * @description The model a new AI case summary uses: `SUMMARY_MODEL`, else `LLM_MODEL`.
+             * @example mistralai/mistral-small-3.2-24b-instruct
+             */
+            summary_model: string;
+            /**
+             * Summary Model Source
+             * @description Where `summary_model` comes from: `SUMMARY_MODEL` (`summary_model`) or, when that is unset, `LLM_MODEL` (`llm_model`).
+             * @example llm_model
+             * @enum {string}
+             */
+            summary_model_source: "summary_model" | "llm_model";
+            /**
+             * Summary Prompts Version
+             * @description The summary prompt's version (`SUMMARY_PROMPTS_VERSION`).
+             * @example summary-draft-1
+             */
+            summary_prompts_version: string;
+        };
+        /**
          * DatabaseHealth
          * @description One query through the connection pool, run on every request. Where the database
          *     runs is given as a category only: never its host or URL.
@@ -2027,12 +2077,14 @@ export interface components {
         };
         /**
          * IndexingSettings
-         * @description The settings new uploads and reprocesses use, and the documents' status against
-         *     them.
+         * @description The settings new uploads and reprocesses use, the documents' status against them,
+         *     and the copilot's models. The name is historical (it held indexing settings only).
          */
         IndexingSettings: {
             /** @description Chunking settings. */
             chunking: components["schemas"]["ChunkingSettings"];
+            /** @description The copilot's models and prompt versions. */
+            copilot: components["schemas"]["CopilotSettings"];
             /** @description Document counts by status. */
             documents: components["schemas"]["DocumentStatusCounts"];
             /** @description Embedding settings. */

@@ -493,14 +493,61 @@ class DocumentStatusCounts(BaseModel):
     )
 
 
+class CopilotSettings(BaseModel):
+    """The models and prompt versions the copilot uses; never the provider key."""
+
+    configured: bool = Field(
+        description="Whether a model provider key is set (`OPENROUTER_API_KEY`); without one,"
+        " messages and summaries answer `503 llm_not_configured`. The key is never returned.",
+        examples=[True],
+    )
+    model: str = Field(
+        description="The conversation's model (`LLM_MODEL`).",
+        examples=["mistralai/mistral-small-3.2-24b-instruct"],
+    )
+    summary_model: str = Field(
+        description="The model a new AI case summary uses: `SUMMARY_MODEL`, else `LLM_MODEL`.",
+        examples=["mistralai/mistral-small-3.2-24b-instruct"],
+    )
+    summary_model_source: Literal["summary_model", "llm_model"] = Field(
+        description="Where `summary_model` comes from: `SUMMARY_MODEL` (`summary_model`) or,"
+        " when that is unset, `LLM_MODEL` (`llm_model`).",
+        examples=["llm_model"],
+    )
+    prompts_version: str = Field(
+        description="The conversation prompts' version (`PROMPTS_VERSION`).",
+        examples=["draft-1"],
+    )
+    summary_prompts_version: str = Field(
+        description="The summary prompt's version (`SUMMARY_PROMPTS_VERSION`).",
+        examples=["summary-draft-1"],
+    )
+    summary_max_tokens: int = Field(
+        description="The most tokens a summary may take (`SUMMARY_MAX_TOKENS`).", examples=[800]
+    )
+
+    @classmethod
+    def build(cls, settings: Settings) -> "CopilotSettings":
+        return cls(
+            configured=settings.openrouter_api_key is not None,
+            model=settings.llm_model,
+            summary_model=settings.summary_model or settings.llm_model,
+            summary_model_source="summary_model" if settings.summary_model else "llm_model",
+            prompts_version=settings.prompts_version,
+            summary_prompts_version=settings.summary_prompts_version,
+            summary_max_tokens=settings.summary_max_tokens,
+        )
+
+
 class IndexingSettings(BaseModel):
-    """The settings new uploads and reprocesses use, and the documents' status against
-    them."""
+    """The settings new uploads and reprocesses use, the documents' status against them,
+    and the copilot's models. The name is historical (it held indexing settings only)."""
 
     chunking: ChunkingSettings = Field(description="Chunking settings.")
     embedding: EmbeddingSettings = Field(description="Embedding settings.")
     uploads: UploadSettings = Field(description="Upload limits.")
     documents: DocumentStatusCounts = Field(description="Document counts by status.")
+    copilot: CopilotSettings = Field(description="The copilot's models and prompt versions.")
 
     @classmethod
     def build(cls, settings: Settings, counts: StatusCounts) -> "IndexingSettings":
@@ -521,6 +568,7 @@ class IndexingSettings(BaseModel):
                 embedder_config=embedder_config,
             ),
             uploads=UploadSettings(max_upload_bytes=settings.max_upload_bytes),
+            copilot=CopilotSettings.build(settings),
             documents=DocumentStatusCounts(
                 total=counts.total,
                 indexed=counts.indexed,

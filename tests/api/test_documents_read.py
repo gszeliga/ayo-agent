@@ -55,6 +55,8 @@ def make_settings(database_url: str, **overrides: object) -> Settings:
         "allow_remote_database": True,
         "admin_api_key": API_KEY,
         "embedding_provider": "fake",
+        # Never the real key from the shell: `configured` is false unless a test sets one.
+        "openrouter_api_key": None,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
@@ -433,6 +435,15 @@ def test_settings_report_the_current_values_without_secrets(
             "embedder_config": embedder_config,
         },
         "uploads": {"max_upload_bytes": 5 * 1024 * 1024},
+        "copilot": {
+            "configured": False,
+            "model": settings.llm_model,
+            "summary_model": settings.llm_model,
+            "summary_model_source": "llm_model",
+            "prompts_version": "draft-1",
+            "summary_prompts_version": "summary-draft-1",
+            "summary_max_tokens": 800,
+        },
         "documents": {
             "total": 0,
             "indexed": 0,
@@ -440,6 +451,46 @@ def test_settings_report_the_current_values_without_secrets(
         },
     }
     assert API_KEY not in str(body) and "postgresql" not in str(body)
+
+
+def test_settings_name_the_summary_model_and_never_the_provider_key(
+    migrated_database_url: str,
+) -> None:
+    key = "sk-or-v1-not-a-real-key-0123456789"
+    configured = make_settings(
+        migrated_database_url,
+        openrouter_api_key=key,
+        llm_model="openai/gpt-5-mini",
+        summary_model="anthropic/claude-haiku-5-5",
+        prompts_version="draft-7",
+        summary_prompts_version="summary-draft-2",
+        summary_max_tokens=600,
+    )
+    with make_client(create_app(configured)) as other:
+        body = indexing_settings(other)
+
+    assert body["copilot"] == {
+        "configured": True,
+        "model": "openai/gpt-5-mini",
+        "summary_model": "anthropic/claude-haiku-5-5",
+        "summary_model_source": "summary_model",
+        "prompts_version": "draft-7",
+        "summary_prompts_version": "summary-draft-2",
+        "summary_max_tokens": 600,
+    }
+    assert key not in str(body) and "sk-or" not in str(body)
+
+
+def test_settings_summary_model_falls_back_to_the_conversation_model(
+    migrated_database_url: str,
+) -> None:
+    settings = make_settings(migrated_database_url, llm_model="openai/gpt-5-mini")
+    with make_client(create_app(settings)) as other:
+        copilot = indexing_settings(other)["copilot"]
+
+    assert copilot["summary_model"] == "openai/gpt-5-mini"
+    assert copilot["summary_model_source"] == "llm_model"
+    assert copilot["configured"] is False
 
 
 def test_settings_configs_are_the_ones_documents_store(client: TestClient) -> None:

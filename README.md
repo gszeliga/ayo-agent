@@ -66,7 +66,7 @@ error `type` and example.
 | `POST /admin/documents/delete` | Delete up to 100 documents at once |
 | `POST /admin/search` | Find the chunks nearest to a question (filter by tenant or document) |
 | `GET /admin/tenants` | Tenants with document and chunk counts |
-| `GET /admin/settings` | Current indexing settings and document counts by status |
+| `GET /admin/settings` | Current indexing settings, document counts by status, and the copilot's models |
 | `GET /admin/health` | Status of the database and the embedding provider |
 | `POST /copilot/messages` | Send a session's message to the copilot; get its reply and the phase |
 | `GET /copilot/sessions/{session_id}` | A session's case: phase, facts, annotations, actions, messages |

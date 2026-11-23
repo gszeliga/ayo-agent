@@ -19,6 +19,15 @@ const settings: SettingsOk = {
     embedder_config: 'voyage-4/document/1024',
   },
   uploads: { max_upload_bytes: 5242880 },
+  copilot: {
+    configured: true,
+    model: 'mistralai/mistral-small-3.2-24b-instruct',
+    summary_model: 'mistralai/mistral-small-3.2-24b-instruct',
+    summary_model_source: 'llm_model',
+    prompts_version: 'draft-1',
+    summary_prompts_version: 'summary-draft-1',
+    summary_max_tokens: 800,
+  },
   documents: {
     total: 1,
     indexed: 1,

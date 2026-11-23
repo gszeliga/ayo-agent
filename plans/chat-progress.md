@@ -15,7 +15,9 @@ read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). T4 was split
 37); T4a (the inspector's frame, State and Actions) is done (2026-11-23). Demo cases are
 seeded on the Neon dev branch (side step, 2026-11-23); the inspector and the cases list are
 resizable (T4a fix, decision 38). T4b (the Trace tab) is done
-(2026-11-23). Next: **brief T5**. Nothing is in progress.
+(2026-11-23). T5 is split (decision 39); the summary model in `GET /admin/settings` (side
+step, decision 40) is done (2026-11-23). Next: **brief T5a** (the cache of decision 40
+included). Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -166,6 +168,17 @@ What the UI steps start from:
     edge, mouse and keyboard, with fixed limits and a share of the row; each width is kept in
     `localStorage` as a number only (the user's choice over memory only). The actions are
     cards instead of a table (the user's choice), so they fit any width.
+39. **T5 is split** (agreed 2026-11-23, T5 brief): T5a is the Summary tab (structured summary
+    from `get_case`, the AI summary and its billed-call dialog); T5b delete, export, the
+    storage and axe tests, the README section and the final report.
+40. **The summary model comes from `GET /admin/settings`** (agreed 2026-11-23, T5 brief: the
+    user chose a backend step over naming it vaguely): a `copilot` section (`configured`,
+    `model`, `summary_model` with `summary_model_source`, both prompt versions,
+    `SUMMARY_MAX_TOKENS`; never the key), shown on the Settings page as a "Copilot" card.
+    The schema keeps its name `IndexingSettings` and the nav its label. **Cached** (agreed
+    the same day): the T5a dialog reads it from the `['settings']` query with its own
+    `staleTime: Infinity` (it changes only with a restart), prefetched when the Summary tab
+    opens; the Settings page keeps the default refresh (its document counts change).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -208,8 +221,10 @@ What the UI steps start from:
   state, errors by status with the text kept, refetch after a turn.
 - [x] **T4a** Inspector: the column, hide, drawer, State, Actions (decision 37).
 - [x] **T4b** Trace tab (with case totals and chunk links), the "Turn N" chip.
-- [ ] **T5** Summary tab and generation, delete, export, the browser-storage and axe tests,
-  README section, final report.
+- [x] **Side step** The summary model in `GET /admin/settings` (decision 40).
+- [ ] **T5a** Summary tab: structured summary, AI summary and generation (decision 39).
+- [ ] **T5b** Delete, export, the browser-storage and axe tests, README section, final
+  report.
 
 ## Open items
 - **Future milestone, not in these steps: tenant-bound keys** (raised 2026-11-17). Each
@@ -598,3 +613,18 @@ What the UI steps start from:
   narrow screen opening the drawer, axe), `params.test.ts` (chat back links, refused
   `chatFrom` values, the highlight from a chat, the label). Not checked in a real browser.
   `pnpm check` green (456 tests).
+- **Side step (2026-11-23), before T5a: the summary model in `GET /admin/settings`**
+  (decision 40). `schemas.CopilotSettings` (`configured` = `OPENROUTER_API_KEY` set,
+  `model`, `summary_model` = `SUMMARY_MODEL` or `LLM_MODEL`, `summary_model_source`,
+  `prompts_version`, `summary_prompts_version`, `summary_max_tokens`; `build(settings)`)
+  as `IndexingSettings.copilot`, additive. The route's summary ("Get the indexing and
+  copilot settings"), description and 200 example. README table, `docs/knowledge-base.md`,
+  `docs/configuration.md`, `docs/openapi.json`, `schema.d.ts`. UI: a "Copilot" card on the
+  Settings page (models with their variables, "from `LLM_MODEL`" on a fallback, both prompt
+  versions, the longest summary, a note when no provider key is set); the fixture and the
+  schema type check gain the section. Tests: API (the defaults in the full-body test, now
+  with `openrouter_api_key=None` in `make_settings` so the shell's key never leaks in; every
+  field with `SUMMARY_MODEL` set and a key, which is absent from the body; the fallback),
+  the contract's 200 example validates; `SettingsPage.test.tsx` (2: the card, the fallback
+  and the unconfigured note). Backend suites run (1117 passed: the settings, OpenAPI,
+  contract and unit tests), `pnpm check` green (458 tests).
