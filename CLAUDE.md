@@ -9,16 +9,11 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active (2026-11-16): test chat and case inspector.** Spec
-  `plans/claude-code-prompt-test-chat.md`; decisions (which override the spec), steps and
-  log in `plans/chat-progress.md`. **Read both first.** C1-C8 (the cases API) and the
-  approved clickable prototype (T0, an Artifact), C9 (`chunk_index` in the trace),
-  C10 (one usage shape: `LLMUsage`), T1 (`/chat`, cases list), T2 (a case), T3
-  (sending), T4a (inspector: State, Actions, drawer, resizable), T4b (Trace), the summary
-  model in `GET /admin/settings` and T5a (Summary tab) are done; next is T5b (delete,
-  export, final report).
-  `POST /admin/cases/{case_id}/summary` makes a real, billed model call: never call it
-  against a configured provider without the user's OK.
+- Done (2026-11-23): test chat and case inspector (`/chat`; C1-C10, T0-T5b and side
+  steps). Spec `plans/claude-code-prompt-test-chat.md`; decisions, log, final report and
+  "Open items" in `plans/chat-progress.md`. `POST /admin/cases/{case_id}/summary` and every
+  chat message make real, billed model calls: never call them against a configured
+  provider without the user's OK. Demo data: `scripts/seed_demo_cases.py` (no cost).
 - **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
@@ -63,8 +58,8 @@ working rules, update this file in that step's commit.
   `search.md`, `copilot.md`); a setting in `docs/configuration.md`; a command in the
   README and `docs/development.md` or `docs/operations.md`. A new topic doc is listed in
   the README's "Where to find what" (`tests/unit/test_docs_links.py` checks the links).
-- After the step: update the active milestone's progress file (now
-  `plans/chat-progress.md`), make **exactly one commit** (code + tests + log together),
+- After the step: update the active milestone's progress file (none is active now; the
+  last was `plans/chat-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.
@@ -99,6 +94,7 @@ uv run ayo-copilot                        # run the API on 127.0.0.1:8000
 uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
 uv run ayo-llm-check models --model ID     # OpenRouter listing: tools, context, prices, ZDR (free)
 uv run ayo-transcript SESSION_ID          # a session's transcript -> eval/conversations/ (reads only)
+uv run python scripts/seed_demo_cases.py  # demo cases (no model call); --host for the dev branch, --reset [--yes]
 uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)
 pnpm install && pnpm dev                  # http://localhost:5173 (API needs CORS_ALLOWED_ORIGINS=http://localhost:5173)
@@ -173,7 +169,8 @@ migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW co
                        0002 = documents.chunk_count/size_bytes/*_config + list index
                        0003 = problems, problem_events, actions, conversation_links, turn_traces
                        0004 = case_summaries (one AI summary per case)
-scripts/               dev_db.sh, db_shell.sh (psql; no tests, a personal tool), export_openapi.py
+scripts/               dev_db.sh, db_shell.sh (psql; no tests, a personal tool), export_openapi.py,
+                       seed_demo_cases.py (demo cases for the test chat; no tests, no cost)
 docs/                  topic docs: knowledge-base, search, copilot, configuration, operations,
                        development (.md); openapi.json (generated, committed), decisions/
 eval/llm/              ayo-llm-check reports (git-ignored) and example-report.json (scripted)

@@ -292,6 +292,18 @@ usage counts the summary now). It is never retried. A failure says why and keeps
 earlier summary (`summaryErrors.ts`: `409 case_empty`, `404`, `502` with its code, `503`,
 network). A case without turns can't be summarised.
 
+**Export and Delete** (the case header; read-only cases too). **Export**
+(`ExportDialog`, `exportCase.ts`) first reads the turns not loaded yet (`missingRanges`, in
+pages of 50, into its own query, so the conversation's paging is untouched), then previews
+**Markdown** (header, structured summary, AI summary, every turn) or **JSON** (`{
+exported_at, case, turns }`, as the API gave them) and downloads it from the browser
+(`download.ts`: a Blob and an object URL; nothing is uploaded) as
+`case-<id prefix>-<UTC date>.md|json`, never named after the title. A failed read offers
+Retry. **Delete** (`DeleteCaseDialog`) says what goes (turns with messages and traces,
+annotations, actions, the AI summary) and that a later message on the session starts a new
+case; it is never retried; a `404` counts as deleted; then a toast, back to `/chat`, the
+case's caches dropped and the list read again; another error keeps the dialog open.
+
 **Resizing.** The inspector (from its left edge, 320-800 px, default 448, at most 60% of
 the row) and the expanded cases list (from its right edge, 240-560 px, default 320, at most
 40% of the page) are resized by a handle (`PanelResizer`, `role="separator"` with its
@@ -418,7 +430,8 @@ src/
                       inspectorState + StateTab (+ events) + ActionsTab + TraceTab
                       (+ TraceEntry, CaseTotals, trace) + SummaryTab (+ StructuredSummary,
                       structuredSummary, GenerateSummaryDialog, useGenerateSummary,
-                      summaryErrors), EarlierTurns, PanelResizer +
+                      summaryErrors), EarlierTurns, ExportDialog + exportCase + download,
+                      DeleteCaseDialog, PanelResizer +
                       panelWidth (the inspector and cases list widths)
   hooks/              useDebouncedValue, useDocumentTitle, useMediaQuery
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),

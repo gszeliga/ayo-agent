@@ -1,4 +1,4 @@
-import { PanelRight, RefreshCw } from 'lucide-react'
+import { Download, PanelRight, RefreshCw, Trash2 } from 'lucide-react'
 
 import type { RefObject } from 'react'
 
@@ -15,6 +15,8 @@ interface Props {
   detail: CaseDetail
   refreshing: boolean
   onRefresh: () => void
+  onExport: () => void
+  onDelete: () => void
   /** On wide screens the toggle shows or hides the column (pressed when shown); on narrow
    * ones it opens the drawer. */
   inspector: {
@@ -26,8 +28,19 @@ interface Props {
   toggleRef: RefObject<HTMLButtonElement | null>
 }
 
-/** Title, tenant, turns, what the case used, Refresh, the inspector toggle, the stepper. */
-export function CaseHeader({ detail, refreshing, onRefresh, inspector, toggleRef }: Props) {
+/**
+ * Title, tenant, turns, what the case used; Refresh, Export, Delete and the inspector
+ * toggle; the stepper. Export and Delete work on read-only cases too.
+ */
+export function CaseHeader({
+  detail,
+  refreshing,
+  onRefresh,
+  onExport,
+  onDelete,
+  inspector,
+  toggleRef,
+}: Props) {
   const { cost, total_tokens: tokens } = detail.usage
   const facts = [
     detail.tenant,
@@ -51,10 +64,23 @@ export function CaseHeader({ detail, refreshing, onRefresh, inspector, toggleRef
             {facts.join(' · ')}
           </p>
         </div>
-        <div className="flex flex-none gap-2">
+        <div className="flex flex-none flex-wrap justify-end gap-2">
           <Button variant="outline" disabled={refreshing} onClick={onRefresh}>
             <RefreshCw aria-hidden="true" className={cn(refreshing && 'animate-spin')} />
             Refresh
+          </Button>
+          <Button variant="outline" onClick={onExport} aria-haspopup="dialog">
+            <Download aria-hidden="true" />
+            Export
+          </Button>
+          <Button
+            variant="outline"
+            className="text-destructive"
+            onClick={onDelete}
+            aria-haspopup="dialog"
+          >
+            <Trash2 aria-hidden="true" />
+            Delete
           </Button>
           <Button
             ref={toggleRef}

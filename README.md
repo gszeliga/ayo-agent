@@ -102,6 +102,15 @@ The browser UI lives in `ui/` (React + Vite + TypeScript): `cd ui && pnpm instal
 with the API started with `CORS_ALLOWED_ORIGINS=http://localhost:5173`. See
 [ui/README.md](ui/README.md).
 
+**Test chat** (`/chat`): talk to the copilot as a web client would and inspect each case
+beside the conversation: its facts, annotations and actions, every turn's trace (tool
+calls, retrieved documents linking to their chunks, tokens, cost), the structured and AI
+summaries, export (Markdown, JSON) and delete. Cases from every channel are listed; only
+web cases can be continued. **Every message and every AI summary is a real, billed model
+call.** To look around without spending anything, seed demo cases
+(`uv run python scripts/seed_demo_cases.py`, see [docs/development.md](docs/development.md)).
+Details in [ui/README.md](ui/README.md#test-chat).
+
 ## Layout
 
 ```

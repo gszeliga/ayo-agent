@@ -16,8 +16,9 @@ read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). T4 was split
 seeded on the Neon dev branch (side step, 2026-11-23); the inspector and the cases list are
 resizable (T4a fix, decision 38). T4b (the Trace tab) is done
 (2026-11-23). T5 is split (decision 39); the summary model in `GET /admin/settings` (side
-step, decision 40) is done (2026-11-23). T5a (the Summary tab) is done
-(2026-11-23). Next: **brief T5b**. Nothing is in progress.
+step, decision 40) is done (2026-11-23). T5a (the Summary tab) and T5b
+(delete, export, the final report) are done (2026-11-23): **the milestone is done**; see
+"Final report" below. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -223,8 +224,58 @@ What the UI steps start from:
 - [x] **T4b** Trace tab (with case totals and chunk links), the "Turn N" chip.
 - [x] **Side step** The summary model in `GET /admin/settings` (decision 40).
 - [x] **T5a** Summary tab: structured summary, AI summary and generation (decision 39).
-- [ ] **T5b** Delete, export, the browser-storage and axe tests, README section, final
+- [x] **T5b** Delete, export, the browser-storage and axe tests, README section, final
   report.
+
+## Final report (2026-11-23)
+
+**Done.** The test chat and case inspector at `/chat` in the admin UI, and the API it needs.
+- **Cases API** (C1-C10): `case_id` on the copilot endpoints; `GET /admin/cases` (filters,
+  pages), `GET /admin/cases/{case_id}` (facts, annotations, actions with the API's
+  `overdue`, the stored AI summary with `stale`, usage), `GET .../turns` (oldest first,
+  paged by offset; each turn its messages and a content-free trace with chunk links
+  resolved at read time), `DELETE` (cascade), `POST .../summary` (the only billed admin
+  path; migration 0004 `case_summaries`), one usage shape (`LLMUsage`) throughout.
+- **The chat** (T1-T3): the cases list (search kept out of the URL, tenant, phase, state,
+  Load more, a collapsible rail), a case read-only with paging back and safe Markdown, the
+  phase stepper and markers, sending with an in-flight state, errors by status with the
+  text kept, new conversations with an in-memory session id.
+- **The inspector** (T4a, T4b, T5a): State, Actions (cards), Trace (case totals, entries
+  with tool calls, retrieved documents linking to their chunk and back, the "Turn N ·
+  trace" chip), Summary (structured from the record; the AI summary behind a billed-call
+  dialog naming the model from `GET /admin/settings`, cached); hideable, a drawer below
+  1024 px, resizable like the cases list (widths kept as numbers).
+- **Export and delete** (T5b): Markdown or JSON with every turn, made in the browser; a
+  delete that says what goes.
+- **Side steps:** query strings out of the access log; the schema revision logged at
+  startup; the demo seed script (`scripts/seed_demo_cases.py`, seeded on the Neon dev
+  branch); the copilot's models in `GET /admin/settings` with a Settings card.
+
+**How.** Hand-written SQL in repeatable-read, read-only snapshots for every read; content
+never logged (cases, queries, summaries); the UI built only on the generated types (no mock
+layer, decision 1); TanStack Query caches per case, mutations for every billed or
+destructive call (never retried), cache updates in the mutations' own options so they
+survive leaving a view. Browser storage holds only the last tenant's name and two widths
+(tested over a whole session).
+
+**Tests.** UI: 488 (Vitest, Testing Library, MSW, axe on the chat page, its tabs and
+dialogs). Backend: the cases API, the summary and the settings section covered in
+`tests/api/` with every documented status triggered in the contract tests (1117 passed in
+the suites run at the settings step). No real model or embedding call was made by any step
+of this milestone. Bundle: main 127 KB gzipped (was 141 at the UI report, now with Vite's
+current split), the chat's case view 11 KB and its page 4 KB, loaded on demand.
+
+**Agreed deviations from the spec** are the decisions above (1-40); the main ones: no mock
+layer and the backend first (1), names from the code (2), turns paged apart from the case
+(10, 13), the stored AI summary with `stale` (8, 16) instead of an unsaved one, no e2e test
+(9), the prototype first (18), chunk links with `chunk_index` resolved at read time (23),
+one usage shape (24), the splits of T4 and T5 (37, 39), resizable columns (38), the summary
+model from the settings (40).
+
+**Not checked in a real browser by me.** Every UI step was verified only through jsdom
+tests: layout, the resize handles, the drawer, scrolling to a chunk or a trace, the
+download itself, and the look in dark mode need a manual pass (the demo cases cover each
+state). The summary prompt has never run against a real model.
 
 ## Open items
 - **Future milestone, not in these steps: tenant-bound keys** (raised 2026-11-17). Each
@@ -233,6 +284,11 @@ What the UI steps start from:
   (decision 12). When it lands, the turn page's document lookups (titles,
   `document_deleted`, `chunk_index`: `document_titles` and `chunk_indexes`, both filtered by
   the case's tenant) must include `ayo` too, or its documents read as deleted (noted in C9).
+- **A manual pass in a browser** over the whole chat, on the demo cases (see the final
+  report): nothing of the UI was checked outside tests.
+- **The seeded demo case on the dev branch** still has `retrieval_error: "timeout"` (the
+  script now writes `embedding_failed`); reseeding needs `--reset --yes` there, with the
+  user's OK.
 - **The summary prompt (`prompts/summary.md`) is a draft** for the user (and AYO) to
   review; no real model has run it yet. A manual try is billed: ask first.
 - Migrations 0003 and 0004 are on the Neon dev branch (applied by the user, reported
@@ -650,3 +706,25 @@ What the UI steps start from:
   `javascript:` link inert; 409, 404, 502 and 503 keeping the old summary; network; no
   turns; leaving the tab mid-call. No real model call. Not checked in a real browser.
   `pnpm check` green (471 tests).
+- **T5b (2026-11-23).** Delete and export, the last step. `DeleteCaseDialog` (alert
+  dialog: what goes, with counts, and the new-case note for web cases; `DELETE` as a
+  mutation with `retry: false`; success and `404` alike: a toast, `navigate('/chat')`, the
+  case and turns queries removed after leaving, the list invalidated; other errors through
+  `describeError` in the dialog, which stays open). `ExportDialog` (mounted while open: a
+  fixed `now`, the count of turns to fetch; `useAllTurns`: the cached turns plus
+  `missingRanges` read in pages of 50 into `['case-export', caseId, version]` with
+  `gcTime: 0`, never the conversation's cache; Markdown / JSON as `aria-pressed` buttons, a
+  focusable preview, Download through `download.ts`; a failed read: Retry, Download
+  disabled). `exportCase.ts` (`missingRanges`, `exportFileName`, `exportMarkdown` reusing
+  `structuredSummary`, `exportJson`). `CaseHeader` gains Export and Delete (shown on
+  read-only cases too). Root README ("Test chat" under Admin UI), `ui/README.md`, the final
+  report, CLAUDE.md (the milestone under Done). Tests: `exportCase.test.ts` (9: gaps, file
+  name, every Markdown section and order, untitled / other channel / empty, JSON),
+  `DeleteExport.test.tsx` (6: the dialog's wording, Cancel, delete and back with the list
+  updated; already deleted; a 500 kept in the dialog; a read-only case; export of 45 turns
+  with 20 loaded reading only offsets 0-24, both formats, the downloads, the chat's paging
+  unchanged; a failed read with Retry), `ChatSession.test.tsx` (2: a whole session with
+  sending, every tab, both resizes, a summary and an export leaves only the three chat keys
+  (numbers and a tenant name) and the connection in storage, no cookie; axe on the page,
+  the export dialog and the delete dialog). `pnpm check` green (488 tests). Not checked in
+  a real browser.

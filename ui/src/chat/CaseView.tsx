@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CaseHeader } from './CaseHeader'
 import { useChatContext } from './chatContext'
 import { CaseNotFound } from './CaseNotFound'
+import { DeleteCaseDialog } from './DeleteCaseDialog'
+import { ExportDialog } from './ExportDialog'
 import { Composer } from './Composer'
 import { InspectorDrawer, InspectorPanel } from './Inspector'
 import { useWideScreen, type TraceFocus } from './inspectorState'
@@ -81,6 +83,7 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
   // The drawer is per case and starts closed; the column's hidden state is the page's.
   const [drawerOpen, setDrawerOpen] = useState(false)
   const toggleRef = useRef<HTMLButtonElement>(null)
+  const [dialog, setDialog] = useState<'export' | 'delete' | null>(null)
   // The Trace tab's open entries and the one opened from a chip: per case, kept while tabs
   // switch (the tab itself unmounts).
   const [traceOpen, setTraceOpen] = useState<ReadonlySet<number> | null>(null)
@@ -150,6 +153,12 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
             },
           }}
           toggleRef={toggleRef}
+          onExport={() => {
+            setDialog('export')
+          }}
+          onDelete={() => {
+            setDialog('delete')
+          }}
         />
         {/* Reversed, so it opens at the newest turn and keeps its place when older ones load. */}
         <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto pr-1">
@@ -192,6 +201,20 @@ function LoadedCase({ caseId, detail, refetch }: LoadedProps) {
           {...tabs}
         />
       )}
+      <ExportDialog
+        detail={detail}
+        open={dialog === 'export'}
+        onOpenChange={(open) => {
+          setDialog(open ? 'export' : null)
+        }}
+      />
+      <DeleteCaseDialog
+        detail={detail}
+        open={dialog === 'delete'}
+        onOpenChange={(open) => {
+          setDialog(open ? 'delete' : null)
+        }}
+      />
     </div>
   )
 }
