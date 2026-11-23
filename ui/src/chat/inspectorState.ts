@@ -2,7 +2,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 import type { useCaseTurns } from './queries'
 
-export type InspectorTab = 'state' | 'actions' | 'trace'
+export type InspectorTab = 'state' | 'actions' | 'trace' | 'summary'
 
 /** From this width the inspector is a column beside the chat; below it, a drawer. */
 export const WIDE_QUERY = '(min-width: 1024px)'

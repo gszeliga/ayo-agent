@@ -16,8 +16,8 @@ read-only) is done (2026-11-19); T3 (sending) is done (2026-11-19). T4 was split
 seeded on the Neon dev branch (side step, 2026-11-23); the inspector and the cases list are
 resizable (T4a fix, decision 38). T4b (the Trace tab) is done
 (2026-11-23). T5 is split (decision 39); the summary model in `GET /admin/settings` (side
-step, decision 40) is done (2026-11-23). Next: **brief T5a** (the cache of decision 40
-included). Nothing is in progress.
+step, decision 40) is done (2026-11-23). T5a (the Summary tab) is done
+(2026-11-23). Next: **brief T5b**. Nothing is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -222,7 +222,7 @@ What the UI steps start from:
 - [x] **T4a** Inspector: the column, hide, drawer, State, Actions (decision 37).
 - [x] **T4b** Trace tab (with case totals and chunk links), the "Turn N" chip.
 - [x] **Side step** The summary model in `GET /admin/settings` (decision 40).
-- [ ] **T5a** Summary tab: structured summary, AI summary and generation (decision 39).
+- [x] **T5a** Summary tab: structured summary, AI summary and generation (decision 39).
 - [ ] **T5b** Delete, export, the browser-storage and axe tests, README section, final
   report.
 
@@ -628,3 +628,25 @@ What the UI steps start from:
   the contract's 200 example validates; `SettingsPage.test.tsx` (2: the card, the fallback
   and the unconfigured note). Backend suites run (1117 passed: the settings, OpenAPI,
   contract and unit tests), `pnpm check` green (458 tests).
+- **T5a (2026-11-23).** The inspector's Summary tab. `structuredSummary.ts`
+  (`structuredSummary(detail)`: Problem, Validated cause, Hypotheses, Discarded
+  hypotheses, Evidence, Actions, each with its empty wording, plain text so the T5b export
+  can reuse it; `caseStatus`) rendered by `StructuredSummary` (groups). `SummaryTab`'s AI
+  part: the stored summary through `LazyMarkdown`, model, relative time with UTC title,
+  version, `usageLine`; the Stale note (source version vs the case's); "No AI summary
+  yet."; Generate / Regenerate disabled with no turns. `GenerateSummaryDialog` (alert
+  dialog): billed, the model from `settings/queries.useCopilotSettings` (the `['settings']`
+  query with `staleTime: Infinity` and `select`, sharing its options with
+  `useIndexingSettings`; read when the tab opens), "replaces the current summary", the
+  no-key warning, a fallback wording when the settings can't be read. `useGenerateSummary`
+  (mutation keyed `['case-summary', caseId]`, `retry: false`; `onSuccess` sets the summary
+  into the case cache then invalidates the case) and `useGeneratingSummary`
+  (`useIsMutating`, so leaving the tab and coming back still shows it running and blocks a
+  second call). `summaryErrors.ts`. `ui/README.md`, CLAUDE.md. Tests (`Summary.test.tsx`,
+  13): the structured summary's sections with empty ones and axe; the dialog naming the
+  cached model, Cancel calling nothing, the settings read once across tab switches; the
+  no-key warning; generating (skeleton, disabled button, the result with its usage, the
+  case read again); stale with Regenerate's wording; current, with HTML, a script and a
+  `javascript:` link inert; 409, 404, 502 and 503 keeping the old summary; network; no
+  turns; leaving the tab mid-call. No real model call. Not checked in a real browser.
+  `pnpm check` green (471 tests).

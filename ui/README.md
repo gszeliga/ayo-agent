@@ -277,6 +277,21 @@ document; "Deleted document" has no link. Each turn's **Turn N · trace** opens 
 (the column, or the drawer when narrow) on that entry, opened and outlined. Open entries and
 the outline are kept per case while tabs switch.
 
+**Summary** (`SummaryTab`): the **structured summary**, built from the case record alone
+(`structuredSummary.ts`, no model call; the problem's facts, the validated cause,
+hypotheses, discarded ones, evidence, the actions with owner, due date, status and the
+API's overdue), then the stored **AI summary** as safe Markdown with its model, time,
+version and usage, and a **Stale** note when the case has moved on. **Generate** (or
+**Regenerate**) asks first (`GenerateSummaryDialog`): one billed call, to the model named
+from `GET /admin/settings`'s `copilot.summary_model` (read when the tab opens and cached
+for the session: `useCopilotSettings`, `staleTime: Infinity`, while the Settings page keeps
+refreshing the same query), and a warning when no provider key is set. While it runs, a
+skeleton and a disabled button, also after leaving the tab and coming back (the mutation
+is keyed per case); on success the summary shows at once and the case is read again (its
+usage counts the summary now). It is never retried. A failure says why and keeps an
+earlier summary (`summaryErrors.ts`: `409 case_empty`, `404`, `502` with its code, `503`,
+network). A case without turns can't be summarised.
+
 **Resizing.** The inspector (from its left edge, 320-800 px, default 448, at most 60% of
 the row) and the expanded cases list (from its right edge, 240-560 px, default 320, at most
 40% of the page) are resized by a handle (`PanelResizer`, `role="separator"` with its
@@ -401,7 +416,9 @@ src/
                       sessionId, queries (useCases, useCase, useCaseTurns paging back),
                       format (cost, tokens), phases, Inspector (column or drawer) +
                       inspectorState + StateTab (+ events) + ActionsTab + TraceTab
-                      (+ TraceEntry, CaseTotals, trace), EarlierTurns, PanelResizer +
+                      (+ TraceEntry, CaseTotals, trace) + SummaryTab (+ StructuredSummary,
+                      structuredSummary, GenerateSummaryDialog, useGenerateSummary,
+                      summaryErrors), EarlierTurns, PanelResizer +
                       panelWidth (the inspector and cases list widths)
   hooks/              useDebouncedValue, useDocumentTitle, useMediaQuery
   components/         CopyButton (feedback, "Copy unavailable" outside secure contexts),

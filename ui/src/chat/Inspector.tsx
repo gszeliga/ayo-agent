@@ -9,6 +9,7 @@ import type { InspectorTab, TraceView } from './inspectorState'
 import { PanelResizer } from './PanelResizer'
 import { INSPECTOR_LIMITS } from './panelWidth'
 import { StateTab } from './StateTab'
+import { SummaryTab } from './SummaryTab'
 import { TraceTab } from './TraceTab'
 
 type CaseDetail = components['schemas']['CaseDetail']
@@ -34,6 +35,7 @@ function InspectorTabs({ detail, tab, onTabChange, trace }: TabsProps) {
         <TabsTrigger value="state">State</TabsTrigger>
         <TabsTrigger value="actions">Actions</TabsTrigger>
         <TabsTrigger value="trace">Trace</TabsTrigger>
+        <TabsTrigger value="summary">Summary</TabsTrigger>
       </TabsList>
       <TabsContent value="state" className="min-h-0 overflow-y-auto pr-1">
         <StateTab detail={detail} />
@@ -43,6 +45,9 @@ function InspectorTabs({ detail, tab, onTabChange, trace }: TabsProps) {
       </TabsContent>
       <TabsContent value="trace" className="min-h-0 overflow-y-auto pr-1">
         <TraceTab detail={detail} trace={trace} />
+      </TabsContent>
+      <TabsContent value="summary" className="min-h-0 overflow-y-auto pr-1">
+        <SummaryTab detail={detail} />
       </TabsContent>
     </Tabs>
   )
@@ -96,7 +101,7 @@ export function InspectorDrawer({ open, onOpenChange, returnFocusTo, ...props }:
       >
         <DialogTitle>Inspector</DialogTitle>
         <DialogDescription className="sr-only">
-          What the case holds: its facts, annotations, actions and turn traces.
+          What the case holds: its facts, annotations, actions, turn traces and summaries.
         </DialogDescription>
         <InspectorTabs {...props} />
       </DialogContent>
