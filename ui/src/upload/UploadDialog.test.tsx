@@ -5,7 +5,7 @@
 // in Node's own realm. Browsers are not affected. The page shares the mocked API's origin, as
 // behind the production proxy, so happy-dom sends no CORS preflights.
 
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
@@ -14,9 +14,13 @@ import { makeHealth } from '@/test/fixtures/services'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
-import { CANCELLED_NOTE } from './UploadDialog'
 import { EXISTING_CHECK_DELAY_MS } from './useExistingDocument'
-import { PROVIDER_FAILED } from './useUpload'
+
+const PROVIDER_FAILED =
+  'The embedding provider failed after retries. Nothing was stored; try again later.'
+const CANCELLED_NOTE =
+  'Upload cancelled. If the API had already received the file it may still index it:' +
+  ' check the list in a moment.'
 
 type Document = components['schemas']['Document']
 
@@ -449,5 +453,128 @@ describe('replace', () => {
 
     expect(within(dialog).queryByText(/already exists/)).not.toBeInTheDocument()
     expect(calls.listQueries.filter((query) => query.get('q') !== null)).toHaveLength(0)
+  })
+})
+
+describe('in Spanish', () => {
+  async function openUploadEs() {
+    const rendered = renderApp('/documents', { connected: true, language: 'es' })
+    await screen.findByRole('table', { name: 'Documentos' })
+    await rendered.user.click(screen.getByRole('button', { name: 'Subir' }))
+    return {
+      ...rendered,
+      dialog: await screen.findByRole('dialog', { name: 'Subir un documento' }),
+    }
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('the form and its own checks are Spanish', async () => {
+    const calls = serve()
+    const { user, dialog } = await openUploadEs()
+
+    expect(dialog).toHaveTextContent('se divide en chunks según sus encabezados')
+    expect(dialog).toHaveTextContent('Elige un archivo o suéltalo aquí')
+    const tenant = within(dialog).getByLabelText('Organización')
+    expect(tenant).toHaveAccessibleDescription(
+      'Minúsculas, dígitos y guiones, de 2 a 63 caracteres.',
+    )
+    expect(within(dialog).getByLabelText('Título (opcional)')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Avanzado' }))
+    expect(within(dialog).getByLabelText('Clave de origen')).toHaveAccessibleDescription(
+      /^Identifica el documento dentro de la organización/,
+    )
+    expect(within(dialog).getByText('Forzar reindexado')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Subir' }))
+    expect(within(dialog).getByLabelText('Archivo Markdown')).toHaveAccessibleDescription(
+      'Elige un archivo Markdown.',
+    )
+    expect(tenant).toHaveAccessibleDescription('Escribe una organización.')
+
+    await user.upload(
+      within(dialog).getByLabelText('Archivo Markdown'),
+      markdownFile('grande.md', 'x'.repeat(MAX_BYTES + 1)),
+    )
+    expect(within(dialog).getByRole('button', { name: 'Quitar archivo' })).toBeInTheDocument()
+    await user.type(tenant, 'planta-norte')
+    await user.click(within(dialog).getByRole('button', { name: 'Subir' }))
+    expect(within(dialog).getByLabelText('Archivo Markdown')).toHaveAccessibleDescription(
+      'Supera el límite de 1000 B.',
+    )
+    expect(calls.uploads).toHaveLength(0)
+  })
+
+  test('an API field error is placed as received; a provider failure is worded', async () => {
+    serve({
+      upload: errorBody(422, 'source_key_invalid', ['body', 'source_key'], 'must be a file name'),
+    })
+    const { user, dialog } = await openUploadEs()
+    await user.upload(within(dialog).getByLabelText('Archivo Markdown'), markdownFile())
+    await user.type(within(dialog).getByLabelText('Organización'), 'planta-norte')
+    await user.click(within(dialog).getByRole('button', { name: 'Subir' }))
+
+    expect(await within(dialog).findByLabelText('Clave de origen')).toHaveAccessibleDescription(
+      'must be a file name',
+    )
+
+    serve({ upload: errorBody(502, 'embedding_failed', [], 'embedding provider failed') })
+    await user.click(within(dialog).getByRole('button', { name: 'Subir' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'El proveedor de embeddings ha fallado tras varios intentos. No se ha guardado nada;' +
+        ' inténtalo más tarde.',
+    )
+  })
+
+  test('the existing-document warning and the success toast are Spanish', async () => {
+    serve()
+    const { user, dialog } = await openUploadEs()
+    await user.type(within(dialog).getByLabelText('Organización'), 'planta-norte')
+    await user.upload(
+      within(dialog).getByLabelText('Archivo Markdown'),
+      markdownFile('pro-014-control-sellado.md'),
+    )
+
+    const warning = await within(dialog).findByRole(
+      'status',
+      {},
+      { timeout: EXISTING_CHECK_DELAY_MS + 1000 },
+    )
+    expect(warning).toHaveTextContent(
+      'Ya existe un documento con este nombre en planta-norte: subirlo lo sustituye (PRO-014' +
+        ' Control de sellado, actualizado hace 3 h).',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Subir' }))
+
+    expect(
+      await screen.findByText('Indexado pro-014-control-sellado.md: 3 chunks'),
+    ).toBeInTheDocument()
+  })
+
+  test('a problem already shown is reworded when the language changes', async () => {
+    // On System, the browser preferring Spanish (the header's menu is behind the dialog).
+    let browser = ['es-ES']
+    vi.spyOn(navigator, 'languages', 'get').mockImplementation(() => browser)
+    serve()
+    const { user } = renderApp('/documents', { connected: true })
+    await screen.findByRole('table', { name: 'Documentos' })
+    await user.click(screen.getByRole('button', { name: 'Subir' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Subir un documento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Subir' }))
+    expect(within(dialog).getByLabelText('Organización')).toHaveAccessibleDescription(
+      'Escribe una organización.',
+    )
+
+    browser = ['en-GB']
+    act(() => {
+      window.dispatchEvent(new Event('languagechange'))
+    })
+
+    expect(within(dialog).getByLabelText('Tenant')).toHaveAccessibleDescription('Enter a tenant.')
+    expect(within(dialog).getByLabelText('Markdown file')).toHaveAccessibleDescription(
+      'Choose a Markdown file.',
+    )
   })
 })

@@ -7,9 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1, I2, I3a and I3b are done (2026-11-24). **Next: I3c** (upload: dialog, file drop,
-field checks, API error placement, toasts; `src/upload/*`). Write its brief and wait for
-the user's OK. Use the glossary below; `describeError`,
+I1, I2 and I3 (a, b, c) are done (2026-11-24). **Next: I4** (document detail: facts,
+content, chunks, rename, reprocess, delete; `src/document/*`, `CopyButton.tsx`;
+`ConfirmByTyping` is done, decision 17). Write its brief and wait for the user's OK. I4
+also replaces `REPROCESS_PROVIDER_FAILED` (decision 19). Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -123,6 +124,18 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     a literal in `ReprocessButton.tsx` until I4 (a computed export there trips
     react-refresh); the catalog's `reprocessProviderFailed(language)` replaces it then.
 
+20. (I3c) **An `upload` namespace** (added to decision 2's list): the dialog opens from the
+    list (upload) and the document page (replace), so its replace mode is Spanish before
+    I4. Problems are codes (`validation.ts` `Problem`, `useUpload.ts` `FormProblem`),
+    worded when shown; a 422's `msg` for a field is the API's and shown as received.
+    `useUploadProblems` became a plain function (`uploadProblems`): the wording, the only
+    part that needed the connection, moved to the render. The tests' imported constants
+    (`PROVIDER_FAILED`, `CANCELLED_NOTE`) became literals in the test.
+21. (I3c) **English oddities kept for now**, to keep English output unchanged during the
+    milestone; to fix in I8 (or later, the user's call): "1 chunks" in the upload toast,
+    "(1 on other pages)" in the selection bar, "Reprocess all 1 outdated". The plural keys
+    are in place, so each fix is a one-word catalog change.
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -156,7 +169,7 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
 - [x] **I3a** Documents list: page, filters, table, badge, pagination, selection bar,
   empty states (decision 17).
 - [x] **I3b** Bulk delete and bulk reprocess dialogs, their toasts, `ConfirmByTyping`.
-- [ ] **I3c** Upload: dialog, file drop, field checks, API error placement, toasts
+- [x] **I3c** Upload: dialog, file drop, field checks, API error placement, toasts
   (`src/upload/*`).
 - [ ] **I4** Document detail: facts, content, chunks, rename, reprocess, delete
   (`src/document/*`, `src/components/ConfirmByTyping.tsx`, `CopyButton.tsx`).
@@ -296,3 +309,14 @@ I2 adjusts them if the glossary differs.
   in `bulkReprocessDialog.test.tsx` (confirm and summary, a provider failure on the
   filter, running and stop); the parity test compares `<Trans>` tags. 556 tests; existing
   ones unchanged. `pnpm check` passes.
+- 2026-11-24, **I3c** (upload). New `upload` namespace (decision 20): title and description
+  (upload and replace), the provider-down warning, the file drop (`<Trans>` for the
+  emphasised "Elige un archivo"), size, Remove file, Organización and its hint, Title,
+  Advanced, Source key, Force reindex, the existing-document warning (relative time per
+  language), every field check, the provider-failed and cancel notes, the buttons, the
+  toasts. Tests: four Spanish cases (the form and its checks, an API field error placed as
+  received and a provider failure, the existing warning and the success toast, a problem
+  reworded when the browser's language changes). 566 tests; existing ones unchanged except
+  the two constants in `UploadDialog.test.tsx` (decision 20). `pnpm check` passes.
+  Noticed: `UploadDialog.test.tsx` prints an `Error: socket hang up` (MSW interceptor)
+  from an existing English test, on the base commit too; nothing fails. Not looked into.

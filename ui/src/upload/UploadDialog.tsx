@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
 import { useId, useRef, useState, type SubmitEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
@@ -18,7 +19,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { useConnection } from '@/connection/context'
 import { useTenants } from '@/documents/queries'
+import { useLanguage } from '@/layout/languageContext'
 import { relativeTime } from '@/lib/format'
 import { useCachedServiceHealth } from '@/settings/healthQuery'
 import { useIndexingSettings } from '@/settings/queries'
@@ -26,8 +29,14 @@ import { useIndexingSettings } from '@/settings/queries'
 import { Field } from './Field'
 import { FileDrop } from './FileDrop'
 import { useExistingDocument } from './useExistingDocument'
-import { useUpload, useUploadProblems, type UploadProblems } from './useUpload'
-import { effectiveSourceKey, fileError, TENANT_HINT, tenantError } from './validation'
+import { describeFormProblem, uploadProblems, useUpload, type UploadProblems } from './useUpload'
+import {
+  describeProblem,
+  effectiveSourceKey,
+  fileProblem,
+  tenantProblem,
+  type Problem,
+} from './validation'
 
 type Document = components['schemas']['Document']
 
@@ -35,10 +44,6 @@ export type UploadMode =
   | { kind: 'upload'; defaultTenant: string | null }
   /** Same tenant and source key: the API replaces the document's content. */
   | { kind: 'replace'; document: Document }
-
-export const CANCELLED_NOTE =
-  'Upload cancelled. If the API had already received the file it may still index it:' +
-  ' check the list in a moment.'
 
 export function UploadDialog({
   mode,
@@ -65,12 +70,14 @@ export function UploadDialog({
 }
 
 function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }) {
+  const { t } = useTranslation('upload')
+  const { language } = useLanguage()
+  const baseUrl = useConnection().connection?.baseUrl ?? ''
   const replacing = mode.kind === 'replace' ? mode.document : null
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
   const upload = useUpload()
-  const problemsOf = useUploadProblems()
   const maxBytes = useIndexingSettings().data?.uploads.max_upload_bytes
   const tenants = useTenants().data
   const embeddings = useCachedServiceHealth()?.embeddings
@@ -94,18 +101,20 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
     file ? effectiveSourceKey(sourceKey, file.name) : '',
     replacing === null && file !== null,
   )
-  const liveTenantError = tenantTouched && tenant ? tenantError(tenant.trim()) : null
+  const liveTenantProblem = tenantTouched && tenant ? tenantProblem(tenant.trim()) : null
+  const words = (problem: Problem | null | undefined) =>
+    problem ? describeProblem(problem, language) : undefined
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const found: UploadProblems = { fields: {} }
-    if (!file) found.fields.file = 'Choose a Markdown file.'
+    if (!file) found.fields.file = { code: 'fileMissing' }
     else {
-      const problem = fileError(file, maxBytes)
+      const problem = fileProblem(file, maxBytes)
       if (problem) found.fields.file = problem
     }
-    const tenantProblem = replacing ? null : tenantError(tenant.trim())
-    if (tenantProblem) found.fields.tenant = tenantProblem
+    const tenantFound = replacing ? null : tenantProblem(tenant.trim())
+    if (tenantFound) found.fields.tenant = tenantFound
     setProblems(found)
     if (!file || Object.keys(found.fields).length > 0) return
 
@@ -117,12 +126,10 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
         onSuccess: (result) => {
           const name = title.trim() || replacing?.title || file.name
           if (result.status === 'up_to_date') {
-            toast.success('Already up to date: nothing changed.', {
-              description: 'Use Force reindex to rebuild it anyway.',
-            })
+            toast.success(t('toast.upToDate'), { description: t('toast.upToDateHint') })
           } else {
-            const chunks = `${String(result.chunk_count ?? 0)} chunks`
-            toast.success(replacing ? `Replaced ${name}: ${chunks}` : `Indexed ${name}: ${chunks}`)
+            const chunks = t('toast.chunks', { count: result.chunk_count ?? 0 })
+            toast.success(t(replacing ? 'toast.replaced' : 'toast.indexed', { name, chunks }))
           }
           onClose()
           if (!replacing) {
@@ -133,7 +140,9 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
         },
         onError: (error) => {
           setProblems(
-            signal.aborted ? { fields: {}, form: CANCELLED_NOTE } : problemsOf(error, maxBytes),
+            signal.aborted
+              ? { fields: {}, form: { code: 'cancelled' } }
+              : uploadProblems(error, maxBytes),
           )
           if (signal.aborted) void queryClient.invalidateQueries({ queryKey: ['documents'] })
         },
@@ -154,11 +163,11 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
       className="sm:max-w-lg"
     >
       <DialogHeader>
-        <DialogTitle>{replacing ? 'Replace document' : 'Upload a document'}</DialogTitle>
+        <DialogTitle>{replacing ? t('replaceTitle') : t('uploadTitle')}</DialogTitle>
         <DialogDescription>
           {replacing
-            ? `Replaces the content of ${replacing.title ?? replacing.source_key}. Chunks are rebuilt.`
-            : 'A Markdown file is split into chunks along its headings and embedded.'}
+            ? t('replaceDescription', { name: replacing.title ?? replacing.source_key })
+            : t('uploadDescription')}
         </DialogDescription>
       </DialogHeader>
       <form noValidate className="space-y-4" onSubmit={submit}>
@@ -167,8 +176,9 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
           <Alert role="note" className="bg-warning-muted text-warning border-transparent">
             <AlertTriangle aria-hidden="true" />
             <AlertDescription className="text-warning">
-              The embedding provider is down: uploads will fail until it is back
-              {embeddings.error ? ` (${embeddings.error})` : ''}.
+              {embeddings.error
+                ? t('providerDownWithError', { error: embeddings.error })
+                : t('providerDown')}
             </AlertDescription>
           </Alert>
         )}
@@ -181,22 +191,22 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
               fields: { ...current.fields, file: undefined },
             }))
           }}
-          error={problems.fields.file}
+          error={words(problems.fields.file)}
           disabled={busy}
         />
 
         {replacing ? (
           <dl className="bg-secondary grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg px-3 py-2.5 text-[13px]">
-            <dt className="text-muted-foreground">Tenant</dt>
+            <dt className="text-muted-foreground">{t('tenant.label')}</dt>
             <dd>{replacing.tenant}</dd>
-            <dt className="text-muted-foreground">Source key</dt>
+            <dt className="text-muted-foreground">{t('sourceKey.label')}</dt>
             <dd className="font-mono break-all">{replacing.source_key}</dd>
           </dl>
         ) : (
           <Field
-            label="Tenant"
-            hint={TENANT_HINT}
-            error={problems.fields.tenant ?? liveTenantError ?? undefined}
+            label={t('tenant.label')}
+            hint={t('tenant.hint')}
+            error={words(problems.fields.tenant ?? liveTenantProblem)}
           >
             {(props) => (
               <>
@@ -227,11 +237,11 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
           </Field>
         )}
 
-        <Field label="Title (optional)" error={problems.fields.title}>
+        <Field label={t('title.label')} error={words(problems.fields.title)}>
           {(props) => (
             <Input
               {...props}
-              placeholder="From the first # heading, else the file name"
+              placeholder={t('title.placeholder')}
               value={title}
               disabled={busy}
               onChange={(event) => {
@@ -250,21 +260,21 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
               aria-hidden="true"
               className="size-4 transition-transform group-data-[state=open]:rotate-90"
             />
-            Advanced
+            {t('advanced')}
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-3">
             {!replacing && (
               <Field
-                label="Source key"
-                hint="Identifies the document within the tenant; uploading the same one again replaces it."
-                error={problems.fields.source_key}
+                label={t('sourceKey.label')}
+                hint={t('sourceKey.hint')}
+                error={words(problems.fields.source_key)}
               >
                 {(props) => (
                   <Input
                     {...props}
                     className="font-mono"
                     spellCheck={false}
-                    placeholder={file?.name ?? 'The file name'}
+                    placeholder={file?.name ?? t('sourceKey.placeholder')}
                     value={sourceKey}
                     disabled={busy}
                     onChange={(event) => {
@@ -284,8 +294,8 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
                 }}
               />
               <label htmlFor={ids.force} className="text-[13px] leading-tight">
-                <span className="font-medium">Force reindex</span>
-                <span className="text-muted-foreground block">Even if nothing changed.</span>
+                <span className="font-medium">{t('force.label')}</span>
+                <span className="text-muted-foreground block">{t('force.hint')}</span>
               </label>
             </div>
           </CollapsibleContent>
@@ -295,15 +305,20 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
           <Alert role="status" className="bg-warning-muted text-warning border-transparent">
             <AlertTriangle aria-hidden="true" />
             <AlertDescription className="text-warning">
-              A document with this name already exists in {existing.tenant}: uploading replaces it (
-              {existing.title ?? existing.source_key}, updated {relativeTime(existing.updated_at)}).
+              {t('existing', {
+                tenant: existing.tenant,
+                name: existing.title ?? existing.source_key,
+                when: relativeTime(existing.updated_at, language),
+              })}
             </AlertDescription>
           </Alert>
         )}
 
         {problems.form && (
           <Alert variant="destructive" role="alert">
-            <AlertDescription>{problems.form}</AlertDescription>
+            <AlertDescription>
+              {describeFormProblem(problems.form, baseUrl, language)}
+            </AlertDescription>
           </Alert>
         )}
 
@@ -316,10 +331,10 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
               else onClose()
             }}
           >
-            Cancel
+            {t('cancel')}
           </Button>
           <Button type="submit" disabled={busy}>
-            {busy ? 'Uploading and indexing…' : replacing ? 'Replace' : 'Upload'}
+            {busy ? t('busy') : replacing ? t('replace') : t('upload')}
           </Button>
         </DialogFooter>
       </form>

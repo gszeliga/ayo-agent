@@ -1,12 +1,21 @@
+import { i18n } from '@/i18n'
 import { formatBytes } from '@/lib/format'
+import type { Language } from '@/lib/language'
 
 import { TENANT_PATTERN } from '@/documents/listParams'
 
-export const TENANT_HINT = 'Lowercase letters, digits and hyphens, 2–63 characters.'
+/**
+ * What is wrong with a field, kept as a code and worded when shown (`describeProblem`), so a
+ * language switch rewords it. `api` is the API's own message for that field, shown as is.
+ */
+export type Problem =
+  | { code: 'fileMissing' | 'notMarkdown' | 'empty' | 'tenantMissing' | 'tenantInvalid' }
+  | { code: 'tooLarge'; maxBytes: number | undefined }
+  | { code: 'api'; message: string }
 
-export function tenantError(tenant: string): string | null {
-  if (!tenant) return 'Enter a tenant.'
-  return TENANT_PATTERN.test(tenant) ? null : TENANT_HINT
+export function tenantProblem(tenant: string): Problem | null {
+  if (!tenant) return { code: 'tenantMissing' }
+  return TENANT_PATTERN.test(tenant) ? null : { code: 'tenantInvalid' }
 }
 
 /**
@@ -14,17 +23,25 @@ export function tenantError(tenant: string): string | null {
  * is indexable are left to it). `maxBytes` is unknown when the settings could not be read;
  * the API's 413 still applies then.
  */
-export function fileError(file: File, maxBytes: number | undefined): string | null {
-  if (!file.name.toLowerCase().endsWith('.md')) return 'Choose a Markdown file (.md).'
-  if (file.size === 0) return 'The file is empty.'
-  if (maxBytes !== undefined && file.size > maxBytes) return tooLarge(maxBytes)
+export function fileProblem(file: File, maxBytes: number | undefined): Problem | null {
+  if (!file.name.toLowerCase().endsWith('.md')) return { code: 'notMarkdown' }
+  if (file.size === 0) return { code: 'empty' }
+  if (maxBytes !== undefined && file.size > maxBytes) return { code: 'tooLarge', maxBytes }
   return null
 }
 
-export function tooLarge(maxBytes: number | undefined): string {
-  return maxBytes === undefined
-    ? 'The file is larger than the upload limit.'
-    : `Larger than the ${formatBytes(maxBytes)} limit.`
+export function describeProblem(problem: Problem, language: Language): string {
+  const t = i18n.getFixedT(language, 'upload')
+  switch (problem.code) {
+    case 'api':
+      return problem.message
+    case 'tooLarge':
+      return problem.maxBytes === undefined
+        ? t('problem.tooLargeUnknown')
+        : t('problem.tooLarge', { limit: formatBytes(problem.maxBytes, language) })
+    default:
+      return t(`problem.${problem.code}`)
+  }
 }
 
 /**

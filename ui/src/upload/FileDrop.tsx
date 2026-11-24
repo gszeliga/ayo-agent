@@ -1,6 +1,8 @@
 import { FileText, Upload, X } from 'lucide-react'
 import { useId, useRef, useState, type DragEvent } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 
+import { useLanguage } from '@/layout/languageContext'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +18,8 @@ export function FileDrop({
   error?: string
   disabled?: boolean
 }) {
+  const { t } = useTranslation('upload')
+  const { language } = useLanguage()
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const ids = { input: useId(), error: useId() }
@@ -31,7 +35,7 @@ export function FileDrop({
   return (
     <div className="space-y-1.5">
       <label htmlFor={ids.input} className="text-sm font-medium">
-        Markdown file
+        {t('file.label')}
       </label>
       <input
         ref={input}
@@ -52,11 +56,11 @@ export function FileDrop({
           <FileText aria-hidden="true" className="text-muted-foreground size-5 flex-none" />
           <div className="min-w-0 flex-1">
             <div className="truncate font-medium">{file.name}</div>
-            <div className="text-muted-foreground text-xs">{formatBytes(file.size)}</div>
+            <div className="text-muted-foreground text-xs">{formatBytes(file.size, language)}</div>
           </div>
           <button
             type="button"
-            aria-label="Remove file"
+            aria-label={t('file.remove')}
             disabled={disabled}
             className="text-muted-foreground hover:bg-accent rounded-sm p-1"
             onClick={() => {
@@ -87,9 +91,13 @@ export function FileDrop({
         >
           <Upload aria-hidden="true" className="size-5" />
           <span>
-            <span className="text-foreground font-medium">Choose a file</span> or drop it here
+            <Trans
+              t={t}
+              i18nKey="file.prompt"
+              components={{ choose: <span className="text-foreground font-medium" /> }}
+            />
           </span>
-          <span className="text-xs">Markdown (.md), UTF-8</span>
+          <span className="text-xs">{t('file.format')}</span>
         </button>
       )}
       {error && (
