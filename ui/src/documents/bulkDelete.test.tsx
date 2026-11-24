@@ -210,7 +210,9 @@ test('more than 100 go in batches of 100', async () => {
 
   expect(await screen.findByText('Deleted 130 documents')).toBeInTheDocument()
   expect(requests.map((ids) => ids.length)).toEqual([100, 30])
-})
+  // Six pages selected one by one: about 1.6 s alone, near the default 5 s when every file
+  // runs at once.
+}, 15_000)
 
 test('a failure keeps the selection and says why', async () => {
   serve(documents(3), {

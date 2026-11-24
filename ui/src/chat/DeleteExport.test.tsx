@@ -102,7 +102,9 @@ test('delete says what goes, Cancel keeps it, Delete removes it and returns to /
   await waitFor(() => {
     expect(within(casesList()).queryByText(title)).toBeNull()
   })
-})
+  // Many steps (two dialogs, typing, a navigation): about 1.7 s alone, near the default 5 s
+  // when every file runs at once.
+}, 15_000)
 
 test('a case already deleted counts as deleted', async () => {
   const cases = chatCases()

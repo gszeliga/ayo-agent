@@ -183,7 +183,9 @@ test('the structured summary is built from the case record, empty sections said'
     'Formar al turno (Luis, due 2026-11-25, done)',
   ])
   expect(await a11yViolations(inspector)).toEqual([])
-})
+  // Many sections to check: about 1.6 s alone, near the default 5 s when every file runs at
+  // once.
+}, 15_000)
 
 test('no AI summary yet; the dialog names the cached model; Cancel calls nothing', async () => {
   const { first, calls } = serve()

@@ -138,10 +138,11 @@ test('"Reprocess all outdated" runs every match, pages included, then refreshes'
   expect(dialog()).toHaveAccessibleName('Reprocess 101 documents?')
   await user.click(within(dialog()).getByRole('button', { name: 'Start' }))
 
+  // 101 documents one after another: about 6 s alone, near 15 s when every file runs at once.
   const summary = await screen.findByRole(
     'alertdialog',
     { name: 'Reprocess finished' },
-    { timeout: 15_000 },
+    { timeout: 30_000 },
   )
   expect(within(summary).getByRole('group', { name: 'Outcome' })).toHaveTextContent(
     'Reprocessed101',
@@ -156,7 +157,7 @@ test('"Reprocess all outdated" runs every match, pages included, then refreshes'
   await user.click(within(summary).getByRole('button', { name: 'Close' }))
   // The list was refetched: nothing is outdated any more.
   expect(await screen.findByRole('heading', { name: 'No documents match' })).toBeInTheDocument()
-}, 20_000)
+}, 45_000)
 
 test('the button shows only on the outdated filter with matches', async () => {
   serve(outdated(2))

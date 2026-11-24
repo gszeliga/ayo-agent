@@ -10,7 +10,7 @@ change, and no billed call anywhere in this milestone.
 I1 is done (2026-11-24). **Next: I2.** Write its brief and wait for the user's OK; it
 starts by agreeing the glossary (decision 7), then the connect screen, `describeError`
 and the connection messages. The shell's Spanish from I1 is adjusted if the glossary
-differs. Open: the flaky-timeout side step proposed in the I1 log entry.
+differs.
 
 Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
 - ~190 files, ~8,600 lines of TSX under `ui/src/`; every string is an English literal in a
@@ -191,3 +191,12 @@ I2 adjusts them if the glossary differs.
   (measured in a scratch worktree); 1.6-1.7 s alone either way. With I1's extra tests they
   timed out in 2 of 4 full runs here (0 of 3 on the base). Proposed side step: a longer
   timeout for those two tests (or `testTimeout: 10000`), or a faster setup in them.
+- 2026-11-24, **side step: slow tests' limits.** The two tests above get 15 s (like
+  `ChatSession.test.tsx`), each with a comment saying why. A scan of four full runs for
+  tests over 3 s found two more near their limits, fixed the same way: "the structured
+  summary is built from the case record..." (`Summary.test.tsx`, 1.6 s alone, 4.1-4.7 s in
+  the suite, default 5 s) -> 15 s; "\"Reprocess all outdated\" runs every match..."
+  (`bulkReprocessDialog.test.tsx`, 5.9 s alone, 13-15.1 s in the suite against a 15 s wait
+  and a 20 s test) -> 30 s wait, 45 s test. Limits only, no test behaviour changed; the
+  slowest stay as slow (making them faster is not done). Six full runs after: 524 passed
+  each time; `pnpm check` passes.
