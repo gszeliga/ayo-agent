@@ -8,6 +8,8 @@ import { makeSettings } from '@/test/fixtures/services'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
+import { ChunkCard } from './ChunkCard'
+
 type Chunk = components['schemas']['Chunk']
 
 const DOC = makeDocument({
@@ -349,5 +351,102 @@ describe('now differs', () => {
     const panel = await screen.findByRole('complementary', { name: 'Facts' })
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(within(panel).queryByText(/differs/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('in Spanish', () => {
+  test('header, facts, tabs and chunks are Spanish; the content is not', async () => {
+    serve()
+    const { user } = renderApp(`/documents/${DOC.doc_id}`, { connected: true, language: 'es' })
+
+    expect(
+      await screen.findByRole('heading', { name: 'PRO-014 Control de sellado' }),
+    ).toBeInTheDocument()
+    const main = screen.getByRole('main')
+    expect(within(main).getByRole('link', { name: 'Documentos' })).toBeInTheDocument()
+    expect(screen.getByText('Indexado')).toBeInTheDocument()
+    for (const name of ['Renombrar', 'Sustituir', 'Reprocesar', 'Eliminar', 'Copiar doc_id']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+    const panel = screen.getByRole('complementary', { name: 'Datos' })
+    expect(panel).toHaveTextContent('Clave de origenpro-014-control-sellado.md')
+    expect(panel).toHaveTextContent('Tamaño4,2 KB')
+    expect(panel).toHaveTextContent('Actualizadohace 3 h')
+    expect(within(panel).getByRole('button', { name: 'Copiar firma de embeddings' })).toBeVisible()
+
+    const view = screen.getByRole('group', { name: 'Vista del contenido' })
+    expect(
+      within(view)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Formateado', 'Texto'])
+    await user.click(screen.getByRole('tab', { name: 'Chunks' }))
+    const pages = await screen.findByRole('navigation', { name: 'Páginas de chunks' })
+    expect(pages).toHaveTextContent('1–20 de 45')
+    expect(within(pages).getByRole('button', { name: 'Siguiente' })).toBeEnabled()
+    const first = screen.getByRole('article', { name: 'Chunk 0' })
+    expect(first).toHaveTextContent('60 caracteres')
+    // The chunk's own text is the document's: never translated.
+    expect(first).toHaveTextContent('Paso 1: comprobar la presión de la junta.')
+    expect(screen.getByLabelText(/^Mostrar vectores/)).not.toBeChecked()
+  })
+
+  test('a config that differs says what changed, in Spanish', async () => {
+    serve()
+    const current = makeSettings()
+    server.use(
+      http.get(`${API}/admin/settings`, () =>
+        HttpResponse.json({
+          ...current,
+          chunking: {
+            ...current.chunking,
+            chunk_size: 1000,
+            chunker_config: current.chunking.chunker_config.replace('size=800', 'size=1000'),
+          },
+        }),
+      ),
+    )
+    renderApp(`/documents/${DOC.doc_id}`, { connected: true, language: 'es' })
+
+    const panel = await screen.findByRole('complementary', { name: 'Datos' })
+    expect(await within(panel).findByText('Ahora difiere: tamaño 800 → 1000')).toBeInTheDocument()
+  })
+
+  test('missing values read "sin registrar"', async () => {
+    const old = makeDocument({ size_bytes: null, chunked_at: null })
+    server.use(
+      http.get(`${API}/admin/documents/${old.doc_id}`, () => HttpResponse.json(old)),
+      http.get(`${API}/admin/documents/${old.doc_id}/content`, () => new HttpResponse('# A')),
+    )
+    renderApp(`/documents/${old.doc_id}`, { connected: true, language: 'es' })
+
+    const panel = await screen.findByRole('complementary', { name: 'Datos' })
+    expect(within(panel).getAllByText('sin registrar')).toHaveLength(2)
+  })
+
+  test('a document that is gone says so in Spanish', async () => {
+    renderApp('/documents/not-an-id', { connected: true, language: 'es' })
+
+    expect(
+      await screen.findByRole('heading', { name: 'Este documento ya no existe' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Volver a documentos' })).toHaveAttribute(
+      'href',
+      '/documents',
+    )
+    expect(window.document.title).toBe('Documento no encontrado · AYO Admin')
+  })
+
+  test.each([
+    ['chat', 'Desde el chat'],
+    ['search', 'Desde la búsqueda'],
+  ] as const)('a chunk outlined from the %s says so in Spanish', async (source, label) => {
+    const [chunk] = makeChunks(1, false)
+    renderApp('/', {
+      language: 'es',
+      routes: <ChunkCard chunk={chunk!} view="raw" highlighted highlightSource={source} />,
+    })
+
+    expect(await screen.findByRole('article', { name: 'Chunk 0' })).toHaveTextContent(label)
   })
 })

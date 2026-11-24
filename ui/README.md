@@ -30,8 +30,8 @@ shown. Plan, decisions and progress: `../plans/i18n-progress.md`. Being rolled o
 at a time: the shell (header, nav, menus, crash and 404 pages, Retry), the connect screen,
 the UI's own error wording (`describeError`: the API out of reach, an answer not in its
 format; `LoadError` on every screen), the documents list with its bulk delete and
-reprocess dialogs, and the upload dialog (also its replace mode, opened from the document
-page) are translated; the other screens are still English until their step. The connect
+reprocess dialogs, the upload dialog and the document page (facts, content and chunks
+tabs, rename, reprocess, delete; `CopyButton` everywhere) are translated; the other screens are still English until their step. The connect
 screen has its own language menu, since the header's shows only once connected. Messages
 are kept as codes and worded when shown, so a switch rewords one already on screen. The
 Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.

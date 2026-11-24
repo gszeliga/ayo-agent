@@ -47,6 +47,7 @@ export const common = {
   retry: 'Retry',
   // <phrase/> is the text to type, shown in bold (a component, so it is never parsed).
   confirmByTyping: 'Type <phrase/> to confirm',
+  copy: { copied: 'Copied', unavailable: 'Copy unavailable' },
   // The UI's own wording of a failed call; the API's own `msg` is shown as received.
   errors: {
     unreachable: "Can't reach the API at {{baseUrl}}. Check the URL and that the API is running.",

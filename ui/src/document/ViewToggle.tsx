@@ -1,11 +1,10 @@
+import { useTranslation } from 'react-i18next'
+
 import { cn } from '@/lib/utils'
 
 import type { View } from './params'
 
-const VIEWS: { value: View; label: string }[] = [
-  { value: 'rendered', label: 'Rendered' },
-  { value: 'raw', label: 'Raw' },
-]
+const VIEWS: readonly View[] = ['rendered', 'raw']
 
 /** Rendered / Raw, for the content and for the chunks. */
 export function ViewToggle({
@@ -21,23 +20,24 @@ export function ViewToggle({
   /** The default comes first. */
   order?: 'rendered-first' | 'raw-first'
 }) {
+  const { t } = useTranslation('document')
   const views = order === 'raw-first' ? [...VIEWS].reverse() : VIEWS
   return (
     <div role="group" aria-label={label} className="bg-secondary inline-flex rounded-md p-0.5">
       {views.map((option) => (
         <button
-          key={option.value}
+          key={option}
           type="button"
-          aria-pressed={view === option.value}
+          aria-pressed={view === option}
           className={cn(
             'text-muted-foreground min-h-7 rounded-sm px-2.5 text-[13px] font-medium',
-            view === option.value && 'bg-card text-foreground shadow-xs',
+            view === option && 'bg-card text-foreground shadow-xs',
           )}
           onClick={() => {
-            onView(option.value)
+            onView(option)
           }}
         >
-          {option.label}
+          {t(`view.${option}`)}
         </button>
       ))}
     </div>

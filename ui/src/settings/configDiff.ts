@@ -4,22 +4,29 @@
  * `embedder_descriptor`); configDiff.test.ts pins their format against docs/openapi.json.
  *   chunker:  md-header+recursive@v3/size=800/overlap=80/min=100/merge=fwd,back1.5x,keep/breadcrumb=1
  *   embedder: voyage-4/document/1024
+ * The part names are in the `document` catalog (`configPart.*`); an unknown part shows as is.
  */
+import { i18n } from '@/i18n'
+import type { Language } from '@/lib/language'
+
 type Parts = Map<string, string>
 
-const CHUNKER_LABELS: Record<string, string> = {
-  version: 'version',
-  size: 'size',
-  overlap: 'overlap',
-  min: 'min size',
-  merge: 'small-chunk policy',
-  breadcrumb: 'heading breadcrumb',
-}
+const PARTS = [
+  'version',
+  'size',
+  'overlap',
+  'min',
+  'merge',
+  'breadcrumb',
+  'model',
+  'input',
+  'dimensions',
+] as const
+type KnownPart = (typeof PARTS)[number]
 
-const EMBEDDER_LABELS: Record<string, string> = {
-  model: 'model',
-  input: 'input type',
-  dimensions: 'dimensions',
+function partLabel(key: string, language: Language): string {
+  if (!(PARTS as readonly string[]).includes(key)) return key
+  return i18n.getFixedT(language, 'document')(`configPart.${key as KnownPart}`)
 }
 
 export function parseChunkerConfig(config: string): Parts | null {
@@ -52,7 +59,7 @@ function diff(
   stored: string,
   current: string,
   parse: (config: string) => Parts | null,
-  labels: Record<string, string>,
+  language: Language,
 ): string[] | null {
   if (stored === current) return []
   const before = parse(stored)
@@ -61,17 +68,20 @@ function diff(
   const keys = [...new Set([...before.keys(), ...after.keys()])]
   return keys
     .filter((key) => before.get(key) !== after.get(key))
-    .map((key) => `${labels[key] ?? key} ${before.get(key) ?? '—'} → ${after.get(key) ?? '—'}`)
+    .map(
+      (key) => `${partLabel(key, language)} ${before.get(key) ?? '—'} → ${after.get(key) ?? '—'}`,
+    )
 }
 
-export const chunkerDiff = (stored: string, current: string) =>
-  diff(stored, current, parseChunkerConfig, CHUNKER_LABELS)
+export const chunkerDiff = (stored: string, current: string, language: Language = 'en') =>
+  diff(stored, current, parseChunkerConfig, language)
 
-export const embedderDiff = (stored: string, current: string) =>
-  diff(stored, current, parseEmbedderConfig, EMBEDDER_LABELS)
+export const embedderDiff = (stored: string, current: string, language: Language = 'en') =>
+  diff(stored, current, parseEmbedderConfig, language)
 
 /** The note under a config in the facts panel, or null when nothing differs. */
-export function differsNote(changes: string[] | null): string | null {
-  if (changes === null) return 'Differs from the current settings'
-  return changes.length === 0 ? null : `Now differs: ${changes.join(', ')}`
+export function differsNote(changes: string[] | null, language: Language = 'en'): string | null {
+  const t = i18n.getFixedT(language, 'document')
+  if (changes === null) return t('differs')
+  return changes.length === 0 ? null : t('nowDiffers', { changes: changes.join(', ') })
 }

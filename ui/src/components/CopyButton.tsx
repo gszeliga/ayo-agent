@@ -1,5 +1,6 @@
 import { Check, Copy } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
 
@@ -21,6 +22,7 @@ export function CopyButton({
   label: string
   className?: string
 }) {
+  const { t } = useTranslation()
   const [outcome, setOutcome] = useState<Outcome>('idle')
 
   useEffect(() => {
@@ -45,7 +47,9 @@ export function CopyButton({
     }
   }
 
-  const text = { idle: label, copied: 'Copied', unavailable: 'Copy unavailable' }[outcome]
+  const text = { idle: label, copied: t('copy.copied'), unavailable: t('copy.unavailable') }[
+    outcome
+  ]
   return (
     <button
       type="button"

@@ -1,5 +1,6 @@
 import { ArrowLeft, FileUp } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router'
 
 import { CopyButton } from '@/components/CopyButton'
@@ -21,7 +22,7 @@ import {
   backLink,
   DOC_ID_PATTERN,
   highlightedChunk,
-  highlightLabel,
+  highlightSource,
   parseDetailParams,
   toDetailSearch,
   type BackLink,
@@ -42,6 +43,7 @@ export function DocumentPage() {
 }
 
 function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
+  const { t } = useTranslation('document')
   const state: unknown = useLocation().state
   const [searchParams, setSearchParams] = useSearchParams()
   const params = parseDetailParams(searchParams)
@@ -72,13 +74,13 @@ function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
         className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[13px]"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />
-        {back.label}
+        {t(`back.${back.target}`)}
       </Link>
 
       {document.isError && !doc ? (
         <LoadError error={document.error} onRetry={() => void document.refetch()} />
       ) : !doc ? (
-        <div aria-busy="true" aria-label="Loading document" className="space-y-3">
+        <div aria-busy="true" aria-label={t('loading')} className="space-y-3">
           <Skeleton className="h-7 w-2/3" />
           <Skeleton className="h-4 w-1/3" />
         </div>
@@ -100,7 +102,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
                   }}
                 >
                   <FileUp aria-hidden="true" />
-                  Replace
+                  {t('replace')}
                 </Button>
                 <ReprocessButton
                   docId={docId}
@@ -118,7 +120,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
               </span>
               <span className="text-muted-foreground flex items-center font-mono text-[12.5px]">
                 {doc.doc_id}
-                <CopyButton value={doc.doc_id} label="Copy doc_id" />
+                <CopyButton value={doc.doc_id} label={t('copyDocId')} />
               </span>
             </div>
           </header>
@@ -138,8 +140,8 @@ function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
               }}
             >
               <TabsList>
-                <TabsTrigger value="content">Content</TabsTrigger>
-                <TabsTrigger value="chunks">Chunks</TabsTrigger>
+                <TabsTrigger value="content">{t('tabs.content')}</TabsTrigger>
+                <TabsTrigger value="chunks">{t('tabs.chunks')}</TabsTrigger>
               </TabsList>
               {/* Radix mounts only the active tab, so each fetches when first opened. */}
               <TabsContent value="content" className="pt-3">
@@ -158,7 +160,7 @@ function DocumentDetail({ docId, back }: { docId: string; back: BackLink }) {
                 <ChunksTab
                   docId={docId}
                   highlight={highlightedChunk(state)}
-                  highlightLabel={highlightLabel(state)}
+                  highlightSource={highlightSource(state)}
                   page={params.chunkPage}
                   onPage={(chunkPage) => {
                     update({ chunkPage })

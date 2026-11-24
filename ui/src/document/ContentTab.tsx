@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/CopyButton'
@@ -22,6 +23,7 @@ export function ContentTab({
   view: View
   onView: (view: View) => void
 }) {
+  const { t } = useTranslation('document')
   const content = useContent(docId, true)
   const gone = isNotFound(content.error)
   useEffect(() => {
@@ -30,15 +32,15 @@ export function ContentTab({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <ViewToggle view={view} onView={onView} label="Content view" />
+        <ViewToggle view={view} onView={onView} label={t('content.viewLabel')} />
         {view === 'raw' && content.data !== undefined && (
-          <CopyButton value={content.data} label="Copy Markdown" />
+          <CopyButton value={content.data} label={t('content.copy')} />
         )}
       </div>
       {content.isError ? (
         <LoadError error={content.error} onRetry={() => void content.refetch()} />
       ) : content.data === undefined ? (
-        <div aria-busy="true" aria-label="Loading content" className="space-y-2">
+        <div aria-busy="true" aria-label={t('content.loading')} className="space-y-2">
           <Skeleton className="h-5 w-1/2" />
           <Skeleton className="h-3 w-full" />
           <Skeleton className="h-3 w-5/6" />

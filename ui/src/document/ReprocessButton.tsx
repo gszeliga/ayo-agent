@@ -1,4 +1,5 @@
 import { ChevronDown, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ApiError, describeError } from '@/api/errors'
@@ -10,16 +11,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useConnection } from '@/connection/context'
+import { reprocessProviderFailed } from '@/documents/bulkReprocess'
 import { useReprocess } from '@/documents/mutations'
-
-export const DOCUMENT_CHANGED =
-  'A newer upload replaced it while reprocessing; nothing was written.'
-// English until this page's step (I4 in plans/i18n-progress.md); then
-// `reprocessProviderFailed(language)` from `@/documents/bulkReprocess`.
-export const REPROCESS_PROVIDER_FAILED = 'The embedding provider failed; nothing was written.'
+import { useLanguage } from '@/layout/languageContext'
 
 /** Reprocess (skipped when up to date), with Force in the menu. */
 export function ReprocessButton({ docId, onGone }: { docId: string; onGone: () => void }) {
+  const { t } = useTranslation('document')
+  const { language } = useLanguage()
   const reprocess = useReprocess(docId)
   const { connection } = useConnection()
 
@@ -27,29 +26,27 @@ export function ReprocessButton({ docId, onGone }: { docId: string; onGone: () =
     reprocess.mutate(force, {
       onSuccess: (result) => {
         if (result.status === 'up_to_date') {
-          toast.success('Already up to date: nothing to do.', {
-            description: 'Use Force reprocess to rebuild it anyway.',
-          })
+          toast.success(t('reprocess.upToDate'), { description: t('reprocess.upToDateHint') })
         } else {
-          toast.success(`Reprocessed: ${String(result.chunk_count ?? 0)} chunks`)
+          toast.success(t('reprocess.done', { count: result.chunk_count ?? 0 }))
         }
       },
       onError: (error) => {
         if (error instanceof ApiError && error.status === 404) {
           onGone()
         } else if (error instanceof ApiError && error.status === 409) {
-          toast.error(DOCUMENT_CHANGED, {
+          toast.error(t('reprocess.changed'), {
             action: {
-              label: 'Retry',
+              label: t('retry', { ns: 'common' }),
               onClick: () => {
                 run(force)
               },
             },
           })
         } else if (error instanceof ApiError && error.status === 502) {
-          toast.error(REPROCESS_PROVIDER_FAILED)
+          toast.error(reprocessProviderFailed(language))
         } else {
-          toast.error(describeError(error, connection?.baseUrl ?? ''))
+          toast.error(describeError(error, connection?.baseUrl ?? '', language))
         }
       },
     })
@@ -67,7 +64,7 @@ export function ReprocessButton({ docId, onGone }: { docId: string; onGone: () =
         }}
       >
         <RefreshCw aria-hidden="true" className={busy ? 'animate-spin' : undefined} />
-        {busy ? 'Reprocessing…' : 'Reprocess'}
+        {busy ? t('reprocess.busy') : t('reprocess.button')}
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -76,7 +73,7 @@ export function ReprocessButton({ docId, onGone }: { docId: string; onGone: () =
             size="icon"
             className="-ml-px rounded-l-none"
             disabled={busy}
-            aria-label="More reprocess options"
+            aria-label={t('reprocess.more')}
           >
             <ChevronDown aria-hidden="true" />
           </Button>
@@ -88,10 +85,8 @@ export function ReprocessButton({ docId, onGone }: { docId: string; onGone: () =
             }}
           >
             <div>
-              <div className="font-medium">Force reprocess</div>
-              <div className="text-muted-foreground text-xs">
-                Re-chunk and re-embed even if up to date.
-              </div>
+              <div className="font-medium">{t('reprocess.force')}</div>
+              <div className="text-muted-foreground text-xs">{t('reprocess.forceHint')}</div>
             </div>
           </DropdownMenuItem>
         </DropdownMenuContent>

@@ -47,6 +47,7 @@ export const common: Catalog['common'] = {
   },
   retry: 'Reintentar',
   confirmByTyping: 'Escribe <phrase/> para confirmar',
+  copy: { copied: 'Copiado', unavailable: 'No se puede copiar' },
   errors: {
     unreachable:
       'No se puede conectar con la API en {{baseUrl}}. Comprueba la URL y que la API esté en marcha.',

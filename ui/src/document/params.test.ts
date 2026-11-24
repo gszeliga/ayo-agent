@@ -6,7 +6,7 @@ import {
   chunkLink,
   DOC_ID_PATTERN,
   highlightedChunk,
-  highlightLabel,
+  highlightSource,
   parseDetailParams,
   toDetailSearch,
 } from './params'
@@ -72,22 +72,22 @@ test.each([
 test.each([
   [
     { searchFrom: '?tenant=ayo&k=10', chunkIndex: 3 },
-    { to: '/search?tenant=ayo&k=10', label: 'Search' },
+    { to: '/search?tenant=ayo&k=10', target: 'search' },
   ],
   [
     { searchFrom: '?', chunkIndex: 0 },
-    { to: '/search', label: 'Search' },
+    { to: '/search', target: 'search' },
   ],
-  [{ searchFrom: 'https://evil.example' }, { to: '/documents', label: 'Documents' }],
+  [{ searchFrom: 'https://evil.example' }, { to: '/documents', target: 'documents' }],
   [
     { chatFrom: '/chat/8d2e4b71-5c3a-4f09-a6e2-000000000001', chunkIndex: 2 },
-    { to: '/chat/8d2e4b71-5c3a-4f09-a6e2-000000000001', label: 'Chat' },
+    { to: '/chat/8d2e4b71-5c3a-4f09-a6e2-000000000001', target: 'chat' },
   ],
-  [{ chatFrom: '/chat/new' }, { to: '/documents', label: 'Documents' }],
-  [{ chatFrom: 'https://evil.example/chat/x' }, { to: '/documents', label: 'Documents' }],
-  [{ chatFrom: '//evil.example' }, { to: '/documents', label: 'Documents' }],
-  [{ listSearch: '?tenant=ayo' }, { to: '/documents?tenant=ayo', label: 'Documents' }],
-  [null, { to: '/documents', label: 'Documents' }],
+  [{ chatFrom: '/chat/new' }, { to: '/documents', target: 'documents' }],
+  [{ chatFrom: 'https://evil.example/chat/x' }, { to: '/documents', target: 'documents' }],
+  [{ chatFrom: '//evil.example' }, { to: '/documents', target: 'documents' }],
+  [{ listSearch: '?tenant=ayo' }, { to: '/documents?tenant=ayo', target: 'documents' }],
+  [null, { to: '/documents', target: 'documents' }],
 ])('back from %j goes to %j', (state, expected) => {
   expect(backLink(state)).toEqual(expected)
 })
@@ -105,11 +105,11 @@ test.each([
 })
 
 test.each([
-  [{ chatFrom: '/chat/8d2e4b71-5c3a-4f09-a6e2-000000000001', chunkIndex: 1 }, 'From the chat'],
-  [{ searchFrom: '?', chunkIndex: 1 }, 'From the search'],
-  [{ chatFrom: '/elsewhere', chunkIndex: 1 }, 'From the search'],
+  [{ chatFrom: '/chat/8d2e4b71-5c3a-4f09-a6e2-000000000001', chunkIndex: 1 }, 'chat'],
+  [{ searchFrom: '?', chunkIndex: 1 }, 'search'],
+  [{ chatFrom: '/elsewhere', chunkIndex: 1 }, 'search'],
 ])('the outlined chunk opened with %j says %j', (state, expected) => {
-  expect(highlightLabel(state)).toBe(expected)
+  expect(highlightSource(state)).toBe(expected)
 })
 
 test('a chunk links to its page of the Chunks tab', () => {

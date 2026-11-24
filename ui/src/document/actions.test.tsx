@@ -6,7 +6,8 @@ import { makeDocument, TENANTS } from '@/test/fixtures/documents'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
-import { DOCUMENT_CHANGED, REPROCESS_PROVIDER_FAILED } from './ReprocessButton'
+const DOCUMENT_CHANGED = 'A newer upload replaced it while reprocessing; nothing was written.'
+const REPROCESS_PROVIDER_FAILED = 'The embedding provider failed; nothing was written.'
 
 type Document = components['schemas']['Document']
 
@@ -338,5 +339,88 @@ describe('delete', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('internal server error')
+  })
+})
+
+describe('in Spanish', () => {
+  async function openDetailEs(doc: Document) {
+    const rendered = renderApp(`/documents/${doc.doc_id}`, { connected: true, language: 'es' })
+    await screen.findByRole('heading', { name: doc.title ?? doc.source_key })
+    return rendered
+  }
+
+  test('rename checks and confirms in Spanish', async () => {
+    const { doc } = serve()
+    const { user } = await openDetailEs(doc)
+
+    await user.click(screen.getByRole('button', { name: 'Renombrar' }))
+    const input = screen.getByLabelText('Título')
+    await user.clear(input)
+    await user.type(input, '   {Enter}')
+    expect(input).toHaveAccessibleDescription('Escribe un título.')
+    await user.clear(input)
+    await user.type(input, 'x'.repeat(201))
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(input).toHaveAccessibleDescription('Como máximo 200 caracteres.')
+
+    await user.clear(input)
+    await user.type(input, 'Caldera B2 (rev. 4){Enter}')
+    expect(await screen.findByText('Renombrado')).toBeInTheDocument()
+  })
+
+  test('reprocess speaks Spanish: done, up to date, a newer upload, the provider', async () => {
+    const { doc } = serve()
+    const { user } = await openDetailEs(doc)
+
+    await user.click(screen.getByRole('button', { name: 'Reprocesar' }))
+    expect(await screen.findByText('Reprocesado: 50 chunks')).toBeInTheDocument()
+
+    serve(doc, {
+      reprocess: () => HttpResponse.json({ doc_id: doc.doc_id, status: 'up_to_date' }),
+    })
+    await user.click(screen.getByRole('button', { name: 'Reprocesar' }))
+    expect(await screen.findByText('Ya está al día: no hay nada que hacer.')).toBeInTheDocument()
+
+    serve(doc, { reprocess: errorBody(409, 'document_changed', [], 'changed') })
+    await user.click(screen.getByRole('button', { name: 'Reprocesar' }))
+    expect(
+      await screen.findByText(
+        'Una subida más reciente lo ha sustituido mientras se reprocesaba; no se ha escrito nada.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+
+    serve(doc, { reprocess: errorBody(502, 'embedding_failed', [], 'provider failed') })
+    await user.click(screen.getByRole('button', { name: 'Reprocesar' }))
+    expect(
+      await screen.findByText('El proveedor de embeddings ha fallado; no se ha escrito nada.'),
+    ).toBeInTheDocument()
+  })
+
+  test('the menu offers a forced reprocess in Spanish', async () => {
+    const { doc } = serve()
+    const { user } = await openDetailEs(doc)
+
+    await user.click(screen.getByRole('button', { name: 'Más opciones de reprocesado' }))
+    expect(await screen.findByRole('menuitem', { name: /^Forzar reprocesado/ })).toHaveTextContent(
+      'Vuelve a generar chunks y embeddings aunque esté al día.',
+    )
+  })
+
+  test('delete asks for the title in Spanish, then confirms', async () => {
+    const { doc } = serve()
+    const { user } = await openDetailEs(doc)
+    const name = doc.title ?? ''
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+    const dialog = await screen.findByRole('alertdialog', { name: `¿Eliminar ${name}?` })
+    expect(dialog).toHaveTextContent(
+      'El documento y sus 48 chunks se eliminan para siempre. No se puede deshacer.',
+    )
+    // The phrase is the title itself, in any language.
+    await user.type(within(dialog).getByLabelText(`Escribe ${name} para confirmar`), name)
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar' }))
+
+    expect(await screen.findByText(`Eliminado ${name}`)).toBeInTheDocument()
   })
 })

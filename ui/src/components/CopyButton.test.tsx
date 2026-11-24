@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { i18n } from '@/i18n'
+
 import { CopyButton } from './CopyButton'
 
 test('copies the value and confirms', async () => {
@@ -22,4 +24,14 @@ test('says so when the clipboard is not available (plain HTTP)', async () => {
   await user.click(screen.getByRole('button', { name: 'Copy doc_id' }))
 
   expect(screen.getByRole('button', { name: 'Copy unavailable' })).toBeInTheDocument()
+})
+
+test('the feedback follows the UI language', async () => {
+  await i18n.changeLanguage('es')
+  const user = userEvent.setup()
+  render(<CopyButton value="x" label="Copiar doc_id" />)
+
+  await user.click(screen.getByRole('button', { name: 'Copiar doc_id' }))
+
+  expect(screen.getByRole('button', { name: 'Copiado' })).toBeInTheDocument()
 })

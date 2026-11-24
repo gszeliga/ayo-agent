@@ -7,10 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1, I2 and I3 (a, b, c) are done (2026-11-24). **Next: I4** (document detail: facts,
-content, chunks, rename, reprocess, delete; `src/document/*`, `CopyButton.tsx`;
-`ConfirmByTyping` is done, decision 17). Write its brief and wait for the user's OK. I4
-also replaces `REPROCESS_PROVIDER_FAILED` (decision 19). Use the glossary below; `describeError`,
+I1-I4 are done (2026-11-24). **Next: I5** (Search and Settings, including
+`ServiceDetails`; `src/search/*`, `src/settings/*`). Write its brief and wait for the
+user's OK. I5 also switches Settings' `outdatedReasonLabel(reason, 'en')` (decision 18)
+to the UI language; `configDiff` is done (decision 22). Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -136,6 +136,19 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     "(1 on other pages)" in the selection bar, "Reprocess all 1 outdated". The plural keys
     are in place, so each fix is a one-word catalog change.
 
+22. (I4) **`document` namespace.** `backLink()` returns `{ to, target }` and
+    `highlightLabel()` became `highlightSource()` (`'chat' | 'search'`): codes, worded by
+    the page (`back.*`, `backTo.*`, `chunks.highlight.*`); `params.test.ts` asserts the
+    codes now. `configDiff` (in `settings/`, used only by the facts panel) takes a
+    `language` (default `'en'` until I8) and its part names are in `document.configPart`;
+    an unknown part shows as is. Rename problems are codes, delete errors the `Error`,
+    worded when shown. `DOCUMENT_CHANGED` and `REPROCESS_PROVIDER_FAILED` left
+    `ReprocessButton.tsx` (closes the I3b loose end); `actions.test.tsx` uses literals.
+    `CopyButton`'s "Copied" / "Copy unavailable" are in `common` (shared: Search and Chat
+    get them now; their labels stay English until their step). The delete phrase is the
+    document's name, unchanged. "Reprocessed: 1 chunks" and "its 1 chunks" kept in
+    English (decision 21). Spanish view toggle: "Formateado / Texto".
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -171,7 +184,7 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
 - [x] **I3b** Bulk delete and bulk reprocess dialogs, their toasts, `ConfirmByTyping`.
 - [x] **I3c** Upload: dialog, file drop, field checks, API error placement, toasts
   (`src/upload/*`).
-- [ ] **I4** Document detail: facts, content, chunks, rename, reprocess, delete
+- [x] **I4** Document detail: facts, content, chunks, rename, reprocess, delete
   (`src/document/*`, `src/components/ConfirmByTyping.tsx`, `CopyButton.tsx`).
 - [ ] **I5** Search and Settings, including `ServiceDetails` (`src/search/*`, `src/settings/*`).
 - [ ] **I6** Test chat: cases list, filters, case view, composer, send errors, phases,
@@ -320,3 +333,15 @@ I2 adjusts them if the glossary differs.
   the two constants in `UploadDialog.test.tsx` (decision 20). `pnpm check` passes.
   Noticed: `UploadDialog.test.tsx` prints an `Error: socket hang up` (MSW interceptor)
   from an existing English test, on the base commit too; nothing fails. Not looked into.
+- 2026-11-24, **I4** (document page). New `document` namespace (decision 22): back link and
+  the not-found page, header buttons, tabs, view toggle, Copy Markdown, chunks (cards,
+  chars, vectors, debug badge, the outlined chunk's source, pagination, none), facts
+  (labels, "sin registrar", dates and sizes per language, "Ahora difiere: …"), rename,
+  reprocess (toasts, Retry, the menu), delete (dialog, toasts), `CopyButton`'s feedback.
+  Tests: five Spanish cases in `DocumentPage.test.tsx` (the page with both tabs, now
+  differs, not recorded, not found, the outlined chunk's label from chat and search), four
+  in `actions.test.tsx` (rename checks and toast; reprocess done, up to date, 409 with
+  Reintentar, 502; the forced reprocess in the menu; delete), one in `CopyButton.test.tsx`,
+  two in `configDiff.test.ts`. 585 tests; existing ones unchanged except `params.test.ts`
+  (codes instead of labels) and the two literals in `actions.test.tsx`. `pnpm check`
+  passes.

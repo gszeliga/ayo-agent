@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { components } from '@/api/schema'
 import { CopyButton } from '@/components/CopyButton'
@@ -17,15 +18,16 @@ export function ChunkCard({
   chunk,
   view,
   highlighted = false,
-  highlightLabel = 'From the search',
+  highlightSource = 'search',
 }: {
   chunk: Chunk
   view: View
   /** The chunk a search result or a chat trace linked to. */
   highlighted?: boolean
-  /** Said above it when highlighted. */
-  highlightLabel?: string
+  /** Where it was linked from, said above it when highlighted. */
+  highlightSource?: 'search' | 'chat'
 }) {
+  const { t } = useTranslation('document')
   const ref = useRef<HTMLElement>(null)
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: 'center' })
@@ -33,18 +35,22 @@ export function ChunkCard({
   return (
     <article
       ref={ref}
-      aria-label={`Chunk ${String(chunk.chunk_index)}`}
+      aria-label={t('chunks.card', { index: chunk.chunk_index })}
       data-highlighted={highlighted || undefined}
       className={cn(
         'bg-card space-y-2 rounded-xl border p-4',
         highlighted && 'border-primary ring-primary ring-1',
       )}
     >
-      {highlighted && <p className="text-primary text-[12px] font-semibold">{highlightLabel}</p>}
+      {highlighted && (
+        <p className="text-primary text-[12px] font-semibold">
+          {t(`chunks.highlight.${highlightSource}`)}
+        </p>
+      )}
       <header className="text-muted-foreground flex flex-wrap items-baseline gap-x-3 text-[13px]">
         <span className="text-foreground font-mono font-semibold">#{chunk.chunk_index}</span>
         {chunk.heading && <span className="min-w-0 flex-1 truncate">{chunk.heading}</span>}
-        <span className="ml-auto tabular-nums">{chunk.char_count} chars</span>
+        <span className="ml-auto tabular-nums">{t('chunks.chars', { n: chunk.char_count })}</span>
       </header>
       {view === 'rendered' ? (
         <LazyMarkdown source={chunk.chunk_text} />
@@ -59,9 +65,9 @@ export function ChunkCard({
               .slice(0, VECTOR_PREVIEW)
               .map((v) => v.toFixed(4))
               .join(', ')}
-            , … {chunk.embedding.length} values]
+            , … {t('chunks.values', { n: chunk.embedding.length })}]
           </code>
-          <CopyButton value={JSON.stringify(chunk.embedding)} label="Copy vector" />
+          <CopyButton value={JSON.stringify(chunk.embedding)} label={t('chunks.copyVector')} />
         </div>
       )}
     </article>

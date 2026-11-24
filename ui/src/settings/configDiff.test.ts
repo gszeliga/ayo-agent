@@ -75,3 +75,25 @@ test('the note', () => {
   expect(differsNote([])).toBeNull()
   expect(differsNote(null)).toBe('Differs from the current settings')
 })
+
+test('the parts and the note follow the language', () => {
+  expect(
+    chunkerDiff(
+      'md-header+recursive@v3/size=800/overlap=80/breadcrumb=1',
+      'md-header+recursive@v3/size=1000/overlap=100/breadcrumb=0',
+      'es',
+    ),
+  ).toEqual(['tamaño 800 → 1000', 'solapamiento 80 → 100', 'migas de encabezado 1 → 0'])
+  expect(embedderDiff('voyage-4/document/1024', 'voyage-4/query/512', 'es')).toEqual([
+    'tipo de entrada document → query',
+    'dimensiones 1024 → 512',
+  ])
+  expect(differsNote(['tamaño 800 → 1000'], 'es')).toBe('Ahora difiere: tamaño 800 → 1000')
+  expect(differsNote(null, 'es')).toBe('Difiere de la configuración actual')
+})
+
+test('a part the UI does not know shows as is', () => {
+  expect(
+    chunkerDiff('md-header+recursive@v3/size=800/x=1', 'md-header+recursive@v3/size=800/x=2', 'es'),
+  ).toEqual(['x 1 → 2'])
+})

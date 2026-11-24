@@ -1,14 +1,20 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { components } from '@/api/schema'
 import { CopyButton } from '@/components/CopyButton'
+import { useLanguage } from '@/layout/languageContext'
 import { formatBytes, formatUtc, relativeTime } from '@/lib/format'
+import type { Language } from '@/lib/language'
 import { chunkerDiff, differsNote, embedderDiff } from '@/settings/configDiff'
 import { useIndexingSettings } from '@/settings/queries'
 
 type Document = components['schemas']['Document']
 
-const NOT_RECORDED = <span className="text-muted-foreground italic">not recorded</span>
+function NotRecorded() {
+  const { t } = useTranslation('document')
+  return <span className="text-muted-foreground italic">{t('facts.notRecorded')}</span>
+}
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -20,10 +26,11 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function Time({ iso, now }: { iso: string | null; now: number }) {
-  if (iso === null) return NOT_RECORDED
+  const { language } = useLanguage()
+  if (iso === null) return <NotRecorded />
   return (
     <time dateTime={iso} title={formatUtc(iso)}>
-      {relativeTime(iso, 'en', now)}
+      {relativeTime(iso, language, now)}
     </time>
   )
 }
@@ -35,7 +42,7 @@ function Hash({ value, label }: { value: string; label: string }) {
       <code className="font-mono text-[12.5px]" title={value}>
         {value.slice(0, 12)}…
       </code>
-      <CopyButton value={value} label={`Copy ${label}`} />
+      <CopyButton value={value} label={label} />
     </span>
   )
 }
@@ -51,10 +58,12 @@ function Config({
 }: {
   value: string | null
   current: string | undefined
-  compare: (stored: string, current: string) => string[] | null
+  compare: (stored: string, current: string, language: Language) => string[] | null
 }) {
-  if (value === null) return NOT_RECORDED
-  const note = current === undefined ? null : differsNote(compare(value, current))
+  const { language } = useLanguage()
+  if (value === null) return <NotRecorded />
+  const note =
+    current === undefined ? null : differsNote(compare(value, current, language), language)
   return (
     <>
       <code className="font-mono text-[12.5px] break-all">{value}</code>
@@ -64,41 +73,47 @@ function Config({
 }
 
 export function FactsPanel({ document, now }: { document: Document; now: number }) {
+  const { t } = useTranslation('document')
+  const { language } = useLanguage()
   const current = useIndexingSettings().data
   return (
-    <aside aria-label="Facts" className="bg-card rounded-xl border p-5">
+    <aside aria-label={t('facts.label')} className="bg-card rounded-xl border p-5">
       <dl className="space-y-4">
-        <Fact label="Source key">
+        <Fact label={t('facts.sourceKey')}>
           <code className="font-mono text-[12.5px] break-all">{document.source_key}</code>
         </Fact>
-        <Fact label="Created">
+        <Fact label={t('facts.created')}>
           <Time iso={document.created_at} now={now} />
         </Fact>
-        <Fact label="Updated">
+        <Fact label={t('facts.updated')}>
           <Time iso={document.updated_at} now={now} />
         </Fact>
-        <Fact label="Chunked / embedded">
+        <Fact label={t('facts.chunkedEmbedded')}>
           <Time iso={document.chunked_at} now={now} /> /{' '}
           <Time iso={document.embedded_at} now={now} />
         </Fact>
-        <Fact label="Size">
-          {document.size_bytes === null ? NOT_RECORDED : formatBytes(document.size_bytes)}
+        <Fact label={t('facts.size')}>
+          {document.size_bytes === null ? (
+            <NotRecorded />
+          ) : (
+            formatBytes(document.size_bytes, language)
+          )}
         </Fact>
-        <Fact label="Chunks">{document.chunk_count}</Fact>
-        <Fact label="Content hash">
-          <Hash value={document.content_hash} label="content hash" />
+        <Fact label={t('facts.chunks')}>{document.chunk_count}</Fact>
+        <Fact label={t('facts.contentHash')}>
+          <Hash value={document.content_hash} label={t('facts.copyContentHash')} />
         </Fact>
-        <Fact label="Embed signature">
-          <Hash value={document.embed_signature} label="embed signature" />
+        <Fact label={t('facts.embedSignature')}>
+          <Hash value={document.embed_signature} label={t('facts.copyEmbedSignature')} />
         </Fact>
-        <Fact label="Chunker config">
+        <Fact label={t('facts.chunkerConfig')}>
           <Config
             value={document.chunker_config}
             current={current?.chunking.chunker_config}
             compare={chunkerDiff}
           />
         </Fact>
-        <Fact label="Embedder config">
+        <Fact label={t('facts.embedderConfig')}>
           <Config
             value={document.embedder_config}
             current={current?.embedding.embedder_config}

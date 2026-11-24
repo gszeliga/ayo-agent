@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
 import { EmptyState } from '@/components/StateMessage'
@@ -7,16 +8,17 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import type { BackLink } from './params'
 
 export function DocumentNotFound({ back }: { back: BackLink }) {
-  useDocumentTitle('Document not found')
+  const { t } = useTranslation('document')
+  useDocumentTitle(t('notFound.pageTitle'))
   return (
     <EmptyState
       as="h1"
-      title="This document no longer exists"
-      description="It may have been deleted in another tab, or the link is wrong."
+      title={t('notFound.title')}
+      description={t('notFound.description')}
       className="mx-auto mt-8 max-w-xl"
       action={
         <Button asChild>
-          <Link to={back.to}>Back to {back.label.toLowerCase()}</Link>
+          <Link to={back.to}>{t(`backTo.${back.target}`)}</Link>
         </Button>
       }
     />

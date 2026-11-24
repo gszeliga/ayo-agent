@@ -1,5 +1,6 @@
 import { Pencil } from 'lucide-react'
 import { useId, useState, type SubmitEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ApiError, describeError } from '@/api/errors'
@@ -8,18 +9,25 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useConnection } from '@/connection/context'
 import { useRename } from '@/documents/mutations'
+import { useLanguage } from '@/layout/languageContext'
 
 type Document = components['schemas']['Document']
 
 /** The API's limits for a title (DocumentUpdate). */
 export const TITLE_MAX_LENGTH = 200
 
+/** What is wrong with the draft, worded when shown; `api` is the API's own message. */
+type TitleProblem =
+  { code: 'empty' | 'tooLong' } | { code: 'api'; message: string } | { code: 'error'; error: Error }
+
 /** The title, editable in place: Enter saves, Esc cancels. Not optimistic. */
 export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void }) {
+  const { t } = useTranslation('document')
+  const { language } = useLanguage()
   const title = doc.title ?? doc.source_key
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
-  const [error, setError] = useState<string | null>(null)
+  const [problem, setError] = useState<TitleProblem | null>(null)
   const rename = useRename(doc.doc_id)
   const { connection } = useConnection()
   const ids = { input: useId(), error: useId() }
@@ -34,11 +42,11 @@ export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void
     event.preventDefault()
     const next = draft.trim()
     if (!next) {
-      setError('Enter a title.')
+      setError({ code: 'empty' })
       return
     }
     if (next.length > TITLE_MAX_LENGTH) {
-      setError(`At most ${String(TITLE_MAX_LENGTH)} characters.`)
+      setError({ code: 'tooLong' })
       return
     }
     if (next === doc.title) {
@@ -48,7 +56,7 @@ export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void
     rename.mutate(next, {
       onSuccess: () => {
         setEditing(false)
-        toast.success('Renamed')
+        toast.success(t('rename.done'))
       },
       onError: (failure) => {
         if (failure instanceof ApiError && failure.status === 404) {
@@ -56,10 +64,24 @@ export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void
           return
         }
         const field = failure instanceof ApiError ? failure.fieldErrors().title : undefined
-        setError(field ?? describeError(failure, connection?.baseUrl ?? ''))
+        setError(field ? { code: 'api', message: field } : { code: 'error', error: failure })
       },
     })
   }
+
+  function words(found: TitleProblem): string {
+    switch (found.code) {
+      case 'empty':
+        return t('rename.empty')
+      case 'tooLong':
+        return t('rename.tooLong', { max: TITLE_MAX_LENGTH })
+      case 'api':
+        return found.message
+      case 'error':
+        return describeError(found.error, connection?.baseUrl ?? '', language)
+    }
+  }
+  const error = problem === null ? null : words(problem)
 
   if (!editing) {
     return (
@@ -67,7 +89,7 @@ export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void
         <h1 className="min-w-0 text-xl font-semibold break-words" onDoubleClick={start}>
           {title}
         </h1>
-        <Button variant="ghost" size="icon" aria-label="Rename" onClick={start}>
+        <Button variant="ghost" size="icon" aria-label={t('rename.button')} onClick={start}>
           <Pencil aria-hidden="true" />
         </Button>
       </div>
@@ -76,7 +98,7 @@ export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void
   return (
     <form className="flex min-w-0 flex-1 flex-col gap-1.5" noValidate onSubmit={save}>
       <label htmlFor={ids.input} className="sr-only">
-        Title
+        {t('rename.label')}
       </label>
       <div className="flex flex-wrap gap-2">
         <Input
@@ -97,7 +119,7 @@ export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void
           }}
         />
         <Button type="submit" disabled={rename.isPending}>
-          {rename.isPending ? 'Saving…' : 'Save'}
+          {rename.isPending ? t('rename.saving') : t('rename.save')}
         </Button>
         <Button
           type="button"
@@ -107,7 +129,7 @@ export function TitleEditor({ doc, onGone }: { doc: Document; onGone: () => void
             setEditing(false)
           }}
         >
-          Cancel
+          {t('rename.cancel')}
         </Button>
       </div>
       {error && (

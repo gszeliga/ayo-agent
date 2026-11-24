@@ -71,25 +71,28 @@ function chatFrom(state: unknown): string | null {
   return typeof from === 'string' && CHAT_CASE_PATH.test(from) ? from : null
 }
 
+/** Where the page was opened from; its words are in the `document` catalog (`back.*`). */
+export type BackTarget = 'documents' | 'search' | 'chat'
+
 export interface BackLink {
   to: string
-  label: string
+  target: BackTarget
 }
 
 /** Back to the chat or the search when the document was opened from one, else to the list. */
 export function backLink(state: unknown): BackLink {
   const chat = chatFrom(state)
-  if (chat !== null) return { to: chat, label: 'Chat' }
+  if (chat !== null) return { to: chat, target: 'chat' }
   const from = (state as Partial<FromSearch> | null)?.searchFrom
   if (typeof from === 'string' && from.startsWith('?')) {
-    return { to: from === '?' ? '/search' : `/search${from}`, label: 'Search' }
+    return { to: from === '?' ? '/search' : `/search${from}`, target: 'search' }
   }
-  return { to: backToList(state), label: 'Documents' }
+  return { to: backToList(state), target: 'documents' }
 }
 
-/** Where the outlined chunk was linked from, said above it. */
-export function highlightLabel(state: unknown): string {
-  return chatFrom(state) !== null ? 'From the chat' : 'From the search'
+/** Where the outlined chunk was linked from, said above it (`chunks.highlight.*`). */
+export function highlightSource(state: unknown): 'chat' | 'search' {
+  return chatFrom(state) !== null ? 'chat' : 'search'
 }
 
 /** The chunk to outline: the one a search result or a chat trace linked to, if any. */
