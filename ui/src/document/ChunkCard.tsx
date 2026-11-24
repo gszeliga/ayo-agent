@@ -12,6 +12,12 @@ type Chunk = components['schemas']['Chunk']
 
 const VECTOR_PREVIEW = 12
 
+/** "[0.0123, -0.0456, … 1024 values]": the first 12 numbers, then the count (worded). */
+function vectorPreview(embedding: number[], count: string): string {
+  const first = embedding.slice(0, VECTOR_PREVIEW).map((v) => v.toFixed(4))
+  return `[${first.join(', ')}, … ${count}]`
+}
+
 /** One chunk. Rendered, each chunk is a document of its own: a table or code block the
  * splitter cut stays inside its card. */
 export function ChunkCard({
@@ -60,12 +66,7 @@ export function ChunkCard({
       {chunk.embedding && (
         <div className="bg-secondary flex items-center gap-2 rounded-md px-2.5 py-1.5">
           <code className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-[12px]">
-            [
-            {chunk.embedding
-              .slice(0, VECTOR_PREVIEW)
-              .map((v) => v.toFixed(4))
-              .join(', ')}
-            , … {t('chunks.values', { n: chunk.embedding.length })}]
+            {vectorPreview(chunk.embedding, t('chunks.values', { n: chunk.embedding.length }))}
           </code>
           <CopyButton value={JSON.stringify(chunk.embedding)} label={t('chunks.copyVector')} />
         </div>

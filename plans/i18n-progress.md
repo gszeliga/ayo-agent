@@ -7,15 +7,8 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1-I7 are done (2026-11-24): every screen is translated. **Next: I8** (the `locale`
-defaults removed: `relativeTime`, `formatBytes`, `formatCost`, `formatTokens`,
-`formatDuration`, `usageLine`, `describeError`, `outdatedReasonLabel`, `configDiff`,
-`tenantsSummary`, ...; `eslint-plugin-i18next` `no-literal-string` as an error in
-components; axe in Spanish; decision 21's English oddities, the user's call; docs, final
-report and "Open items"; CLAUDE.md marks the milestone done). Write its brief and wait for
-the user's OK. Use the glossary below; `describeError`,
-`relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
-i18next plurals (`count`, `_one` / `_other`).
+**The milestone is done** (I1-I8, 2026-11-24): see "Final report" and "Open items" at the
+end. Nothing is planned next: ask the user.
 
 Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
 - ~190 files, ~8,600 lines of TSX under `ui/src/`; every string is an English literal in a
@@ -220,6 +213,24 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     keeps its `<code>` tags in the catalog (decision 23). `PHASE_LABELS` and `plural()`
     are gone. Spanish: "con coste" (billed), "Desactualizado" (stale), "Consumo" (usage).
 
+29. (I8, 2026-11-24) **The `'en'` defaults are gone** from every formatter that takes a
+    language (no app code relied on them; 21 test calls now pass `'en'`; `format.test.ts`'s
+    "English is the default" removed). **`eslint-plugin-i18next` ^6.1.5** (no peers; months
+    old, so the release-age gate is untouched), `no-literal-string` as an error on
+    `src/**/*.tsx` (not tests, `src/test/`, `src/components/ui/`), mode `jsx-only` with an
+    exclude list of attributes that are never copy. An include list was tried and dropped:
+    it skips everything inside an attribute not on it (`fallback={<Skeleton aria-label=…/>}`).
+    It found 6 real misses (four route skeleton labels and "Loading content" -> `common.loading`;
+    "Image not shown" -> `document.imageNotShown*`); code strings left JSX (the export's
+    formats and media types, the table's selector, the vector preview, the database
+    versions); the intended literals carry a disable comment with the reason (the brand,
+    the two Spanish example placeholders, the example tenant id). **Decision 21's English
+    oddities fixed** (the user's call: as proposed): "1 chunk" (upload toast, reprocess
+    toast, delete warning), "Reprocess the 1 outdated", "1 case" on the collapsed list;
+    "(1 on other pages)" reads fine and stays. **axe in both languages**: `a11y.test.tsx`
+    runs every screen per language (names from that language's catalog) plus the chat case
+    with Export and Delete. **i18next stays on 27.2.4** (the user's call: an open item).
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -266,8 +277,8 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
   (decision 27).
 - [x] **I7b** Inspector: Summary tab, summary dialog and errors, export dialog, the
   Markdown export in the UI language (decision 28).
-- [ ] **I8** `locale` defaults removed, lint rule as error, axe in Spanish, docs, final
-  report and "Open items"; CLAUDE.md marks the milestone done.
+- [x] **I8** `locale` defaults removed, lint rule as error, axe in Spanish, docs, final
+  report and "Open items"; CLAUDE.md marks the milestone done (decision 29).
 
 ### I1 brief: setup and the shell
 **Delivers:** a working English / Español / System switch in the header, and the shell
@@ -506,4 +517,70 @@ I2 adjusts them if the glossary differs.
   `DeleteExport.test.tsx` (the dialog with the fetching status held, the preview, the
   download). 666 tests; existing ones unchanged except `exportCase.test.ts` (the language
   argument). `pnpm check` passes.
+- 2026-11-24, **I8** (decision 29). Defaults removed; `eslint-plugin-i18next` added and
+  configured (18 findings after the attribute list: 6 fixed as copy, 6 moved out of JSX, 6
+  disabled with a reason; lint clean); the English plurals fixed; axe per language (22
+  runs: 11 screens x 2). Tests: two English singular cases (`DocumentsPage.test.tsx`,
+  `UploadDialog.test.tsx`), `a11y.test.tsx` rewritten per language with the chat case
+  added, 21 calls given `'en'`, one default test removed. 679 tests. `pnpm check`,
+  `tsc -b --force` and `pnpm build` pass; main bundle 131.2 KB gzipped (126.7 KB before
+  I1). **Noticed:** after restoring files with `git checkout`, `tsc -b` (as in
+  `pnpm typecheck`) reported a stale clean result; `--force` showed the errors (see "Open
+  items").
+
+## Final report (2026-11-24)
+
+**Done.** The admin UI in English and Spanish (Spain Spanish, *tú*), with an English /
+Español / System menu in the header and on the connect screen, kept in this browser
+(`ayo.lang`); System follows the browser's languages and their changes. Every screen is
+translated: the shell, connect, the documents list and its bulk dialogs, upload, the
+document page, the indexing settings and service status, the test search, the test chat
+and its inspector, and the Markdown export (in the UI language when exported). Dates,
+decimals, sizes, relative times, costs, tokens and durations follow the language; the
+exact-time tooltips and the export's times stay UTC. Front end only: no API, OpenAPI or
+backend change, no billed call.
+
+**How.** i18next 27.2.4 + react-i18next 18.0.3, catalogs bundled and initialised at import
+(no fetch, no flash, no Suspense); one TypeScript namespace per area
+(`src/i18n/locales/{en,es}/`), English the source and the type, so a missing Spanish key
+or a mistyped key fails `tsc`. Messages are kept as codes (or the error itself) and
+worded when shown, so a language switch rewords what is already on screen; the API's own
+`msg` is shown as received. Markup in a string goes through `<Trans>` components, never
+parsed from data. Formatters take the language as a required argument; the
+`i18next/no-literal-string` lint rule catches copy left in JSX.
+
+**Tests.** 679 UI tests (524 when I1 was done), every area with Spanish
+render tests; a catalog parity test (keys, placeholders, plural forms, `<Trans>` tags);
+axe over every screen in both languages. English output unchanged throughout (the
+Markdown export byte for byte), except the agreed fixes: the Options button's name
+(decision 24) and the English singulars (decision 29).
+
+**Agreed deviations from the plan:** the language menu on the connect screen (15); I3,
+I5, I6 and I7 split (17, 23, 25, 27); an `upload` namespace (20); the export in the UI
+language (27); i18next 27.2.4, not 27.2.5+ (10).
+
+## Open items
+- **i18next 27.2.4:** 27.2.5 and 27.2.6 are now past pnpm's one-day release age (27.2.7,
+  out on 2026-11-24, is not yet); a move within 27.x is a small side step.
+- **Not tried in a browser:** the Spanish UI has only been exercised through its tests
+  (MSW). Worth a click-through in Spanish against the local API, mainly the chat and the
+  inspector.
+- **Spanish wording to review** (chosen during the steps, not in the glossary): "Tope
+  alcanzado" (capped), "Recuperado" (retrieved), "Cambiado desde entonces", "No
+  informado", "con coste" (billed), "Consumo" (usage), "Desactualizado" (stale), "Busca qué
+  ocurre" (the cases search), "Lista de casos (contraída)", "Empezar", "atrasada(s)" (the
+  user's choice), the send and summary errors.
+- **The API's `msg` stays English** (decision 5): a 422's field message or an unexpected
+  error reads English inside a Spanish UI. Wording them in the UI needs the API's error
+  codes per case (a backend change), or translated API messages.
+- **The lint rule covers JSX only:** a literal in a `.ts` helper (a toast in a hook, a
+  formatter) is not linted; the catalogs' types and review cover them today.
+- **`tsc -b` can be stale:** after `git checkout` restored files, `pnpm typecheck`
+  reported no errors where `tsc -b --force` found 21. Not seen after ordinary edits; if it
+  recurs, `typecheck` could use `--force` (slower) or CI could start from a clean
+  `tsbuildinfo`.
+- **A third language:** the steps are in `ui/README.md`. `Catalog` is the English shape,
+  so plurals are `_one` / `_other` only (decision 12): a language whose CLDR forms need
+  `_few` (Polish, Czech, ...) would need the type to allow extra plural keys.
+- **"(1 on other pages)"** in the selection bar stays as it was (reads fine; decision 29).
 

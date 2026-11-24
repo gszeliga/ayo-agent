@@ -30,7 +30,7 @@ export function unreachableMessage(
   baseUrl: string,
   reachable: boolean,
   origin: string,
-  language: Language = 'en',
+  language: Language,
 ): string {
   const t = i18n.getFixedT(language, 'common')
   return reachable

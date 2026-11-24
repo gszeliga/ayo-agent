@@ -63,6 +63,7 @@ export function AppShell() {
               AYO
             </div>
             <div className="leading-tight">
+              {/* eslint-disable-next-line i18next/no-literal-string -- the brand (decision 5) */}
               <div className="font-semibold">AYO Admin</div>
               <div className="text-muted-foreground font-mono text-[12px]">{host}</div>
             </div>

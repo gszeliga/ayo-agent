@@ -23,6 +23,8 @@ import type { Selection } from './useSelection'
 type Document = components['schemas']['Document']
 
 const SKELETON_ROWS = 6
+/** What handles its own click inside a row: the row does not open the document then. */
+const INTERACTIVE = 'a, button, [tabindex]'
 
 function Head({ selectAll }: { selectAll?: ReactNode }) {
   const { t } = useTranslation('documents')
@@ -118,7 +120,7 @@ export function DocumentsTable({
               className="cursor-pointer"
               // A convenience for the mouse; the title link is the keyboard and reader path.
               onClick={(event) => {
-                if (!(event.target as HTMLElement).closest('a, button, [tabindex]')) {
+                if (!(event.target as HTMLElement).closest(INTERACTIVE)) {
                   void navigate(to, { state })
                 }
               }}

@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -7,8 +8,9 @@ const Markdown = lazy(() => import('./Markdown').then((module) => ({ default: mo
 
 /** The safe Markdown renderer (Markdown.tsx), loaded on first use. */
 export function LazyMarkdown({ source }: { source: string }) {
+  const { t } = useTranslation()
   return (
-    <Suspense fallback={<Skeleton aria-label="Loading content" className="h-16" />}>
+    <Suspense fallback={<Skeleton aria-label={t('loading.content')} className="h-16" />}>
       <Markdown source={source} />
     </Suspense>
   )

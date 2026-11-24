@@ -399,6 +399,16 @@ test('reconnecting never shows rows cached before', async () => {
   expect(await screen.findByRole('heading', { name: 'No documents yet' })).toBeInTheDocument()
 })
 
+test('one outdated document reads in the singular', async () => {
+  serve([makeDocument({ status: 'outdated', outdated_reason: 'chunker_changed' })])
+  renderApp('/documents?status=outdated', { connected: true })
+
+  expect(
+    await screen.findByRole('button', { name: 'Reprocess the 1 outdated' }),
+  ).toBeInTheDocument()
+  expect(screen.getByText('1 document')).toBeInTheDocument()
+})
+
 describe('in Spanish', () => {
   const docs = [
     makeDocument({ hoursAgo: 3 }),

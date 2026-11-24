@@ -45,11 +45,7 @@ const words = (language: Language) => i18n.getFixedT(language, 'common')
  * "just now", "5 min ago", "3 h ago", "2 d ago", then a date ("5 Oct 2026") after 30 days;
  * "ahora mismo", "hace 5 min", ..., "5 oct 2026" in Spanish.
  */
-export function relativeTime(
-  iso: string,
-  language: Language = 'en',
-  now: number = Date.now(),
-): string {
+export function relativeTime(iso: string, language: Language, now: number = Date.now()): string {
   const t = words(language)
   const seconds = Math.floor((now - Date.parse(iso)) / 1000)
   if (seconds < MINUTE) return t('time.justNow') // also a timestamp slightly ahead of this clock
@@ -66,7 +62,7 @@ export function formatUtc(iso: string): string {
 }
 
 /** 1024-based, one decimal: "512 B", "4.2 KB", "1.5 MB" ("4,2 KB" in Spanish). */
-export function formatBytes(bytes: number, language: Language = 'en'): string {
+export function formatBytes(bytes: number, language: Language): string {
   const t = words(language)
   if (bytes < 1024) return t('size.bytes', { n: bytes })
   const decimal = oneDecimal(language)

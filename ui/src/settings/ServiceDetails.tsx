@@ -39,6 +39,11 @@ function When({ iso, now }: { iso: string | null; now: number }) {
   )
 }
 
+/** "PostgreSQL 18.1 · pgvector 0.8.7": product names, the same in every language. */
+function databaseVersions(postgres: string, pgvector: string | null): string {
+  return pgvector ? `PostgreSQL ${postgres} · pgvector ${pgvector}` : `PostgreSQL ${postgres}`
+}
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
@@ -83,8 +88,7 @@ export function ServiceDetails() {
           <Row label={t('service.runsOn')}>{t(`service.location.${database.location}`)}</Row>
           {database.postgres_version && (
             <Row label={t('service.version')}>
-              PostgreSQL {database.postgres_version}
-              {database.pgvector_version && ` · pgvector ${database.pgvector_version}`}
+              {databaseVersions(database.postgres_version, database.pgvector_version)}
             </Row>
           )}
           <Row label={t('service.latency')}>{t('service.ms', { n: database.latency_ms })}</Row>

@@ -35,6 +35,14 @@ type CaseTurnPage = components['schemas']['CaseTurnPage']
 /** The largest page the API serves. */
 const EXPORT_PAGE_SIZE = 50
 
+const FORMATS: readonly ExportFormat[] = ['markdown', 'json']
+/** The formats' names, the same in every language. */
+const FORMAT_NAMES: Record<ExportFormat, string> = { markdown: 'Markdown', json: 'JSON' }
+const MEDIA_TYPES: Record<ExportFormat, string> = {
+  markdown: 'text/markdown;charset=utf-8',
+  json: 'application/json',
+}
+
 interface Props {
   detail: CaseDetail
   open: boolean
@@ -117,7 +125,7 @@ function ExportBody({ detail }: { detail: CaseDetail }) {
   return (
     <>
       <div role="group" aria-label={t('exportDialog.format')} className="flex gap-2">
-        {(['markdown', 'json'] as const).map((value) => (
+        {FORMATS.map((value) => (
           <Button
             key={value}
             variant={format === value ? 'default' : 'outline'}
@@ -127,7 +135,7 @@ function ExportBody({ detail }: { detail: CaseDetail }) {
               setFormat(value)
             }}
           >
-            {value === 'markdown' ? 'Markdown' : 'JSON'}
+            {FORMAT_NAMES[value]}
           </Button>
         ))}
       </div>
@@ -158,11 +166,7 @@ function ExportBody({ detail }: { detail: CaseDetail }) {
           disabled={content === null}
           onClick={() => {
             if (content === null) return
-            downloadFile(
-              exportFileName(detail, format, now),
-              content,
-              format === 'json' ? 'application/json' : 'text/markdown;charset=utf-8',
-            )
+            downloadFile(exportFileName(detail, format, now), content, MEDIA_TYPES[format])
           }}
         >
           <Download aria-hidden="true" />

@@ -32,6 +32,7 @@ export function Composer({ value, onChange, onSend, sending }: Props) {
           rows={2}
           disabled={sending}
           // The conversation's language (the copilot speaks Spanish), in every UI language.
+          // eslint-disable-next-line i18next/no-literal-string -- content's language
           placeholder="Escribe un mensaje…"
           className={cn(
             'border-input placeholder:text-muted-foreground dark:bg-input/30 block max-h-48 min-h-14 w-full flex-1 resize-y rounded-md border bg-transparent px-3 py-2 text-base shadow-xs outline-none md:text-sm',

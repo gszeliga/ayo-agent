@@ -8,6 +8,8 @@ export const document: Catalog['document'] = {
     chat: 'Volver al chat',
   },
   loading: 'Cargando documento',
+  imageNotShown: 'Imagen no mostrada',
+  imageNotShownAlt: 'Imagen no mostrada: {{alt}}',
   replace: 'Sustituir',
   copyDocId: 'Copiar doc_id',
   tabs: { content: 'Contenido', chunks: 'Chunks' },

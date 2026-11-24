@@ -64,7 +64,18 @@ missing or extra Spanish key, or a mistyped key in `t()`, fails `tsc`.
   `src/i18n/index.ts`.
 - **Numbers** with decimals go through `formatDecimal(value, language, { min, max })` in
   `lib/format.ts` ("0.8734" / "0,8734"); sizes and relative times have their own helpers.
+- **Formatters** take the language as a required argument (`relativeTime`, `formatBytes`,
+  `formatCost`, `usageLine`, `describeError`, ...): `tsc` catches a call that forgets it.
+  In a component, `const { language } = useLanguage()`.
+- **Lint:** `i18next/no-literal-string` (`eslint.config.js`) fails on a literal in JSX
+  text or in an attribute people see or hear (`aria-label`, `title`, `placeholder`, ...);
+  attributes that are never copy (`value`, `to`, `htmlFor`, ...) are listed there. A
+  literal that is meant (a brand, a product name, an example in the content's language)
+  gets `// eslint-disable-next-line i18next/no-literal-string -- <why>`. Strings in `.ts`
+  helpers are not linted: the catalogs' types and review cover them.
 - **Tests** render in English; `renderApp(path, { language: 'es' })` starts in Spanish.
+  `a11y.test.tsx` runs axe over every screen in every language, finding each by its own
+  catalog's words.
 
 ## Setup
 
@@ -385,7 +396,7 @@ pnpm dev            # dev server with hot reload
 pnpm build          # type-check and build into dist/
 pnpm check          # everything CI-like: gen:api:check, lint, format:check, typecheck, test
 pnpm test           # Vitest once (test:watch to keep it running)
-pnpm lint           # ESLint (type-aware typescript-eslint, react-hooks)
+pnpm lint           # ESLint (type-aware typescript-eslint, react-hooks, i18next literals)
 pnpm format         # Prettier (format:check only checks)
 pnpm gen:api        # regenerate src/api/schema.d.ts from ../docs/openapi.json
 ```

@@ -54,8 +54,7 @@ export const upload = {
     upToDateHint: 'Use Force reindex to rebuild it anyway.',
     indexed: 'Indexed {{name}}: {{chunks}}',
     replaced: 'Replaced {{name}}: {{chunks}}',
-    // "1 chunks" as before: English output is kept as it was during the milestone.
-    chunks_one: '{{count}} chunks',
+    chunks_one: '{{count}} chunk',
     chunks_other: '{{count}} chunks',
   },
 }

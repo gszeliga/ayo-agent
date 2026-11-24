@@ -125,9 +125,9 @@ test('long chunks: more than three lines or 260 characters', () => {
 })
 
 test('the tenants summary', () => {
-  expect(tenantsSummary([])).toBe('All tenants')
-  expect(tenantsSummary(['acme', 'ayo'])).toBe('acme + ayo')
-  expect(tenantsSummary(['a1', 'b2', 'c3'])).toBe('3 tenants')
+  expect(tenantsSummary([], 'en')).toBe('All tenants')
+  expect(tenantsSummary(['acme', 'ayo'], 'en')).toBe('acme + ayo')
+  expect(tenantsSummary(['a1', 'b2', 'c3'], 'en')).toBe('3 tenants')
 })
 
 test("the limits match the API's", () => {

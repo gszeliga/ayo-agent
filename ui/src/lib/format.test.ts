@@ -28,11 +28,6 @@ test.each([
   expect(relativeTime(ago(seconds), 'es', NOW)).toBe(expected)
 })
 
-test('English is the default', () => {
-  expect(relativeTime(ago(60), undefined, NOW)).toBe('1 min ago')
-  expect(formatBytes(4300)).toBe('4.2 KB')
-})
-
 test('the exact time is UTC to the minute', () => {
   expect(formatUtc('2026-11-05T10:14:03.123+01:00')).toBe('2026-11-05 09:14 UTC')
 })

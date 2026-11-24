@@ -215,6 +215,7 @@ function UploadForm({ mode, onClose }: { mode: UploadMode; onClose: () => void }
                   list={ids.tenants}
                   autoComplete="off"
                   spellCheck={false}
+                  // eslint-disable-next-line i18next/no-literal-string -- an example tenant id
                   placeholder="planta-norte"
                   value={tenant}
                   disabled={busy}

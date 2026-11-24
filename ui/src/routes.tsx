@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Navigate, Route, Routes } from 'react-router'
 
 import { Skeleton } from '@/components/ui/skeleton'
@@ -37,6 +38,7 @@ const CaseView = lazy(() =>
 )
 
 export function AppRoutes() {
+  const { t } = useTranslation()
   return (
     <Routes>
       <Route path={ROUTES.connect} element={<ConnectPage />} />
@@ -47,7 +49,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.document}
             element={
-              <Suspense fallback={<Skeleton aria-label="Loading document" className="h-40" />}>
+              <Suspense fallback={<Skeleton aria-label={t('loading.document')} className="h-40" />}>
                 <DocumentPage />
               </Suspense>
             }
@@ -55,7 +57,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.settings}
             element={
-              <Suspense fallback={<Skeleton aria-label="Loading settings" className="h-40" />}>
+              <Suspense fallback={<Skeleton aria-label={t('loading.settings')} className="h-40" />}>
                 <SettingsPage />
               </Suspense>
             }
@@ -63,7 +65,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.search}
             element={
-              <Suspense fallback={<Skeleton aria-label="Loading search" className="h-40" />}>
+              <Suspense fallback={<Skeleton aria-label={t('loading.search')} className="h-40" />}>
                 <SearchPage />
               </Suspense>
             }
@@ -71,7 +73,7 @@ export function AppRoutes() {
           <Route
             path={ROUTES.chat}
             element={
-              <Suspense fallback={<Skeleton aria-label="Loading chat" className="h-40" />}>
+              <Suspense fallback={<Skeleton aria-label={t('loading.chat')} className="h-40" />}>
                 <ChatPage />
               </Suspense>
             }

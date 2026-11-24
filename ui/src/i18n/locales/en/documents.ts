@@ -12,7 +12,7 @@ export const documents = {
     sort: 'Sort',
     clear: 'Clear filters',
     loading: 'Loading',
-    reprocessOutdated_one: 'Reprocess all {{count}} outdated',
+    reprocessOutdated_one: 'Reprocess the {{count}} outdated',
     reprocessOutdated_other: 'Reprocess all {{count}} outdated',
   },
   // Keyed by the API's values (`?status=`, `?sort=`), which stay as they are in the URL.

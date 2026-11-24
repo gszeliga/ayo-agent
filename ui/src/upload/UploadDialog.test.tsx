@@ -456,6 +456,31 @@ describe('replace', () => {
   })
 })
 
+test('one chunk reads in the singular', async () => {
+  serve({
+    upload: () =>
+      HttpResponse.json(
+        {
+          doc_id: 'upload-0000000000aa',
+          status: 'indexed',
+          chunk_count: 1,
+          embedding_model: 'voyage-4',
+          embed_signature: 'e'.repeat(64),
+        },
+        { status: 201 },
+      ),
+  })
+  const { user, dialog } = await openUpload()
+
+  await user.upload(within(dialog).getByLabelText('Markdown file'), markdownFile())
+  await user.type(within(dialog).getByLabelText('Tenant'), 'planta-este')
+  await user.click(within(dialog).getByRole('button', { name: 'Upload' }))
+
+  expect(
+    await screen.findByText('Indexed pro-021-cambio-cuchillas.md: 1 chunk'),
+  ).toBeInTheDocument()
+})
+
 describe('in Spanish', () => {
   async function openUploadEs() {
     const rendered = renderApp('/documents', { connected: true, language: 'es' })

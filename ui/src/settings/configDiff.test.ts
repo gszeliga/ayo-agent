@@ -42,12 +42,12 @@ test.each([
   ],
   [CURRENT, []],
 ])('chunker %s -> %j', (stored, expected) => {
-  expect(chunkerDiff(stored, CURRENT)).toEqual(expected)
+  expect(chunkerDiff(stored, CURRENT, 'en')).toEqual(expected)
 })
 
 test('a part only one side has shows as a dash', () => {
   expect(
-    chunkerDiff('md-header+recursive@v2/size=800', 'md-header+recursive@v2/size=800/min=1'),
+    chunkerDiff('md-header+recursive@v2/size=800', 'md-header+recursive@v2/size=800/min=1', 'en'),
   ).toEqual(['min size — → 1'])
 })
 
@@ -56,24 +56,24 @@ test.each([
   ['voyage-4/document/512', ['dimensions 512 → 1024']],
   ['voyage-3/document/512', ['model voyage-3 → voyage-4', 'dimensions 512 → 1024']],
 ])('embedder %s -> %j', (stored, expected) => {
-  expect(embedderDiff(stored, 'voyage-4/document/1024')).toEqual(expected)
+  expect(embedderDiff(stored, 'voyage-4/document/1024', 'en')).toEqual(expected)
 })
 
 test.each([
   ['recursive-v1', CURRENT],
   ['md-header+recursive@v3/size', CURRENT],
 ])('an unreadable config (%s) is null', (stored, current) => {
-  expect(chunkerDiff(stored, current)).toBeNull()
-  expect(embedderDiff('voyage-4', 'voyage-4/document/1024')).toBeNull()
+  expect(chunkerDiff(stored, current, 'en')).toBeNull()
+  expect(embedderDiff('voyage-4', 'voyage-4/document/1024', 'en')).toBeNull()
 })
 
 test('the note', () => {
-  expect(differsNote(['size 1000 → 800'])).toBe('Now differs: size 1000 → 800')
-  expect(differsNote(['size 1000 → 800', 'min size 0 → 100'])).toBe(
+  expect(differsNote(['size 1000 → 800'], 'en')).toBe('Now differs: size 1000 → 800')
+  expect(differsNote(['size 1000 → 800', 'min size 0 → 100'], 'en')).toBe(
     'Now differs: size 1000 → 800, min size 0 → 100',
   )
-  expect(differsNote([])).toBeNull()
-  expect(differsNote(null)).toBe('Differs from the current settings')
+  expect(differsNote([], 'en')).toBeNull()
+  expect(differsNote(null, 'en')).toBe('Differs from the current settings')
 })
 
 test('the parts and the note follow the language', () => {

@@ -47,7 +47,7 @@ export function turnsUsage(detail: CaseDetail): LLMUsage {
  * "3 calls · 8.3k tokens · $0.0027", leaving out what was not reported ("3 llamadas · 8,3k
  * tokens · 0,0027 $" in Spanish).
  */
-export function usageLine(usage: LLMUsage, language: Language = 'en'): string {
+export function usageLine(usage: LLMUsage, language: Language): string {
   const t = i18n.getFixedT(language, 'chat')
   return [
     t('usage.calls', { count: usage.llm_calls }),

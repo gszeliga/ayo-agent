@@ -23,11 +23,11 @@ test('a failed request (down, wrong host, timeout) means it does not', async () 
 })
 
 test('the messages name the fix', () => {
-  expect(unreachableMessage('http://api.test', true, 'http://localhost:5173')).toBe(
+  expect(unreachableMessage('http://api.test', true, 'http://localhost:5173', 'en')).toBe(
     'The API at http://api.test answers, but refuses requests from this page. Add' +
       ' http://localhost:5173 to CORS_ALLOWED_ORIGINS and restart the API.',
   )
-  expect(unreachableMessage('http://api.test', false, 'http://localhost:5173')).toBe(
+  expect(unreachableMessage('http://api.test', false, 'http://localhost:5173', 'en')).toBe(
     "Can't reach the API at http://api.test. Check the URL and that the API is running.",
   )
 })

@@ -8,7 +8,7 @@ test.each([
   [0.0123, '$0.01'],
   [1.5, '$1.50'],
 ])('cost %d reads %s', (cost, text) => {
-  expect(formatCost(cost)).toBe(text)
+  expect(formatCost(cost, 'en')).toBe(text)
 })
 
 test.each([
@@ -18,7 +18,7 @@ test.each([
   [12_345, '12.3k tokens'],
   [1_250_000, '1.3M tokens'],
 ])('%d tokens read %s', (tokens, text) => {
-  expect(formatTokens(tokens)).toBe(text)
+  expect(formatTokens(tokens, 'en')).toBe(text)
 })
 
 test.each([
@@ -26,7 +26,7 @@ test.each([
   [4500, '4.5 s'],
   [12_400, '12 s'],
 ])('%d ms reads %s', (ms, text) => {
-  expect(formatDuration(ms)).toBe(text)
+  expect(formatDuration(ms, 'en')).toBe(text)
 })
 
 describe('in Spanish', () => {

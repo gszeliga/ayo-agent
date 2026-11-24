@@ -46,6 +46,13 @@ export const common: Catalog['common'] = {
     goToDocuments: 'Ir a documentos',
   },
   retry: 'Reintentar',
+  loading: {
+    document: 'Cargando documento',
+    settings: 'Cargando ajustes',
+    search: 'Cargando búsqueda',
+    chat: 'Cargando chat',
+    content: 'Cargando contenido',
+  },
   confirmByTyping: 'Escribe <phrase/> para confirmar',
   copy: { copied: 'Copiado', unavailable: 'No se puede copiar' },
   errors: {

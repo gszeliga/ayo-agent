@@ -48,7 +48,7 @@ export const chat = {
     loadMore: 'Load more',
     rail: 'Cases list (collapsed)',
     // After the count, for screen readers: "12 cases".
-    railSuffix_one: ' cases',
+    railSuffix_one: ' case',
     railSuffix_other: ' cases',
   },
   filters: {

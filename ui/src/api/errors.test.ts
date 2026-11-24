@@ -57,7 +57,7 @@ describe('describeError', () => {
   test('the API out of reach is worded by the UI, in its language', () => {
     const error = ApiError.network(new TypeError('Failed to fetch'))
 
-    expect(describeError(error, BASE)).toBe(
+    expect(describeError(error, BASE, 'en')).toBe(
       "Can't reach the API at http://api.test. Check the URL and that the API is running.",
     )
     expect(describeError(error, BASE, 'es')).toBe(
@@ -68,7 +68,7 @@ describe('describeError', () => {
   test('an answer not in the API format names its status, in the UI language', () => {
     const error = ApiError.fromResponse(502, '<html>Bad gateway</html>')
 
-    expect(describeError(error, BASE)).toBe('The API answered HTTP 502')
+    expect(describeError(error, BASE, 'en')).toBe('The API answered HTTP 502')
     expect(describeError(error, BASE, 'es')).toBe('La API ha respondido HTTP 502')
   })
 

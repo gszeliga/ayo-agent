@@ -8,6 +8,9 @@ export const document = {
     chat: 'Back to chat',
   },
   loading: 'Loading document',
+  // An image in a document is never loaded; its alt text shows instead.
+  imageNotShown: 'Image not shown',
+  imageNotShownAlt: 'Image not shown: {{alt}}',
   replace: 'Replace',
   copyDocId: 'Copy doc_id',
   tabs: { content: 'Content', chunks: 'Chunks' },
@@ -82,16 +85,14 @@ export const document = {
     forceHint: 'Re-chunk and re-embed even if up to date.',
     upToDate: 'Already up to date: nothing to do.',
     upToDateHint: 'Use Force reprocess to rebuild it anyway.',
-    // "1 chunks" as before (decision 21).
-    done_one: 'Reprocessed: {{count}} chunks',
+    done_one: 'Reprocessed: {{count}} chunk',
     done_other: 'Reprocessed: {{count}} chunks',
     changed: 'A newer upload replaced it while reprocessing; nothing was written.',
   },
   delete: {
     button: 'Delete',
     title: 'Delete {{name}}?',
-    // "1 chunks" as before (decision 21).
-    warning_one: 'The document and its {{count}} chunks are removed for good. There is no undo.',
+    warning_one: 'The document and its {{count}} chunk are removed for good. There is no undo.',
     warning_other: 'The document and its {{count}} chunks are removed for good. There is no undo.',
     cancel: 'Cancel',
     deleting: 'Deleting…',

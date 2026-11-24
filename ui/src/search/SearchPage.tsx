@@ -232,6 +232,7 @@ export function SearchPage() {
             rows={3}
             aria-invalid={problems.query ? true : undefined}
             aria-describedby={questionNoteId}
+            // eslint-disable-next-line i18next/no-literal-string -- an example question in the content's language
             placeholder="¿Qué hago si la junta de la bomba pierde presión?"
             className={cn(
               'border-input placeholder:text-muted-foreground dark:bg-input/30 block min-h-19 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-base shadow-xs outline-none md:text-sm',

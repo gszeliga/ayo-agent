@@ -45,6 +45,14 @@ export const common = {
     goToDocuments: 'Go to documents',
   },
   retry: 'Retry',
+  // Skeletons while a lazy page or the Markdown renderer loads.
+  loading: {
+    document: 'Loading document',
+    settings: 'Loading settings',
+    search: 'Loading search',
+    chat: 'Loading chat',
+    content: 'Loading content',
+  },
   // <phrase/> is the text to type, shown in bold (a component, so it is never parsed).
   confirmByTyping: 'Type <phrase/> to confirm',
   copy: { copied: 'Copied', unavailable: 'Copy unavailable' },

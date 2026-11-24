@@ -74,7 +74,7 @@ export class ApiError extends Error {
  * What to tell the user about a failed call. The UI words what it found itself (the API
  * out of reach, an answer not in the API's format); the API's own `msg` is shown as is.
  */
-export function describeError(error: Error, baseUrl: string, language: Language = 'en'): string {
+export function describeError(error: Error, baseUrl: string, language: Language): string {
   if (!(error instanceof ApiError)) return error.message
   const t = i18n.getFixedT(language, 'common')
   if (error.isNetworkError) return t('errors.unreachable', { baseUrl })

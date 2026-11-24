@@ -73,14 +73,14 @@ function diff(
     )
 }
 
-export const chunkerDiff = (stored: string, current: string, language: Language = 'en') =>
+export const chunkerDiff = (stored: string, current: string, language: Language) =>
   diff(stored, current, parseChunkerConfig, language)
 
-export const embedderDiff = (stored: string, current: string, language: Language = 'en') =>
+export const embedderDiff = (stored: string, current: string, language: Language) =>
   diff(stored, current, parseEmbedderConfig, language)
 
 /** The note under a config in the facts panel, or null when nothing differs. */
-export function differsNote(changes: string[] | null, language: Language = 'en'): string | null {
+export function differsNote(changes: string[] | null, language: Language): string | null {
   const t = i18n.getFixedT(language, 'document')
   if (changes === null) return t('differs')
   return changes.length === 0 ? null : t('nowDiffers', { changes: changes.join(', ') })

@@ -9,11 +9,11 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Active (2026-11-23): UI languages (English + Spanish).** No spec file; plan, decisions,
-  steps I1-I8 and log in `plans/i18n-progress.md`. **Read it first.** I1-I7 are done
-  (set-up, picker, formatters, shell, glossary, connect screen, documents list, bulk dialogs,
-  upload, document page, settings, search, test chat and inspector); I8 (defaults removed,
-  lint rule, axe in Spanish, final report) is next. Front end only, no billed calls.
+- **Nothing is active.** Ask the user what comes next (candidates: the "Open items" of the
+  milestones below, or the parked E11, S3-S5 and D1).
+- Done (2026-11-24): UI languages, English + Spanish (I1-I8). No spec file; plan,
+  decisions, glossary, log, final report and "Open items" in `plans/i18n-progress.md`.
+  Front end only.
 - Done (2026-11-23): test chat and case inspector (`/chat`; C1-C10, T0-T5b and side
   steps). Spec `plans/claude-code-prompt-test-chat.md`; decisions, log, final report and
   "Open items" in `plans/chat-progress.md`. `POST /admin/cases/{case_id}/summary` and every
@@ -64,7 +64,7 @@ working rules, update this file in that step's commit.
   README and `docs/development.md` or `docs/operations.md`. A new topic doc is listed in
   the README's "Where to find what" (`tests/unit/test_docs_links.py` checks the links).
 - After the step: update the active milestone's progress file (now
-  `plans/i18n-progress.md`), make **exactly one commit** (code + tests + log together),
+  `plans/<milestone>-progress.md`), make **exactly one commit** (code + tests + log together),
   summarise what changed and what to check, then **stop** for review.
   Never chain steps, even when told to "continue".
 - **Push only when the user asks**, and never force-push.
@@ -230,7 +230,8 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
   and openapi-typescript support 7. Theme colours only through the tokens in
   `src/index.css`. Tests use MSW; unhandled requests fail. UI copy goes through the
   i18next catalogs (`src/i18n/locales/{en,es}/`: English source, Spanish typed against
-  it; details in `ui/README.md`, "Languages"). API calls go
+  it; details in `ui/README.md`, "Languages"); `i18next/no-literal-string` fails lint on
+  a literal in JSX, and formatters take the language (no default). API calls go
   through `useApiClient()` + `unwrap()`, errors are `ApiError`. UI routes never start with
   an API path (`/admin`, `/health`, `/docs`, `/redoc`, `/openapi.json`).
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)
