@@ -7,9 +7,9 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1, I2 and I3a are done (2026-11-24). **Next: I3b** (bulk delete and bulk reprocess
-dialogs, their toasts, `ConfirmByTyping`; the phrase to type is translated, decision 17).
-Write its brief and wait for the user's OK. Use the glossary below; `describeError`,
+I1, I2, I3a and I3b are done (2026-11-24). **Next: I3c** (upload: dialog, file drop,
+field checks, API error placement, toasts; `src/upload/*`). Write its brief and wait for
+the user's OK. Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -115,6 +115,14 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     in step with its Retry, Spanish since I1. English copy unchanged, including "(1 on
     other pages)" (the plural keys are there; English wording kept as it was).
 
+19. (I3b) **Markup in a string** goes through `<Trans>` with a self-closing component
+    (`'Type <phrase/> to confirm'`, the element given with its own children), so the
+    value (a document's name in I4) is never parsed as markup. The parity test also
+    compares `<Trans>` tags. Dialog errors are kept as the `Error` and worded when shown
+    (decision 16); toasts are worded once, when shown. `REPROCESS_PROVIDER_FAILED` stays
+    a literal in `ReprocessButton.tsx` until I4 (a computed export there trips
+    react-refresh); the catalog's `reprocessProviderFailed(language)` replaces it then.
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -147,7 +155,7 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
   messages (`src/pages/ConnectPage.tsx`, `src/connection/*`, `src/api/errors.ts`).
 - [x] **I3a** Documents list: page, filters, table, badge, pagination, selection bar,
   empty states (decision 17).
-- [ ] **I3b** Bulk delete and bulk reprocess dialogs, their toasts, `ConfirmByTyping`.
+- [x] **I3b** Bulk delete and bulk reprocess dialogs, their toasts, `ConfirmByTyping`.
 - [ ] **I3c** Upload: dialog, file drop, field checks, API error placement, toasts
   (`src/upload/*`).
 - [ ] **I4** Document detail: facts, content, chunks, rename, reprocess, delete
@@ -273,3 +281,18 @@ I2 adjusts them if the glossary differs.
   list, a count of one and the outdated button, no documents, no match); the catalog
   parity test covers the new namespace. 547 tests; existing ones unchanged except
   `listParams.test.ts` (the options are plain values now). `pnpm check` passes.
+- 2026-11-24, **I3b** (bulk delete and bulk reprocess). `documents` gets `bulkDelete.*`
+  and `bulkReprocess.*`; `common` gets `confirmByTyping` (`<Trans>`, decision 19). Bulk
+  delete: title, warning with the chunk count, the list ("y 96 más"), the phrase to type
+  ("eliminar 3", decision 17), the buttons, the toast ("Eliminado 1 documento; 2 ya no
+  existían"), the partial failure. Bulk reprocess: both confirmations, the running stage
+  (progress, current document, stopping, Stop, the progress bar's label), the summary
+  (titles, "N documentos procesados", still selected, outcome rows by value, "No
+  empezados", "Detenido en «…»: …"), the provider-failed message. Local `plural()` helpers
+  replaced by i18next plurals; glued sentences became whole keys. English output
+  unchanged. Tests: three Spanish cases in `bulkDelete.test.tsx` (the flow with the
+  phrase in bold and the English phrase refused, already gone, a partial failure on the
+  dialog alone with 101 selected, reworded when the browser's language changes) and three
+  in `bulkReprocessDialog.test.tsx` (confirm and summary, a provider failure on the
+  filter, running and stop); the parity test compares `<Trans>` tags. 556 tests; existing
+  ones unchanged. `pnpm check` passes.

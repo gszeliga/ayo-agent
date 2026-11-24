@@ -14,6 +14,8 @@ import { useReprocess } from '@/documents/mutations'
 
 export const DOCUMENT_CHANGED =
   'A newer upload replaced it while reprocessing; nothing was written.'
+// English until this page's step (I4 in plans/i18n-progress.md); then
+// `reprocessProviderFailed(language)` from `@/documents/bulkReprocess`.
 export const REPROCESS_PROVIDER_FAILED = 'The embedding provider failed; nothing was written.'
 
 /** Reprocess (skipped when up to date), with Force in the menu. */

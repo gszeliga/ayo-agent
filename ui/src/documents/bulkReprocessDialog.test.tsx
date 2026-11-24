@@ -277,3 +277,86 @@ test('each stage passes the accessibility baseline', async () => {
   await screen.findByRole('alertdialog', { name: 'Reprocess finished' })
   expect(await a11yViolations()).toEqual([])
 })
+
+describe('in Spanish', () => {
+  async function openListEs(path = '/documents') {
+    const rendered = renderApp(path, { connected: true, language: 'es' })
+    await screen.findByRole('table', { name: 'Documentos' })
+    return rendered
+  }
+
+  test('the confirmation, the summary and its outcomes are Spanish', async () => {
+    const docs = [...outdated(2), makeDocument({ title: 'Ya indexado', source_key: 'ya.md' })]
+    serve(docs, {
+      answer: (index) =>
+        index === 1 ? error(409, 'document_changed', 'replaced meanwhile') : undefined,
+    })
+    const { user } = await openListEs()
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos en esta página' }))
+    await user.click(
+      within(screen.getByRole('region', { name: 'Selección' })).getByRole('button', {
+        name: 'Reprocesar',
+      }),
+    )
+
+    expect(dialog()).toHaveAccessibleName('¿Reprocesar 3 documentos?')
+    expect(dialog()).toHaveTextContent('Cada uno se vuelve a dividir en chunks')
+    await user.click(within(dialog()).getByRole('button', { name: 'Empezar' }))
+
+    const summary = await screen.findByRole('alertdialog', { name: 'Reprocesado terminado' })
+    expect(summary).toHaveTextContent(
+      '3 documentos procesados. Los que no han quedado resueltos siguen seleccionados.',
+    )
+    const outcome = within(summary).getByRole('group', { name: 'Resultado' })
+    expect(outcome).toHaveTextContent('Reprocesados1')
+    expect(outcome).toHaveTextContent('Ya al día1')
+    expect(outcome).toHaveTextContent('Sustituidos por una subida más reciente mientras tanto1')
+    expect(within(summary).getByRole('button', { name: 'Cerrar' })).toBeInTheDocument()
+  })
+
+  test('a provider failure says where and why, in Spanish', async () => {
+    serve(outdated(3), {
+      answer: (index) =>
+        index === 1 ? error(502, 'embedding_failed', 'embedding provider failed') : undefined,
+    })
+    const { user } = await openListEs('/documents?status=outdated')
+    await user.click(screen.getByRole('button', { name: 'Reprocesar los 3 desactualizados' }))
+    expect(dialog()).toHaveTextContent('Cada documento que coincide con los filtros actuales')
+    await user.click(within(dialog()).getByRole('button', { name: 'Empezar' }))
+
+    const summary = await screen.findByRole('alertdialog', { name: 'Reprocesado detenido' })
+    expect(within(summary).getByRole('alert')).toHaveTextContent(
+      'Detenido en «Procedimiento 002»: El proveedor de embeddings ha fallado; no se ha escrito' +
+        ' nada.',
+    )
+    const outcome = within(summary).getByRole('group', { name: 'Resultado' })
+    expect(outcome).toHaveTextContent('Fallidos1')
+    expect(outcome).toHaveTextContent('No empezados1')
+  })
+
+  test('while running, progress and the current document are Spanish', async () => {
+    const { gate, release } = makeGate()
+    serve(outdated(2), { answer: async () => (await gate, undefined) })
+    const { user } = await openListEs()
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos en esta página' }))
+    await user.click(
+      within(screen.getByRole('region', { name: 'Selección' })).getByRole('button', {
+        name: 'Reprocesar',
+      }),
+    )
+    await user.click(within(dialog()).getByRole('button', { name: 'Empezar' }))
+
+    const running = await screen.findByRole('alertdialog', { name: 'Reprocesando documentos' })
+    expect(running).toHaveTextContent('0 de 2 hechos. Mantén esta pestaña abierta.')
+    expect(running).toHaveTextContent('Ahora: Procedimiento 001')
+    expect(
+      within(running).getByRole('progressbar', { name: 'Progreso del reprocesado' }),
+    ).toBeVisible()
+    await user.click(within(running).getByRole('button', { name: 'Detener' }))
+    expect(running).toHaveTextContent('Deteniendo tras este documento…')
+    release()
+
+    const summary = await screen.findByRole('alertdialog', { name: 'Reprocesado detenido' })
+    expect(summary).toHaveTextContent('Detenido a petición tuya. 1 documento procesado.')
+  })
+})

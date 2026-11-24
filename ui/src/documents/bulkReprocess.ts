@@ -1,4 +1,6 @@
 import { ApiError } from '@/api/errors'
+import { i18n } from '@/i18n'
+import type { Language } from '@/lib/language'
 
 /** A document to reprocess: its id, and what to call it on screen. */
 export interface Target {
@@ -17,13 +19,9 @@ export const OUTCOMES: readonly Outcome[] = [
   'failed',
 ]
 
-/** Each outcome in words, as the summary lists it. */
-export const OUTCOME_LABELS: Record<Outcome, string> = {
-  reprocessed: 'Reprocessed',
-  up_to_date: 'Already up to date',
-  changed: 'Replaced by a newer upload meanwhile',
-  gone: 'Deleted meanwhile',
-  failed: 'Failed',
+/** A reprocess's 502: the provider failed before anything was written. */
+export function reprocessProviderFailed(language: Language): string {
+  return i18n.getFixedT(language, 'documents')('bulkReprocess.providerFailed')
 }
 
 export type Counts = Record<Outcome, number>

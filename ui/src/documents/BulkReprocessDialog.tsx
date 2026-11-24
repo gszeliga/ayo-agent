@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { unwrap } from '@/api/client'
 import { ApiError, describeError } from '@/api/errors'
@@ -14,12 +15,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { useApiClient, useConnection } from '@/connection/context'
-import { REPROCESS_PROVIDER_FAILED } from '@/document/ReprocessButton'
+import { useLanguage } from '@/layout/languageContext'
 
 import {
   emptyCounts,
-  OUTCOME_LABELS,
   OUTCOMES,
+  reprocessProviderFailed,
   runBulkReprocess,
   type Outcome,
   type Progress,
@@ -48,14 +49,13 @@ const SETTLED: readonly Outcome[] = ['reprocessed', 'up_to_date', 'gone']
 const settledCount = (result: RunResult) =>
   SETTLED.reduce((sum, outcome) => sum + result.counts[outcome], 0)
 
-const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`
-
 function ProgressBar({ done, total }: { done: number; total: number }) {
+  const { t } = useTranslation('documents')
   const share = total === 0 ? 100 : (done / total) * 100
   return (
     <div
       role="progressbar"
-      aria-label="Reprocess progress"
+      aria-label={t('bulkReprocess.progressLabel')}
       aria-valuemin={0}
       aria-valuemax={total}
       aria-valuenow={done}
@@ -70,20 +70,21 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
 }
 
 function Summary({ result, failure }: { result: RunResult; failure: string | null }) {
+  const { t } = useTranslation('documents')
   const rows = OUTCOMES.filter((outcome) => result.counts[outcome] > 0)
   return (
     <div className="space-y-3">
-      <div role="group" aria-label="Outcome">
+      <div role="group" aria-label={t('bulkReprocess.outcomeLabel')}>
         <dl className="space-y-1.5">
           {rows.map((outcome) => (
             <div key={outcome} className="flex justify-between gap-4">
-              <dt>{OUTCOME_LABELS[outcome]}</dt>
+              <dt>{t(`bulkReprocess.outcome.${outcome}`)}</dt>
               <dd className="tabular-nums">{result.counts[outcome]}</dd>
             </div>
           ))}
           {result.notStarted > 0 && (
             <div className="text-muted-foreground flex justify-between gap-4">
-              <dt>Not started</dt>
+              <dt>{t('bulkReprocess.notStarted')}</dt>
               <dd className="tabular-nums">{result.notStarted}</dd>
             </div>
           )}
@@ -114,11 +115,14 @@ export function BulkReprocessDialog({
   /** These documents are settled (reprocessed, up to date or gone): drop them from the selection. */
   onFinished?: (docIds: string[]) => void
 }) {
+  const { t } = useTranslation('documents')
+  const { language } = useLanguage()
   const client = useApiClient()
   const queryClient = useQueryClient()
   const { connection } = useConnection()
   const [stage, setStage] = useState<Stage>({ name: 'confirm' })
-  const [error, setError] = useState<string | null>(null)
+  // The failure itself, worded when shown: a language switch rewords it.
+  const [error, setError] = useState<Error | null>(null)
   const [stopping, setStopping] = useState(false)
   const stop = useRef(false)
   const mounted = useRef(true)
@@ -149,8 +153,10 @@ export function BulkReprocessDialog({
   const count = source.kind === 'selection' ? source.items.size : source.total
 
   function describe(failure: Error): string {
-    if (failure instanceof ApiError && failure.status === 502) return REPROCESS_PROVIDER_FAILED
-    return describeError(failure, baseUrl)
+    if (failure instanceof ApiError && failure.status === 502) {
+      return reprocessProviderFailed(language)
+    }
+    return describeError(failure, baseUrl, language)
   }
 
   async function start() {
@@ -167,7 +173,7 @@ export function BulkReprocessDialog({
       } catch (failure) {
         if (!mounted.current) return
         setStage({ name: 'confirm' })
-        setError(describe(failure as Error))
+        setError(failure as Error)
         return
       }
       // The page was left while the ids were being collected.
@@ -221,7 +227,10 @@ export function BulkReprocessDialog({
   const result = stage.name === 'done' ? stage.result : null
   const failure =
     result?.stopped?.by === 'error'
-      ? `Stopped at “${result.stopped.target.title}”: ${describe(result.stopped.error)}`
+      ? t('bulkReprocess.stoppedAt', {
+          title: result.stopped.target.title,
+          error: describe(result.stopped.error),
+        })
       : null
 
   return (
@@ -230,21 +239,16 @@ export function BulkReprocessDialog({
         {stage.name === 'confirm' || stage.name === 'collecting' ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                Reprocess {plural(count, 'document', 'documents')}?
-              </AlertDialogTitle>
+              <AlertDialogTitle>{t('bulkReprocess.title', { count })}</AlertDialogTitle>
               <AlertDialogDescription>
                 {source.kind === 'filter'
-                  ? 'Every document matching the current filters is'
-                  : 'Each one is'}{' '}
-                re-chunked and re-embedded with the current settings, one at a time, calling the
-                embedding provider for each. Documents already up to date are skipped. Keep this tab
-                open until it finishes.
+                  ? t('bulkReprocess.descriptionFilter')
+                  : t('bulkReprocess.descriptionSelection')}
               </AlertDialogDescription>
             </AlertDialogHeader>
             {error && (
               <Alert variant="destructive" role="alert">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{describe(error)}</AlertDescription>
               </Alert>
             )}
             <AlertDialogFooter>
@@ -255,27 +259,30 @@ export function BulkReprocessDialog({
                   close(false)
                 }}
               >
-                Cancel
+                {t('bulkReprocess.cancel')}
               </Button>
               <Button disabled={busy} onClick={() => void start()}>
-                {busy ? 'Finding documents…' : 'Start'}
+                {busy ? t('bulkReprocess.collecting') : t('bulkReprocess.start')}
               </Button>
             </AlertDialogFooter>
           </>
         ) : stage.name === 'running' ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Reprocessing documents</AlertDialogTitle>
+              <AlertDialogTitle>{t('bulkReprocess.runningTitle')}</AlertDialogTitle>
               <AlertDialogDescription>
-                {stage.progress.done} of {stage.progress.total} done. Keep this tab open.
+                {t('bulkReprocess.progress', {
+                  done: stage.progress.done,
+                  total: stage.progress.total,
+                })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <ProgressBar done={stage.progress.done} total={stage.progress.total} />
             <p aria-live="polite" className="text-muted-foreground truncate text-[13px]">
               {stopping
-                ? 'Stopping after this document…'
+                ? t('bulkReprocess.stopping')
                 : stage.progress.current
-                  ? `Now: ${stage.progress.current.title}`
+                  ? t('bulkReprocess.current', { title: stage.progress.current.title })
                   : ''}
             </p>
             <AlertDialogFooter>
@@ -287,7 +294,7 @@ export function BulkReprocessDialog({
                   setStopping(true)
                 }}
               >
-                Stop
+                {t('bulkReprocess.stop')}
               </Button>
             </AlertDialogFooter>
           </>
@@ -295,16 +302,23 @@ export function BulkReprocessDialog({
           <>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {stage.result.stopped ? 'Reprocess stopped' : 'Reprocess finished'}
+                {stage.result.stopped
+                  ? t('bulkReprocess.stoppedTitle')
+                  : t('bulkReprocess.finishedTitle')}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {stage.result.stopped?.by === 'user' ? 'Stopped at your request. ' : ''}
-                {plural(stage.result.outcomes.size, 'document', 'documents')} processed.
-                {source.kind === 'selection' &&
-                stage.result.outcomes.size - settledCount(stage.result) + stage.result.notStarted >
-                  0
-                  ? ' The ones not settled are still selected.'
-                  : ''}
+                {[
+                  stage.result.stopped?.by === 'user' && t('bulkReprocess.stoppedByUser'),
+                  t('bulkReprocess.processed', { count: stage.result.outcomes.size }),
+                  source.kind === 'selection' &&
+                    stage.result.outcomes.size -
+                      settledCount(stage.result) +
+                      stage.result.notStarted >
+                      0 &&
+                    t('bulkReprocess.stillSelected'),
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Summary result={stage.result} failure={failure} />
@@ -314,7 +328,7 @@ export function BulkReprocessDialog({
                   close(false)
                 }}
               >
-                Close
+                {t('bulkReprocess.close')}
               </Button>
             </AlertDialogFooter>
           </>

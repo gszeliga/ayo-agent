@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { Trans } from 'react-i18next'
 
 import { Input } from '@/components/ui/input'
 
@@ -18,7 +19,12 @@ export function ConfirmByTyping({
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="text-[13px]">
-        Type <strong className="font-mono font-semibold break-all">{expected}</strong> to confirm
+        <Trans
+          i18nKey="confirmByTyping"
+          components={{
+            phrase: <strong className="font-mono font-semibold break-all">{expected}</strong>,
+          }}
+        />
       </label>
       <Input
         id={id}

@@ -1,4 +1,4 @@
-/** The documents list: filters, table, pagination, selection (dialogs: I3b, I3c). */
+/** The documents list: filters, table, pagination, selection, bulk dialogs (upload: I3c). */
 export const documents = {
   pageTitle: 'Documents',
   heading: 'Documents',
@@ -64,6 +64,62 @@ export const documents = {
     clear: 'Clear selection',
     reprocess: 'Reprocess',
     delete: 'Delete',
+  },
+  bulkDelete: {
+    title_one: 'Delete {{count}} document?',
+    title_other: 'Delete {{count}} documents?',
+    warning: 'They and their {{chunks}} are removed for good. There is no undo.',
+    chunks_one: '{{count}} chunk',
+    chunks_other: '{{count}} chunks',
+    listLabel: 'Documents to delete',
+    more: 'and {{n}} more',
+    // What to type to confirm: in the UI's language, since people type what they see.
+    phrase: 'delete {{n}}',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    deleting: 'Deleting…',
+    deleted_one: 'Deleted {{count}} document',
+    deleted_other: 'Deleted {{count}} documents',
+    withGone: '{{deleted}}; {{gone}} already gone',
+    gone_one: '{{count}} was',
+    gone_other: '{{count}} were',
+    partial: '{{outcome}}, then it stopped: {{error}} The rest are still selected.',
+  },
+  bulkReprocess: {
+    title_one: 'Reprocess {{count}} document?',
+    title_other: 'Reprocess {{count}} documents?',
+    descriptionFilter:
+      'Every document matching the current filters is re-chunked and re-embedded with the current settings, one at a time, calling the embedding provider for each. Documents already up to date are skipped. Keep this tab open until it finishes.',
+    descriptionSelection:
+      'Each one is re-chunked and re-embedded with the current settings, one at a time, calling the embedding provider for each. Documents already up to date are skipped. Keep this tab open until it finishes.',
+    cancel: 'Cancel',
+    start: 'Start',
+    collecting: 'Finding documents…',
+    runningTitle: 'Reprocessing documents',
+    progress: '{{done}} of {{total}} done. Keep this tab open.',
+    progressLabel: 'Reprocess progress',
+    stopping: 'Stopping after this document…',
+    current: 'Now: {{title}}',
+    stop: 'Stop',
+    stoppedTitle: 'Reprocess stopped',
+    finishedTitle: 'Reprocess finished',
+    stoppedByUser: 'Stopped at your request.',
+    processed_one: '{{count}} document processed.',
+    processed_other: '{{count}} documents processed.',
+    stillSelected: 'The ones not settled are still selected.',
+    outcomeLabel: 'Outcome',
+    // Keyed by the run's outcome values.
+    outcome: {
+      reprocessed: 'Reprocessed',
+      up_to_date: 'Already up to date',
+      changed: 'Replaced by a newer upload meanwhile',
+      gone: 'Deleted meanwhile',
+      failed: 'Failed',
+    },
+    notStarted: 'Not started',
+    stoppedAt: 'Stopped at “{{title}}”: {{error}}',
+    providerFailed: 'The embedding provider failed; nothing was written.',
+    close: 'Close',
   },
   empty: {
     noMatchTitle: 'No documents match',

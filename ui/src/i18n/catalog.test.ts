@@ -18,6 +18,9 @@ function flatten(tree: object, prefix = ''): Map<string, string> {
 const placeholders = (text: string) =>
   [...text.matchAll(/\{\{\s*([\w.]+)[^}]*\}\}/g)].map((m) => m[1]).sort()
 
+// `<Trans>` components (`<phrase/>`, `<b>…</b>`): a missing or renamed one loses its element.
+const tags = (text: string) => [...text.matchAll(/<\/?(\w+)\s*\/?>/g)].map((m) => m[0]).sort()
+
 const others = LANGUAGES.filter((language) => language !== 'en')
 
 describe.each(NAMESPACES)('the %s namespace', (namespace) => {
@@ -35,6 +38,13 @@ describe.each(NAMESPACES)('the %s namespace', (namespace) => {
         key,
         placeholders: placeholders(text),
       })
+    }
+  })
+
+  test.each(others)('%s has the same <Trans> tags in every string', (language) => {
+    const translated = flatten(resources[language][namespace])
+    for (const [key, text] of english) {
+      expect({ key, tags: tags(translated.get(key) ?? '') }).toEqual({ key, tags: tags(text) })
     }
   })
 

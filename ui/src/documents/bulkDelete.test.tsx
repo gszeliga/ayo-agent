@@ -1,10 +1,12 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
 import { makeDocument, TENANTS } from '@/test/fixtures/documents'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
+
+import { BulkDeleteDialog } from './BulkDeleteDialog'
 
 type Document = components['schemas']['Document']
 
@@ -264,4 +266,118 @@ test('a batch failing after another succeeded says what was done, and keeps the 
   )
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   expect(screen.getByRole('region', { name: 'Selection' })).toHaveTextContent('30 selected')
+})
+
+describe('in Spanish', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function openListEs() {
+    const rendered = renderApp('/documents', { connected: true, language: 'es' })
+    await screen.findByRole('table', { name: 'Documentos' })
+    return rendered
+  }
+
+  test('the dialog asks for "eliminar N", deletes, and says so', async () => {
+    serve(documents(3))
+    const { user } = await openListEs()
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos en esta página' }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+    const dialog = await screen.findByRole('alertdialog', { name: '¿Eliminar 3 documentos?' })
+    expect(dialog).toHaveTextContent('junto con sus 6 chunks. No se puede deshacer.')
+    expect(within(dialog).getByRole('list', { name: 'Documentos que se eliminan' })).toBeVisible()
+    const input = within(dialog).getByLabelText('Escribe eliminar 3 para confirmar')
+    expect(within(dialog).getByText('eliminar 3').tagName).toBe('STRONG')
+    const confirm = within(dialog).getByRole('button', { name: 'Eliminar' })
+    await user.type(input, 'delete 3')
+    expect(confirm).toBeDisabled()
+    await user.clear(input)
+    await user.type(input, 'eliminar 3')
+    await user.click(confirm)
+
+    expect(await screen.findByText('Eliminados 3 documentos')).toBeInTheDocument()
+  })
+
+  test('documents already gone are counted apart', async () => {
+    serve(documents(3))
+    const { user } = await openListEs()
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todos en esta página' }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.type(within(dialog).getByLabelText(/para confirmar/), 'eliminar 3')
+    server.use(
+      http.post(`${API}/admin/documents/delete`, async ({ request }) => {
+        const ids = ((await request.json()) as { doc_ids: string[] }).doc_ids
+        return HttpResponse.json({
+          deleted: [{ doc_id: ids[0], tenant: 'planta-norte', chunk_count: 2 }],
+          not_found: ids.slice(1),
+        })
+      }),
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar' }))
+
+    expect(await screen.findByText('Eliminado 1 documento; 2 ya no existían')).toBeInTheDocument()
+  })
+
+  test('a batch failing after another says what was done, and rewords on a switch', async () => {
+    // The dialog alone: 101 selected without paging through the list.
+    const selected = new Map(
+      Array.from({ length: 101 }, (_, i) => [
+        `upload-${String(i).padStart(12, '0')}`,
+        { title: `Procedimiento ${String(i + 1)}`, chunks: 1 },
+      ]),
+    )
+    let calls = 0
+    server.use(
+      http.post(`${API}/admin/documents/delete`, async ({ request }) => {
+        calls += 1
+        const ids = ((await request.json()) as { doc_ids: string[] }).doc_ids
+        if (calls === 2) {
+          return HttpResponse.json(
+            { detail: [{ type: 'internal_error', loc: [], msg: 'internal server error' }] },
+            { status: 500 },
+          )
+        }
+        return HttpResponse.json({
+          deleted: ids.map((doc_id) => ({ doc_id, tenant: 'planta-norte', chunk_count: 1 })),
+          not_found: [],
+        })
+      }),
+    )
+    // On System, the browser preferring Spanish.
+    let browser = ['es-ES']
+    vi.spyOn(navigator, 'languages', 'get').mockImplementation(() => browser)
+    const routes = (
+      <>
+        <BulkDeleteDialog
+          selected={selected}
+          open
+          onOpenChange={() => undefined}
+          onDeleted={() => undefined}
+        />
+      </>
+    )
+    const { user } = renderApp('/', { connected: true, routes })
+    const dialog = await screen.findByRole('alertdialog', { name: '¿Eliminar 101 documentos?' })
+    expect(dialog).toHaveTextContent('y 96 más')
+    await user.type(within(dialog).getByLabelText(/para confirmar/), 'eliminar 101')
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Eliminados 100 documentos y después se ha detenido: internal server error El resto sigue' +
+        ' seleccionado.',
+    )
+
+    // The failure is kept as is and worded when shown: the browser switches to English (the
+    // header's menu is behind the modal dialog).
+    browser = ['en-GB']
+    act(() => {
+      window.dispatchEvent(new Event('languagechange'))
+    })
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'Deleted 100 documents, then it stopped: internal server error The rest are still selected.',
+    )
+  })
 })

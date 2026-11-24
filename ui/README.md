@@ -29,8 +29,8 @@ English) and changes with them while the page is open. `<html lang>` follows the
 shown. Plan, decisions and progress: `../plans/i18n-progress.md`. Being rolled out one area
 at a time: the shell (header, nav, menus, crash and 404 pages, Retry), the connect screen,
 the UI's own error wording (`describeError`: the API out of reach, an answer not in its
-format; `LoadError` on every screen) and the documents list (not yet its bulk and upload
-dialogs) are translated; the other screens are still English until their step. The connect
+format; `LoadError` on every screen) and the documents list with its bulk delete and
+reprocess dialogs (not yet upload) are translated; the other screens are still English until their step. The connect
 screen has its own language menu, since the header's shows only once connected. Messages
 are kept as codes and worded when shown, so a switch rewords one already on screen. The
 Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.
@@ -52,7 +52,10 @@ missing or extra Spanish key, or a mistyped key in `t()`, fails `tsc`.
   `t('area.key', { n })`. Outside React (formatters) take a `language` argument and use
   `i18n.getFixedT(language, 'common')`. Placeholders are `{{name}}`; plurals use the
   `_one` / `_other` suffixes with `count` (Spanish `_many` falls back to `_other`).
-  `src/i18n/catalog.test.ts` checks every language for the same keys and placeholders.
+  Markup inside a string goes through `<Trans>` with self-closing components
+  (`'Type <phrase/> to confirm'`), so a value is never parsed as markup.
+  `src/i18n/catalog.test.ts` checks every language for the same keys, placeholders and
+  `<Trans>` tags.
 - **A namespace:** a new file per language, added to `locales/{en,es}/index.ts`.
 - **A language:** its code in `Language`, `LANGUAGES`, `LANGUAGE_NAMES` and `INTL_LOCALE`
   (`src/lib/language.ts`), a `locales/<code>/` typed as `Catalog`, and `supportedLngs` in
