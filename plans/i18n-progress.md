@@ -7,10 +7,9 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1-I4 are done (2026-11-24). **Next: I5** (Search and Settings, including
-`ServiceDetails`; `src/search/*`, `src/settings/*`). Write its brief and wait for the
-user's OK. I5 also switches Settings' `outdatedReasonLabel(reason, 'en')` (decision 18)
-to the UI language; `configDiff` is done (decision 22). Use the glossary below; `describeError`,
+I1-I4 and I5a are done (2026-11-24). **Next: I5b** (the test search: form, options,
+organization picker, results, summary, banners, empty states, errors; `src/search/*`).
+Write its brief and wait for the user's OK. Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -149,6 +148,15 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     document's name, unchanged. "Reprocessed: 1 chunks" and "its 1 chunks" kept in
     English (decision 21). Spanish view toggle: "Formateado / Texto".
 
+23. (I5, 2026-11-24) **I5 split in two** (agreed): I5a Settings and `ServiceDetails` (the
+    Settings card and the header's popover), I5b Search. New `settings` namespace; service
+    states and locations by the API's value. Spanish states "En marcha / Sin servicio /
+    Desconocido" (neutral after "Base de datos" and "Embeddings"), location "Remota";
+    the header trigger keeps I1's "OK / sin servicio". Env var names inside sentences go
+    through `<Trans>` `<code>` tags (the text inside comes from the catalog, never from
+    data). Settings' outdated reasons follow the UI language now (closes decision 18's
+    `'en'`).
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -186,7 +194,8 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
   (`src/upload/*`).
 - [x] **I4** Document detail: facts, content, chunks, rename, reprocess, delete
   (`src/document/*`, `src/components/ConfirmByTyping.tsx`, `CopyButton.tsx`).
-- [ ] **I5** Search and Settings, including `ServiceDetails` (`src/search/*`, `src/settings/*`).
+- [x] **I5a** Settings and the service status (`src/settings/*`, decision 23).
+- [ ] **I5b** Search (`src/search/*`).
 - [ ] **I6** Test chat: cases list, filters, case view, composer, send errors, phases,
   `chat/format.ts` (`src/chat/` minus the inspector).
 - [ ] **I7** Inspector: State, Trace, Summary, Actions tabs, summary errors, export (the
@@ -345,3 +354,12 @@ I2 adjusts them if the glossary differs.
   two in `configDiff.test.ts`. 585 tests; existing ones unchanged except `params.test.ts`
   (codes instead of labels) and the two literals in `actions.test.tsx`. `pnpm check`
   passes.
+- 2026-11-24, **I5a** (Settings and service status). I5 split in two (decision 23). New
+  `settings` namespace: tab title, heading and intro, the six cards and every label and
+  unit ("800 caracteres", "128 textos por petición", "800 tokens", "5,0 MB"), the outdated
+  note (plurals) and reasons, the copilot card's fallback and missing-key note
+  (`<Trans>`), the fake-provider note, the copy buttons; `ServiceDetails`: states,
+  location, rows, relative times, "(en caché)", "Estado desconocido: …", Comprobar ahora.
+  Tests: four Spanish cases in `SettingsPage.test.tsx` (the cards; the fallback and no
+  key; the popover from the header; an unreachable status endpoint). 595 tests; existing
+  ones unchanged. `pnpm check` passes.

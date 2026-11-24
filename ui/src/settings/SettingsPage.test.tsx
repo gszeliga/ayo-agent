@@ -305,3 +305,101 @@ describe('service status', () => {
     }
   })
 })
+
+describe('in Spanish', () => {
+  async function openSettingsEs() {
+    const rendered = renderApp('/settings', { connected: true, language: 'es' })
+    await screen.findByRole('region', { name: 'Chunking' })
+    return rendered
+  }
+
+  test('the cards, their labels and values are Spanish; variables and ids are not', async () => {
+    await openSettingsEs()
+
+    expect(screen.getByRole('heading', { name: 'Ajustes de indexación', level: 1 })).toBeVisible()
+    expect(window.document.title).toBe('Ajustes de indexación · AYO Admin')
+    expect(card('Chunking')).toHaveTextContent('Tamaño de chunkCHUNK_SIZE800 caracteres')
+    expect(card('Chunking')).toHaveTextContent('SolapamientoCHUNK_OVERLAP80 caracteres')
+    expect(
+      within(card('Chunking')).getByRole('button', { name: 'Copiar configuración de chunks' }),
+    ).toBeVisible()
+    expect(card('Embeddings')).toHaveTextContent(
+      'Tamaño de loteEMBEDDING_BATCH_SIZE128 textos por petición',
+    )
+    expect(card('Subidas')).toHaveTextContent('Archivo más grandeMAX_UPLOAD_BYTES5,0 MB')
+
+    const documents = card('Documentos')
+    expect(documents).toHaveTextContent('12 guardados')
+    expect(documents).toHaveTextContent('Indexados con la configuración actual9')
+    expect(documents).toHaveTextContent(
+      'La configuración de chunks ha cambiado desde que se indexó2',
+    )
+    expect(documents).toHaveTextContent(
+      '3 documentos están desactualizados: reprocesa un documento',
+    )
+    expect(
+      within(documents).getByRole('link', { name: 'Ver documentos desactualizados' }),
+    ).toBeVisible()
+
+    const copilot = card('Copiloto')
+    expect(copilot).toHaveTextContent('Modelo de conversaciónLLM_MODELmistralai/mistral-small')
+    expect(copilot).toHaveTextContent('Resumen más largoSUMMARY_MAX_TOKENS800 tokens')
+  })
+
+  test('the summary model fallback and a missing key are said in Spanish', async () => {
+    server.use(
+      http.get(`${API}/admin/settings`, () =>
+        HttpResponse.json(
+          makeSettings({
+            copilot: {
+              ...makeSettings().copilot,
+              configured: false,
+              summary_model_source: 'llm_model',
+            },
+          }),
+        ),
+      ),
+    )
+    await openSettingsEs()
+
+    const copilot = card('Copiloto')
+    expect(copilot).toHaveTextContent('de LLM_MODEL')
+    expect(within(copilot).getByText('OPENROUTER_API_KEY').tagName).toBe('CODE')
+    expect(within(copilot).getByRole('note')).toHaveTextContent(
+      'Sin clave del proveedor de modelos (OPENROUTER_API_KEY): no se puede responder a' +
+        ' mensajes ni generar resúmenes.',
+    )
+  })
+
+  test('the status popover is Spanish', async () => {
+    server.use(http.get(`${API}/admin/health`, () => HttpResponse.json(makeHealth())))
+    const { user } = await openSettingsEs()
+    const trigger = screen.getByRole('button', { name: /^Estado del servicio/ })
+    await waitFor(() => {
+      expect(trigger).toHaveAccessibleName('Estado del servicio: base de datos OK, embeddings OK')
+    })
+
+    await user.click(trigger)
+
+    const popover = await screen.findByRole('dialog')
+    expect(
+      within(popover).getByRole('region', { name: 'Servicio de base de datos' }),
+    ).toHaveTextContent(
+      'Base de datos: En marchaUbicaciónLocalVersiónPostgreSQL 18.1 · pgvector 0.8.1Latencia3 ms',
+    )
+    const embeddings = within(popover).getByRole('region', { name: 'Servicio de embeddings' })
+    expect(embeddings).toHaveTextContent('Embeddings: En marcha')
+    expect(embeddings).toHaveTextContent('Último éxitohace 1 h')
+    expect(embeddings).toHaveTextContent('Último errorninguno desde que arrancó la API')
+    expect(within(popover).getByRole('button', { name: 'Comprobar ahora' })).toBeVisible()
+  })
+
+  test('an unreachable status endpoint says so in Spanish', async () => {
+    server.use(http.get(`${API}/admin/health`, () => HttpResponse.error()))
+    await openSettingsEs()
+
+    expect(
+      await within(card('Servicios')).findByText(/^Estado desconocido: No se puede conectar/),
+    ).toBeInTheDocument()
+  })
+})

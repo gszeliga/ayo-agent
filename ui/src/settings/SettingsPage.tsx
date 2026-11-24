@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
 import type { components } from '@/api/schema'
@@ -9,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_PARAMS, toSearchParams } from '@/documents/listParams'
 import { OUTDATED_REASONS, outdatedReasonLabel } from '@/documents/status'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useLanguage } from '@/layout/languageContext'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/paths'
@@ -52,13 +54,13 @@ function Setting({
   )
 }
 
-function Config({ label, value }: { label: string; value: string }) {
+function Config({ label, copy, value }: { label: string; copy: string; value: string }) {
   return (
     <div className="space-y-1">
       <div className="text-muted-foreground text-xs font-medium">{label}</div>
       <div className="bg-secondary flex items-center gap-1 rounded-md py-1 pr-1 pl-2.5">
         <code className="min-w-0 flex-1 font-mono text-[12px] break-all">{value}</code>
-        <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} />
+        <CopyButton value={value} label={copy} />
       </div>
     </div>
   )
@@ -68,18 +70,18 @@ function Config({ label, value }: { label: string; value: string }) {
 const outdatedSearch = toSearchParams({ ...DEFAULT_PARAMS, status: 'outdated' })
 const OUTDATED_DOCUMENTS = `${ROUTES.documents}?${outdatedSearch.toString()}`
 
-const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`
-
 function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
+  const { t } = useTranslation('settings')
+  const { language } = useLanguage()
   const { total, indexed, outdated } = counts
   const reasons = OUTDATED_REASONS.map((reason) => ({ reason, count: outdated[reason] }))
   const outdatedTotal = reasons.reduce((sum, r) => sum + r.count, 0)
   const share = (n: number) => (total === 0 ? 0 : (n / total) * 100)
   return (
-    <Card title="Documents">
+    <Card title={t('card.documents')}>
       <p>
         <span className="text-2xl font-semibold tabular-nums">{total}</span>{' '}
-        <span className="text-muted-foreground">stored</span>
+        <span className="text-muted-foreground">{t('documents.stored')}</span>
       </p>
       {total > 0 && (
         <div aria-hidden="true" className="bg-warning-muted flex h-2 overflow-hidden rounded-full">
@@ -88,12 +90,12 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
         </div>
       )}
       <dl className="space-y-1.5">
-        <Setting label="Indexed with the current settings">{indexed}</Setting>
-        <Setting label="Outdated">{outdatedTotal}</Setting>
+        <Setting label={t('documents.indexed')}>{indexed}</Setting>
+        <Setting label={t('documents.outdated')}>{outdatedTotal}</Setting>
         {reasons.map(({ reason, count }) => (
           <Setting
             key={reason}
-            label={outdatedReasonLabel(reason, 'en')}
+            label={outdatedReasonLabel(reason, language)}
             className="text-muted-foreground pl-4 text-[13px]"
           >
             {count}
@@ -102,13 +104,12 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
       </dl>
       {outdatedTotal > 0 && (
         <p className="text-muted-foreground text-[13px]">
-          {plural(outdatedTotal, 'document is', 'documents are')} outdated: reprocess a document to
-          bring it up to date.{' '}
+          {t('documents.note', { count: outdatedTotal })}{' '}
           <Link
             to={OUTDATED_DOCUMENTS}
             className="text-foreground font-medium underline-offset-4 hover:underline"
           >
-            Show outdated documents
+            {t('documents.showOutdated')}
           </Link>
         </p>
       )}
@@ -117,36 +118,37 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
 }
 
 function CopilotCard({ copilot }: { copilot: IndexingSettings['copilot'] }) {
+  const { t } = useTranslation('settings')
   const fallback = copilot.summary_model_source === 'llm_model'
+  const code = { code: <code className="font-mono" /> }
   return (
-    <Card title="Copilot">
+    <Card title={t('card.copilot')}>
       <dl className="space-y-1.5">
-        <Setting label="Conversation model" env="LLM_MODEL">
+        <Setting label={t('copilot.conversationModel')} env="LLM_MODEL">
           <code className="font-mono text-[12.5px] break-all">{copilot.model}</code>
         </Setting>
-        <Setting label="Summary model" env="SUMMARY_MODEL">
+        <Setting label={t('copilot.summaryModel')} env="SUMMARY_MODEL">
           <code className="font-mono text-[12.5px] break-all">{copilot.summary_model}</code>
           {fallback && (
             <span className="text-muted-foreground ml-2 text-[12px] font-normal">
-              from <code className="font-mono">LLM_MODEL</code>
+              <Trans t={t} i18nKey="copilot.fromEnv" components={code} />
             </span>
           )}
         </Setting>
-        <Setting label="Prompts version" env="PROMPTS_VERSION">
+        <Setting label={t('copilot.promptsVersion')} env="PROMPTS_VERSION">
           <code className="font-mono text-[12.5px]">{copilot.prompts_version}</code>
         </Setting>
-        <Setting label="Summary prompt version" env="SUMMARY_PROMPTS_VERSION">
+        <Setting label={t('copilot.summaryPromptsVersion')} env="SUMMARY_PROMPTS_VERSION">
           <code className="font-mono text-[12.5px]">{copilot.summary_prompts_version}</code>
         </Setting>
-        <Setting label="Longest summary" env="SUMMARY_MAX_TOKENS">
-          {copilot.summary_max_tokens} tokens
+        <Setting label={t('copilot.longestSummary')} env="SUMMARY_MAX_TOKENS">
+          {t('copilot.tokens', { n: copilot.summary_max_tokens })}
         </Setting>
       </dl>
       {!copilot.configured && (
         <Alert role="note" className="bg-warning-muted text-warning border-transparent">
           <AlertDescription className="text-warning">
-            No model provider key (<code className="font-mono">OPENROUTER_API_KEY</code>): messages
-            and summaries can&apos;t be answered.
+            <Trans t={t} i18nKey="copilot.noKey" components={code} />
           </AlertDescription>
         </Alert>
       )}
@@ -155,23 +157,22 @@ function CopilotCard({ copilot }: { copilot: IndexingSettings['copilot'] }) {
 }
 
 export function SettingsPage() {
-  useDocumentTitle('Indexing settings')
+  const { t } = useTranslation('settings')
+  const { language } = useLanguage()
+  useDocumentTitle(t('pageTitle'))
   const settings = useIndexingSettings()
   const data = settings.data
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">Indexing settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Settings come from the API&apos;s environment: changing one needs a restart, and makes
-          documents outdated until they are reprocessed.
-        </p>
+        <h1 className="text-xl font-semibold">{t('heading')}</h1>
+        <p className="text-muted-foreground mt-1">{t('intro')}</p>
       </div>
       {settings.isError && !data ? (
         <LoadError error={settings.error} onRetry={() => void settings.refetch()} />
       ) : !data ? (
-        <div aria-busy="true" aria-label="Loading settings" className="grid gap-4 md:grid-cols-2">
+        <div aria-busy="true" aria-label={t('loading')} className="grid gap-4 md:grid-cols-2">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-48 rounded-xl" />
           ))}
@@ -179,56 +180,61 @@ export function SettingsPage() {
       ) : (
         <div className="grid items-start gap-4 md:grid-cols-2">
           <DocumentsCard counts={data.documents} />
-          <Card title="Services">
+          <Card title={t('card.services')}>
             <ServiceDetails />
           </Card>
-          <Card title="Chunking">
+          <Card title={t('card.chunking')}>
             <dl className="space-y-1.5">
-              <Setting label="Chunker version">
+              <Setting label={t('chunking.version')}>
                 <code className="font-mono text-[12.5px]">{data.chunking.chunker_version}</code>
               </Setting>
-              <Setting label="Chunk size" env="CHUNK_SIZE">
-                {data.chunking.chunk_size} characters
+              <Setting label={t('chunking.size')} env="CHUNK_SIZE">
+                {t('chunking.characters', { n: data.chunking.chunk_size })}
               </Setting>
-              <Setting label="Overlap" env="CHUNK_OVERLAP">
-                {data.chunking.chunk_overlap} characters
+              <Setting label={t('chunking.overlap')} env="CHUNK_OVERLAP">
+                {t('chunking.characters', { n: data.chunking.chunk_overlap })}
               </Setting>
-              <Setting label="Minimum chunk size" env="MIN_CHUNK_SIZE">
-                {data.chunking.min_chunk_size} characters
+              <Setting label={t('chunking.minSize')} env="MIN_CHUNK_SIZE">
+                {t('chunking.characters', { n: data.chunking.min_chunk_size })}
               </Setting>
             </dl>
-            <Config label="Chunker config" value={data.chunking.chunker_config} />
+            <Config
+              label={t('chunking.config')}
+              copy={t('chunking.copyConfig')}
+              value={data.chunking.chunker_config}
+            />
           </Card>
-          <Card title="Embeddings">
+          <Card title={t('card.embeddings')}>
             <dl className="space-y-1.5">
-              <Setting label="Provider" env="EMBEDDING_PROVIDER">
+              <Setting label={t('embedding.provider')} env="EMBEDDING_PROVIDER">
                 {data.embedding.provider}
               </Setting>
-              <Setting label="Model" env="EMBEDDING_MODEL">
+              <Setting label={t('embedding.model')} env="EMBEDDING_MODEL">
                 {data.embedding.model}
               </Setting>
-              <Setting label="Dimensions" env="EMBEDDING_DIMENSIONS">
+              <Setting label={t('embedding.dimensions')} env="EMBEDDING_DIMENSIONS">
                 {data.embedding.dimensions}
               </Setting>
-              <Setting label="Batch size" env="EMBEDDING_BATCH_SIZE">
-                {data.embedding.batch_size} texts per request
+              <Setting label={t('embedding.batchSize')} env="EMBEDDING_BATCH_SIZE">
+                {t('embedding.perRequest', { n: data.embedding.batch_size })}
               </Setting>
             </dl>
             {data.embedding.provider === 'fake' && (
               <Alert role="note" className="bg-warning-muted text-warning border-transparent">
-                <AlertDescription className="text-warning">
-                  The fake provider: deterministic vectors that carry no meaning. Fine for tests and
-                  local runs, useless for retrieval.
-                </AlertDescription>
+                <AlertDescription className="text-warning">{t('embedding.fake')}</AlertDescription>
               </Alert>
             )}
-            <Config label="Embedder config" value={data.embedding.embedder_config} />
+            <Config
+              label={t('embedding.config')}
+              copy={t('embedding.copyConfig')}
+              value={data.embedding.embedder_config}
+            />
           </Card>
           <CopilotCard copilot={data.copilot} />
-          <Card title="Uploads">
+          <Card title={t('card.uploads')}>
             <dl className="space-y-1.5">
-              <Setting label="Largest file" env="MAX_UPLOAD_BYTES">
-                {formatBytes(data.uploads.max_upload_bytes)}
+              <Setting label={t('uploads.largest')} env="MAX_UPLOAD_BYTES">
+                {formatBytes(data.uploads.max_upload_bytes, language)}
               </Setting>
             </dl>
           </Card>

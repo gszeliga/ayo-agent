@@ -1,10 +1,12 @@
 import { RefreshCw } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { describeError } from '@/api/errors'
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
 import { useConnection } from '@/connection/context'
+import { useLanguage } from '@/layout/languageContext'
 import { formatUtc, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -26,19 +28,13 @@ export function StatusDot({ state }: { state: ServiceState }) {
   )
 }
 
-const STATE_TEXT: Record<ServiceState, string> = { up: 'Up', down: 'Down', unknown: 'Unknown' }
-
-const LOCATION_TEXT: Record<components['schemas']['DatabaseHealth']['location'], string> = {
-  local: 'Local',
-  neon: 'Neon',
-  remote: 'Remote',
-}
-
 function When({ iso, now }: { iso: string | null; now: number }) {
-  if (iso === null) return <span className="text-muted-foreground">none since the API started</span>
+  const { t } = useTranslation('settings')
+  const { language } = useLanguage()
+  if (iso === null) return <span className="text-muted-foreground">{t('service.none')}</span>
   return (
     <time dateTime={iso} title={formatUtc(iso)}>
-      {relativeTime(iso, 'en', now)}
+      {relativeTime(iso, language, now)}
     </time>
   )
 }
@@ -54,6 +50,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 /** Database and embeddings in full, with Check now: the popover and the Services card. */
 export function ServiceDetails() {
+  const { t } = useTranslation('settings')
+  const { language } = useLanguage()
   const health = useServiceHealth()
   const { connection } = useConnection()
   const data = health.data
@@ -64,8 +62,10 @@ export function ServiceDetails() {
       <div className="space-y-3 text-[13px]">
         <p className="text-muted-foreground">
           {health.isError
-            ? `Status unknown: ${describeError(health.error, connection?.baseUrl ?? '')}`
-            : 'Checking…'}
+            ? t('service.unknown', {
+                error: describeError(health.error, connection?.baseUrl ?? '', language),
+              })
+            : t('service.checking')}
         </p>
         <CheckNow onCheck={health.checkNow} checking={health.checking} />
       </div>
@@ -74,38 +74,42 @@ export function ServiceDetails() {
   const { database, embeddings } = data
   return (
     <div className="space-y-4 text-[13px]">
-      <section aria-label="Database service" className="space-y-1.5">
+      <section aria-label={t('service.databaseLabel')} className="space-y-1.5">
         <h3 className="flex items-center gap-2 font-semibold">
-          <StatusDot state={database.status} /> Database: {STATE_TEXT[database.status]}
+          <StatusDot state={database.status} />{' '}
+          {t('service.database', { state: t(`service.state.${database.status}`) })}
         </h3>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <Row label="Runs on">{LOCATION_TEXT[database.location]}</Row>
+          <Row label={t('service.runsOn')}>{t(`service.location.${database.location}`)}</Row>
           {database.postgres_version && (
-            <Row label="Version">
+            <Row label={t('service.version')}>
               PostgreSQL {database.postgres_version}
               {database.pgvector_version && ` · pgvector ${database.pgvector_version}`}
             </Row>
           )}
-          <Row label="Latency">{database.latency_ms} ms</Row>
-          {database.error && <Row label="Error">{database.error}</Row>}
+          <Row label={t('service.latency')}>{t('service.ms', { n: database.latency_ms })}</Row>
+          {database.error && <Row label={t('service.error')}>{database.error}</Row>}
         </dl>
       </section>
-      <section aria-label="Embeddings service" className="space-y-1.5">
+      <section aria-label={t('service.embeddingsLabel')} className="space-y-1.5">
         <h3 className="flex items-center gap-2 font-semibold">
-          <StatusDot state={embeddings.status} /> Embeddings: {STATE_TEXT[embeddings.status]}
+          <StatusDot state={embeddings.status} />{' '}
+          {t('service.embeddings', { state: t(`service.state.${embeddings.status}`) })}
         </h3>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <Row label="Provider">{embeddings.provider}</Row>
-          <Row label="Checked">
+          <Row label={t('service.provider')}>{embeddings.provider}</Row>
+          <Row label={t('service.checked')}>
             <When iso={embeddings.checked_at} now={now} />
-            {embeddings.cached && <span className="text-muted-foreground"> (cached)</span>},{' '}
-            {embeddings.latency_ms} ms
+            {embeddings.cached && (
+              <span className="text-muted-foreground"> {t('service.cached')}</span>
+            )}
+            , {t('service.ms', { n: embeddings.latency_ms })}
           </Row>
-          {embeddings.error && <Row label="Error">{embeddings.error}</Row>}
-          <Row label="Last success">
+          {embeddings.error && <Row label={t('service.error')}>{embeddings.error}</Row>}
+          <Row label={t('service.lastSuccess')}>
             <When iso={embeddings.last_success_at} now={now} />
           </Row>
-          <Row label="Last error">
+          <Row label={t('service.lastError')}>
             <When iso={embeddings.last_error_at} now={now} />
             {embeddings.last_error && <span>: {embeddings.last_error}</span>}
           </Row>
@@ -117,6 +121,7 @@ export function ServiceDetails() {
 }
 
 function CheckNow({ onCheck, checking }: { onCheck: () => Promise<unknown>; checking: boolean }) {
+  const { t } = useTranslation('settings')
   return (
     <Button
       variant="outline"
@@ -128,7 +133,7 @@ function CheckNow({ onCheck, checking }: { onCheck: () => Promise<unknown>; chec
       }}
     >
       <RefreshCw aria-hidden="true" className={checking ? 'animate-spin' : undefined} />
-      {checking ? 'Checking…' : 'Check now'}
+      {checking ? t('service.checking') : t('service.checkNow')}
     </Button>
   )
 }
