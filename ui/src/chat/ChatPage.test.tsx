@@ -363,3 +363,141 @@ test('switching cases keeps the filters and the loaded rows', async () => {
   expect(await rows()).toHaveLength(25)
   expect(queries).toHaveLength(asked)
 })
+
+describe('in Spanish', () => {
+  test('the page, the filters and the rows are Spanish', async () => {
+    const queries = serve()
+    const { user } = renderApp('/chat', { connected: true, language: 'es' })
+
+    expect(await screen.findByRole('heading', { name: 'Elige un caso' })).toBeInTheDocument()
+    expect(document.title).toBe('Chat de prueba · AYO Admin')
+    const list = await screen.findByRole('list', { name: 'Casos' })
+    const [open, action, closed, other, untitled] = within(list).getAllByRole('link')
+    expect(screen.getByRole('heading', { name: /Casos/ })).toHaveTextContent('Casos5')
+
+    expect(open).toHaveTextContent('Analizar')
+    expect(open).toHaveTextContent('9 turnos')
+    expect(open).toHaveTextContent('Actualizado hace 1 h')
+    expect(action).toHaveTextContent('Actuar')
+    expect(action).toHaveTextContent('3 pendientes')
+    expect(action).toHaveTextContent('1 atrasada')
+    expect(closed).toHaveTextContent('Cerrado')
+    expect(other).toHaveTextContent('Otro canal')
+    expect(untitled).toHaveTextContent('Caso sin título')
+    expect(untitled).toHaveTextContent('1 turno')
+    expect(untitled).not.toHaveTextContent('1 turnos')
+
+    expect(screen.getByRole('searchbox', { name: 'Buscar casos' })).toHaveAttribute(
+      'placeholder',
+      'Busca qué ocurre',
+    )
+    const tenant = screen.getByRole('combobox', { name: 'Organización' })
+    expect(within(tenant).getByRole('option', { name: 'Todas las organizaciones' })).toBeVisible()
+    const phase = screen.getByRole('combobox', { name: 'Fase' })
+    expect(
+      within(phase)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual([
+      'Todas las fases',
+      'Entender',
+      'Cuestionar',
+      'Analizar',
+      'Actuar',
+      'Seguimiento',
+      'Cerrado',
+    ])
+    // The values stay the API's.
+    await user.selectOptions(phase, 'Seguimiento')
+    await waitFor(() => {
+      expect(last(queries)).toMatchObject({ phase: 'followup' })
+    })
+    const state = screen.getByRole('group', { name: 'Estado' })
+    expect(
+      within(state)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Todos', 'Abiertos', 'Cerrados'])
+    expect(
+      screen.getByRole('separator', { name: 'Cambiar el ancho de la lista de casos' }),
+    ).toHaveAttribute('aria-valuetext', expect.stringMatching(/^\d+ píxeles de ancho$/))
+  })
+
+  test('no match and no cases are Spanish', async () => {
+    serve()
+    const { user } = renderApp('/chat', { connected: true, language: 'es' })
+    await screen.findByRole('list', { name: 'Casos' })
+
+    await user.type(screen.getByRole('searchbox', { name: 'Buscar casos' }), 'nada parecido')
+    expect(await screen.findByRole('heading', { name: 'Ningún caso coincide' })).toBeInTheDocument()
+    expect(screen.getByText('Prueba otra búsqueda u otro filtro.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Quitar filtros' }))
+    expect(await screen.findByRole('list', { name: 'Casos' })).toBeInTheDocument()
+
+    serve([])
+    renderApp('/chat', { connected: true, language: 'es' })
+    expect(
+      await screen.findByRole('heading', { name: 'Aún no hay conversaciones' }),
+    ).toBeInTheDocument()
+  })
+
+  test('Load more and the collapsed rail are Spanish', async () => {
+    serve(manyCases(25))
+    const { user } = renderApp('/chat', { connected: true, language: 'es' })
+    await screen.findByRole('list', { name: 'Casos' })
+    expect(screen.getByRole('button', { name: 'Cargar más' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Ocultar casos' }))
+
+    const rail = screen.getByRole('group', { name: 'Lista de casos (contraída)' })
+    expect(rail).toHaveTextContent('25 casos')
+    expect(within(rail).getByRole('button', { name: 'Nueva conversación' })).toBeInTheDocument()
+    await user.click(within(rail).getByRole('button', { name: 'Mostrar casos' }))
+    expect(await screen.findByRole('list', { name: 'Casos' })).toBeInTheDocument()
+  })
+
+  test('a new conversation is Spanish, from the dialog to the empty chat', async () => {
+    serve()
+    const { user } = renderApp('/chat/new', { connected: true, language: 'es' })
+
+    expect(
+      await screen.findByRole('heading', { name: 'Empieza una conversación nueva' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Elige la organización; el primer mensaje abre el caso.'),
+    ).toBeInTheDocument()
+
+    await user.click(
+      screen.getAllByRole('button', { name: 'Nueva conversación' })[0] ?? document.body,
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Nueva conversación' })
+    expect(dialog).toHaveTextContent('El primer mensaje crea el caso, para esta organización.')
+    expect(await within(dialog).findByLabelText('Organización')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Empezar' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Nueva conversación', level: 1 }),
+    ).toBeVisible()
+    expect(
+      within(screen.getByRole('log', { name: 'Conversación' })).getByText(
+        'Envía el primer mensaje para abrir un caso.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('the dialog says when there are no organizations yet', async () => {
+    serve()
+    server.use(http.get(`${API}/admin/tenants`, () => HttpResponse.json([])))
+    const { user } = renderApp('/chat', { connected: true, language: 'es' })
+    await screen.findByRole('list', { name: 'Casos' })
+
+    await user.click(screen.getByRole('button', { name: 'Nueva conversación' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Nueva conversación' })
+    expect(
+      await within(dialog).findByText(
+        'Aún no hay organizaciones: una aparece en cuanto tiene un documento.',
+      ),
+    ).toBeInTheDocument()
+  })
+})

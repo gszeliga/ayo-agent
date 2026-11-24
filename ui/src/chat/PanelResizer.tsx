@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { clampWidth, type PanelLimits } from './panelWidth'
 
@@ -25,6 +26,7 @@ function rowWidth(handle: HTMLElement): number {
  * back to the default width. Place it inside the column, which must be `relative`.
  */
 export function PanelResizer({ label, edge, width, limits, onResize }: Props) {
+  const { t } = useTranslation('chat')
   const drag = useRef<{ x: number; width: number } | null>(null)
   const outwards = edge === 'left' ? -1 : 1
 
@@ -40,7 +42,7 @@ export function PanelResizer({ label, edge, width, limits, onResize }: Props) {
       aria-valuenow={width}
       aria-valuemin={limits.min}
       aria-valuemax={limits.max}
-      aria-valuetext={`${String(width)} pixels wide`}
+      aria-valuetext={t('panel.width', { n: String(width) })}
       tabIndex={0}
       className={
         'group focus-visible:ring-ring/50 absolute top-0 z-10 flex h-full w-4 cursor-col-resize touch-none justify-center outline-none focus-visible:ring-[3px] ' +

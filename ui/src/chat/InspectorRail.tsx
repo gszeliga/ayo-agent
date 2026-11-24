@@ -33,7 +33,7 @@ export function InspectorRail({ detail, drawer, onOpen }: Props) {
       <PanelRail side="right" label="Inspector tabs">
         <PanelToggle
           side="right"
-          noun="inspector"
+          panel="inspector"
           expanded={false}
           opensDialog={drawer}
           onClick={() => {

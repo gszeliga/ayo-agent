@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -46,6 +47,7 @@ function TenantForm({
   onStart: (tenant: string) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation('chat')
   const tenants = useTenants()
   const names = tenants.data?.map((t) => t.tenant) ?? []
   const last = loadLastTenant()
@@ -61,24 +63,20 @@ function TenantForm({
       }}
     >
       <DialogHeader>
-        <DialogTitle>New conversation</DialogTitle>
-        <DialogDescription>
-          The case is created by the first message, for this tenant.
-        </DialogDescription>
+        <DialogTitle>{t('newConversation.title')}</DialogTitle>
+        <DialogDescription>{t('newConversation.description')}</DialogDescription>
       </DialogHeader>
       {tenants.isPending ? (
-        <p className="text-muted-foreground">Loading tenants…</p>
+        <p className="text-muted-foreground">{t('newConversation.loadingTenants')}</p>
       ) : tenants.isError ? (
         <p role="alert" className="text-destructive">
-          The tenants could not be loaded.
+          {t('newConversation.tenantsFailed')}
         </p>
       ) : names.length === 0 ? (
-        <p className="text-muted-foreground">
-          No tenants yet: a tenant appears once it has a document.
-        </p>
+        <p className="text-muted-foreground">{t('newConversation.noTenants')}</p>
       ) : (
         <div className="space-y-1.5">
-          <Label htmlFor="new-conversation-tenant">Tenant</Label>
+          <Label htmlFor="new-conversation-tenant">{t('newConversation.tenant')}</Label>
           <select
             id="new-conversation-tenant"
             className="border-input bg-card h-9 w-full rounded-md border px-3"
@@ -97,10 +95,10 @@ function TenantForm({
       )}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
+          {t('newConversation.cancel')}
         </Button>
         <Button type="submit" disabled={!tenant}>
-          Start
+          {t('newConversation.start')}
         </Button>
       </DialogFooter>
     </form>

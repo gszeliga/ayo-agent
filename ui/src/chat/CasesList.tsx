@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -35,6 +36,7 @@ export function CasesList({
   onCollapse,
   onNewConversation,
 }: Props) {
+  const { t } = useTranslation('chat')
   const tenants = useTenants()
   const items = cases.data ? flattenCases(cases.data.pages) : []
   const total = cases.data?.pages.at(-1)?.total
@@ -43,23 +45,23 @@ export function CasesList({
     <section aria-labelledby="cases-heading" className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 pb-3">
         <h2 id="cases-heading" className="font-semibold">
-          Cases
+          {t('cases.heading')}
           {total !== undefined && (
             <span className="text-muted-foreground ml-2 text-sm font-normal tabular-nums">
               {total}
             </span>
           )}
         </h2>
-        <PanelToggle side="left" noun="cases" expanded onClick={onCollapse} />
+        <PanelToggle side="left" panel="cases" expanded onClick={onCollapse} />
       </div>
       <Button className="mb-3 w-full" onClick={onNewConversation}>
         <Plus aria-hidden="true" />
-        New conversation
+        {t('cases.newConversation')}
       </Button>
       <CaseFiltersBar filters={filters} tenants={tenants.data} onChange={onFiltersChange} />
       <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto px-1 pb-2">
         {cases.isPending ? (
-          <div className="space-y-2" aria-label="Loading cases">
+          <div className="space-y-2" aria-label={t('cases.loading')}>
             {[0, 1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-16" />
             ))}
@@ -74,8 +76,8 @@ export function CasesList({
         ) : items.length === 0 ? (
           filtered ? (
             <EmptyState
-              title="No cases match"
-              description="Try another search or filter."
+              title={t('cases.noMatchTitle')}
+              description={t('cases.noMatchDescription')}
               action={
                 <Button
                   variant="outline"
@@ -83,20 +85,17 @@ export function CasesList({
                     onFiltersChange(NO_FILTERS)
                   }}
                 >
-                  Clear filters
+                  {t('cases.clearFilters')}
                 </Button>
               }
             />
           ) : (
-            <EmptyState
-              title="No conversations yet"
-              description="Cases appear here once someone talks to the copilot."
-            />
+            <EmptyState title={t('cases.emptyTitle')} description={t('cases.emptyDescription')} />
           )
         ) : (
           <>
             <ul
-              aria-label="Cases"
+              aria-label={t('cases.list')}
               className={cn('space-y-1', cases.isPlaceholderData && 'opacity-60')}
             >
               {items.map((item) => (
@@ -108,7 +107,7 @@ export function CasesList({
             {cases.isFetchNextPageError && (
               <div className="mt-2">
                 <ErrorState
-                  message="More cases could not be loaded."
+                  message={t('cases.moreFailed')}
                   onRetry={() => {
                     void cases.fetchNextPage()
                   }}
@@ -124,7 +123,7 @@ export function CasesList({
                   void cases.fetchNextPage()
                 }}
               >
-                {cases.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                {cases.isFetchingNextPage ? t('cases.loadingMore') : t('cases.loadMore')}
               </Button>
             )}
           </>
@@ -144,13 +143,14 @@ export function CasesRail({
   onExpand: () => void
   onNewConversation: () => void
 }) {
+  const { t } = useTranslation('chat')
   return (
-    <PanelRail side="left" label="Cases list (collapsed)">
-      <PanelToggle side="left" noun="cases" expanded={false} onClick={onExpand} />
+    <PanelRail side="left" label={t('cases.rail')}>
+      <PanelToggle side="left" panel="cases" expanded={false} onClick={onExpand} />
       <PanelButton
         side="left"
         variant="default"
-        label="New conversation"
+        label={t('cases.newConversation')}
         onClick={onNewConversation}
       >
         <Plus aria-hidden="true" />
@@ -158,7 +158,7 @@ export function CasesRail({
       {total !== undefined && (
         <span className="text-muted-foreground text-xs tabular-nums">
           {total}
-          <span className="sr-only"> cases</span>
+          <span className="sr-only">{t('cases.railSuffix', { count: total })}</span>
         </span>
       )}
     </PanelRail>

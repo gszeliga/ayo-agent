@@ -81,7 +81,7 @@ export function InspectorPanel({ width, onResize, onHide, ...props }: PanelProps
       />
       {/* Mirrors the cases list's header: the toggle on the inner corner, by the chat. */}
       <div className="flex items-center gap-2 pb-3">
-        <PanelToggle side="right" noun="inspector" expanded onClick={onHide} />
+        <PanelToggle side="right" panel="inspector" expanded onClick={onHide} />
         <h2 className="font-semibold">Inspector</h2>
       </div>
       <InspectorTabs {...props} />

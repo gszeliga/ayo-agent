@@ -1,0 +1,92 @@
+/** The test chat: the cases column, new conversations, phases and the chat's formatters. */
+export const chat = {
+  pageTitle: 'Test chat',
+  // By the API's value; the URL and the API keep the value.
+  phase: {
+    understand: 'Understand',
+    challenge: 'Challenge',
+    analyse: 'Analyse',
+    action: 'Action',
+    followup: 'Follow-up',
+    closed: 'Closed',
+  },
+  // `chat/format.ts`: {{n}} is a number already formatted for the language.
+  format: {
+    cost: '${{n}}',
+    costBelow: '<${{n}}',
+    tokens_one: '{{count}} token',
+    tokens_other: '{{count}} tokens',
+    tokensThousands: '{{n}}k tokens',
+    tokensMillions: '{{n}}M tokens',
+    milliseconds: '{{n}} ms',
+    seconds: '{{n}} s',
+  },
+  page: {
+    casesList: 'Cases list',
+    resizeCasesList: 'Resize cases list',
+    loadingCase: 'Loading case',
+    pickTitle: 'Pick a case',
+    pickDescription: 'Choose a case from the list, or start a new conversation.',
+  },
+  cases: {
+    heading: 'Cases',
+    list: 'Cases',
+    newConversation: 'New conversation',
+    loading: 'Loading cases',
+    noMatchTitle: 'No cases match',
+    noMatchDescription: 'Try another search or filter.',
+    clearFilters: 'Clear filters',
+    emptyTitle: 'No conversations yet',
+    emptyDescription: 'Cases appear here once someone talks to the copilot.',
+    moreFailed: 'More cases could not be loaded.',
+    loadingMore: 'Loading…',
+    loadMore: 'Load more',
+    rail: 'Cases list (collapsed)',
+    // After the count, for screen readers: "12 cases".
+    railSuffix_one: ' cases',
+    railSuffix_other: ' cases',
+  },
+  filters: {
+    search: 'Search cases',
+    searchPlaceholder: 'Search what happens',
+    tenant: 'Tenant',
+    allTenants: 'All tenants',
+    phase: 'Phase',
+    allPhases: 'All phases',
+    state: 'State',
+    // By value (`CaseState`).
+    states: { all: 'All', open: 'Open', closed: 'Closed' },
+  },
+  row: {
+    untitled: 'Untitled case',
+    turns_one: '{{count}} turn',
+    turns_other: '{{count}} turns',
+    pending_one: '{{count}} pending',
+    pending_other: '{{count}} pending',
+    overdue_one: '{{count}} overdue',
+    overdue_other: '{{count}} overdue',
+    otherChannel: 'Other channel',
+    // Before the relative time, for screen readers.
+    updated: 'Updated ',
+  },
+  // `PanelToggle`, by panel; `PanelResizer`.
+  panel: {
+    hide: { cases: 'Hide cases', inspector: 'Hide inspector' },
+    show: { cases: 'Show cases', inspector: 'Show inspector' },
+    width: '{{n}} pixels wide',
+  },
+  newConversation: {
+    title: 'New conversation',
+    description: 'The case is created by the first message, for this tenant.',
+    loadingTenants: 'Loading tenants…',
+    tenantsFailed: 'The tenants could not be loaded.',
+    noTenants: 'No tenants yet: a tenant appears once it has a document.',
+    tenant: 'Tenant',
+    cancel: 'Cancel',
+    start: 'Start',
+    noDraftTitle: 'Start a new conversation',
+    noDraftDescription: 'Pick the tenant; the first message opens the case.',
+    conversation: 'Conversation',
+    firstMessage: 'Send the first message to open a case.',
+  },
+}

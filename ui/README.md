@@ -32,7 +32,9 @@ the UI's own error wording (`describeError`: the API out of reach, an answer not
 format; `LoadError` on every screen), the documents list with its bulk delete and
 reprocess dialogs, the upload dialog and the document page (facts, content and chunks
 tabs, rename, reprocess, delete; `CopyButton` everywhere), the indexing settings, the
-service status (its card and the header's popover) and the test search are translated; the other screens are still English until their step. The connect
+service status (its card and the header's popover), the test search and the test chat's cases
+column (list, filters, rows, panel toggles, new conversation; phase names) are translated;
+the case view and the inspector are still English until their step. The connect
 screen has its own language menu, since the header's shows only once connected. Messages
 are kept as codes and worded when shown, so a switch rewords one already on screen. The
 Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.

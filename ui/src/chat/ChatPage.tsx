@@ -1,4 +1,5 @@
 import { Suspense, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Outlet, useNavigate, useParams } from 'react-router'
 
 import { EmptyState } from '@/components/StateMessage'
@@ -37,7 +38,8 @@ export const SEARCH_DEBOUNCE_MS = 300
  * survives switching cases.
  */
 export function ChatPage() {
-  useDocumentTitle('Test chat')
+  const { t } = useTranslation('chat')
+  useDocumentTitle(t('pageTitle'))
   const { caseId } = useParams()
   const [filters, setFilters] = useState<CaseFilters>(NO_FILTERS)
   const [collapsed, setCollapsed] = useState(false)
@@ -88,7 +90,7 @@ export function ChatPage() {
   return (
     <div className="flex h-full min-h-0 gap-4">
       <aside
-        aria-label="Cases list"
+        aria-label={t('page.casesList')}
         style={collapsed ? undefined : { width: casesWidth }}
         className={cn(
           'relative flex flex-none',
@@ -97,7 +99,7 @@ export function ChatPage() {
       >
         {!collapsed && (
           <PanelResizer
-            label="Resize cases list"
+            label={t('page.resizeCasesList')}
             edge="right"
             width={casesWidth}
             limits={CASES_LIMITS}
@@ -131,7 +133,7 @@ export function ChatPage() {
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* The routes inside are lazy too: only they wait, not the list. */}
-        <Suspense fallback={<Skeleton aria-label="Loading case" className="h-40" />}>
+        <Suspense fallback={<Skeleton aria-label={t('page.loadingCase')} className="h-40" />}>
           <Outlet context={context} />
         </Suspense>
       </div>
@@ -142,11 +144,12 @@ export function ChatPage() {
 
 /** `/chat` with no case selected. */
 export function NoCaseSelected() {
+  const { t } = useTranslation('chat')
   return (
     <EmptyState
       as="h1"
-      title="Pick a case"
-      description="Choose a case from the list, or start a new conversation."
+      title={t('page.pickTitle')}
+      description={t('page.pickDescription')}
       className="mt-10"
     />
   )

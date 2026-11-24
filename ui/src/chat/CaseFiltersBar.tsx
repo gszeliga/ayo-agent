@@ -1,19 +1,17 @@
 import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type { components } from '@/api/schema'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-import { PHASE_LABELS, PHASES, type Phase } from './phases'
+import { PHASES, type Phase } from './phases'
 import { CASE_SEARCH_MAX_LENGTH, type CaseFilters, type CaseState } from './queries'
 
 type TenantSummary = components['schemas']['TenantSummary']
 
-const STATES: { value: CaseState; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'open', label: 'Open' },
-  { value: 'closed', label: 'Closed' },
-]
+// Worded by value: `filters.states.*`.
+const STATES: readonly CaseState[] = ['all', 'open', 'closed']
 
 const SELECT = 'border-input bg-card h-9 min-w-0 flex-1 rounded-md border px-2'
 
@@ -35,6 +33,7 @@ interface Props {
 
 /** Search, tenant, phase and open/closed. The caller debounces the search. */
 export function CaseFiltersBar({ filters, tenants, onChange }: Props) {
+  const { t } = useTranslation('chat')
   return (
     <div className="space-y-2">
       <div className="relative">
@@ -44,8 +43,8 @@ export function CaseFiltersBar({ filters, tenants, onChange }: Props) {
         />
         <Input
           type="search"
-          aria-label="Search cases"
-          placeholder="Search what happens"
+          aria-label={t('filters.search')}
+          placeholder={t('filters.searchPlaceholder')}
           className="pl-8"
           maxLength={CASE_SEARCH_MAX_LENGTH}
           value={filters.q}
@@ -56,14 +55,14 @@ export function CaseFiltersBar({ filters, tenants, onChange }: Props) {
       </div>
       <div className="flex gap-2">
         <select
-          aria-label="Tenant"
+          aria-label={t('filters.tenant')}
           className={SELECT}
           value={filters.tenant ?? ''}
           onChange={(event) => {
             onChange({ ...filters, tenant: event.target.value || null })
           }}
         >
-          <option value="">All tenants</option>
+          <option value="">{t('filters.allTenants')}</option>
           {tenantOptions(tenants, filters.tenant).map((tenant) => (
             <option key={tenant} value={tenant}>
               {tenant}
@@ -71,23 +70,23 @@ export function CaseFiltersBar({ filters, tenants, onChange }: Props) {
           ))}
         </select>
         <select
-          aria-label="Phase"
+          aria-label={t('filters.phase')}
           className={SELECT}
           value={filters.phase ?? ''}
           onChange={(event) => {
             onChange({ ...filters, phase: (event.target.value || null) as Phase | null })
           }}
         >
-          <option value="">All phases</option>
+          <option value="">{t('filters.allPhases')}</option>
           {PHASES.map((phase) => (
             <option key={phase} value={phase}>
-              {PHASE_LABELS[phase]}
+              {t(`phase.${phase}`)}
             </option>
           ))}
         </select>
       </div>
-      <div role="group" aria-label="State" className="bg-muted flex rounded-md p-0.5">
-        {STATES.map(({ value, label }) => (
+      <div role="group" aria-label={t('filters.state')} className="bg-muted flex rounded-md p-0.5">
+        {STATES.map((value) => (
           <button
             key={value}
             type="button"
@@ -100,7 +99,7 @@ export function CaseFiltersBar({ filters, tenants, onChange }: Props) {
               onChange({ ...filters, state: value })
             }}
           >
-            {label}
+            {t(`filters.states.${value}`)}
           </button>
         ))}
       </div>

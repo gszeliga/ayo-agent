@@ -1,18 +1,19 @@
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
 import type { components } from '@/api/schema'
 import { Badge } from '@/components/ui/badge'
 import { formatUtc, relativeTime } from '@/lib/format'
+import { useLanguage } from '@/layout/languageContext'
 import { cn } from '@/lib/utils'
 import { chatCasePath } from '@/paths'
-
-import { plural } from './format'
-import { PHASE_LABELS } from './phases'
 
 type CaseListItem = components['schemas']['CaseListItem']
 
 /** One case in the list: a link that opens it. */
 export function CaseRow({ item, selected }: { item: CaseListItem; selected: boolean }) {
+  const { t } = useTranslation('chat')
+  const { language } = useLanguage()
   const closed = item.closed_at !== null
   return (
     <Link
@@ -30,29 +31,29 @@ export function CaseRow({ item, selected }: { item: CaseListItem; selected: bool
             item.title === null && 'text-muted-foreground italic',
           )}
         >
-          {item.title ?? 'Untitled case'}
+          {item.title ?? t('row.untitled')}
         </span>
         <Badge variant={closed ? 'outline' : 'secondary'} className="mt-0.5">
-          {PHASE_LABELS[item.phase]}
+          {t(`phase.${item.phase}`)}
         </Badge>
       </div>
       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
         <span>{item.tenant}</span>
         <span aria-hidden="true">·</span>
-        <span>{plural(item.turns, 'turn', 'turns')}</span>
+        <span>{t('row.turns', { count: item.turns })}</span>
         {item.pending_actions > 0 && (
           <>
             <span aria-hidden="true">·</span>
-            <span>{String(item.pending_actions)} pending</span>
+            <span>{t('row.pending', { count: item.pending_actions })}</span>
           </>
         )}
         {item.overdue_actions > 0 && (
-          <Badge variant="warning">{String(item.overdue_actions)} overdue</Badge>
+          <Badge variant="warning">{t('row.overdue', { count: item.overdue_actions })}</Badge>
         )}
-        {item.web_session_id === null && <Badge variant="outline">Other channel</Badge>}
+        {item.web_session_id === null && <Badge variant="outline">{t('row.otherChannel')}</Badge>}
         <span className="ml-auto" title={formatUtc(item.updated_at)}>
-          <span className="sr-only">Updated </span>
-          {relativeTime(item.updated_at)}
+          <span className="sr-only">{t('row.updated')}</span>
+          {relativeTime(item.updated_at, language)}
         </span>
       </div>
     </Link>

@@ -1,4 +1,5 @@
 import { MessageSquarePlus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { EmptyState } from '@/components/StateMessage'
@@ -17,15 +18,16 @@ import { useChatInput } from './useChatInput'
  * offers to start one.
  */
 export function NewConversation() {
+  const { t } = useTranslation('chat')
   const { draft, openNewConversation } = useChatContext()
   if (draft === null) {
     return (
       <EmptyState
         as="h1"
-        title="Start a new conversation"
-        description="Pick the tenant; the first message opens the case."
+        title={t('newConversation.noDraftTitle')}
+        description={t('newConversation.noDraftDescription')}
         className="mx-auto mt-10 max-w-xl"
-        action={<Button onClick={openNewConversation}>New conversation</Button>}
+        action={<Button onClick={openNewConversation}>{t('newConversation.title')}</Button>}
       />
     )
   }
@@ -34,6 +36,7 @@ export function NewConversation() {
 }
 
 function DraftConversation({ draft }: { draft: Draft }) {
+  const { t } = useTranslation('chat')
   const navigate = useNavigate()
   const { clearDraft } = useChatContext()
   const input = useChatInput(draft, (response) => {
@@ -44,17 +47,22 @@ function DraftConversation({ draft }: { draft: Draft }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <header className="border-b pb-3">
-        <h1 className="text-lg font-semibold">New conversation</h1>
+        <h1 className="text-lg font-semibold">{t('newConversation.title')}</h1>
         <p className="text-muted-foreground text-[13px]">{draft.tenant}</p>
       </header>
       <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto pr-1">
-        <div role="log" aria-live="polite" aria-label="Conversation" className="py-2">
+        <div
+          role="log"
+          aria-live="polite"
+          aria-label={t('newConversation.conversation')}
+          className="py-2"
+        >
           {input.pendingText !== null ? (
             <PendingTurn text={input.pendingText} />
           ) : (
             <div className="text-muted-foreground flex flex-col items-center gap-2 py-10 text-center">
               <MessageSquarePlus aria-hidden="true" className="size-6" />
-              <p>Send the first message to open a case.</p>
+              <p>{t('newConversation.firstMessage')}</p>
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -55,30 +56,33 @@ export function PanelButton({
   )
 }
 
+/** The side panels a toggle hides or shows; their names are in the `chat` catalog. */
+export type Panel = 'cases' | 'inspector'
+
 /**
  * Hides or shows a side panel: "Hide cases" / "Show cases", "Hide inspector" / "Show
- * inspector", the same icons mirrored, `aria-expanded` saying which. In a panel's header it
+ * inspector" (whole phrases, so each language orders its words), the same icons mirrored, `aria-expanded` saying which. In a panel's header it
  * hides it; at the top of its rail it shows it.
  */
 export function PanelToggle({
   side,
-  noun,
+  panel,
   expanded,
   onClick,
   opensDialog = false,
 }: {
   side: PanelSide
-  /** "cases", "inspector". */
-  noun: string
+  panel: Panel
   expanded: boolean
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
   /** Narrow screens: showing opens a drawer. */
   opensDialog?: boolean
 }) {
+  const { t } = useTranslation('chat')
   const Icon = ICONS[side][expanded ? 'hide' : 'show']
   return (
     <PanelButton
-      label={`${expanded ? 'Hide' : 'Show'} ${noun}`}
+      label={expanded ? t(`panel.hide.${panel}`) : t(`panel.show.${panel}`)}
       side={side}
       onClick={onClick}
       aria-expanded={expanded}

@@ -7,10 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1-I5 are done (2026-11-24). **Next: I6** (test chat: cases list, filters, case view,
-composer, send errors, phases, `chat/format.ts`; `src/chat/` minus the inspector). Write
-its brief and wait for the user's OK. The chat area is the largest left: consider a split
-in the brief, as I3 and I5. Use the glossary below; `describeError`,
+I1-I5 and I6a are done (2026-11-24). **Next: I6b** (the case view: header, stepper, turns,
+phase marker, composer, send errors as codes, read-only notice, not found, delete dialog;
+brief agreed with I6, decision 25). Write its brief again only if it changes; wait for the
+user's OK. Then propose the side step for the two slow tests (I6a's log entry). Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -170,6 +170,19 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     " set" lost its space; no test covered it); it now has an `aria-label`, "Options, 2
     set" / "Opciones, 2 activas", and the badge is `aria-hidden`. New English test for it.
 
+25. (I6, 2026-11-24) **I6 split in two** (agreed): I6a the cases column (formatters,
+    phase names, list, filters, rows, panels, new conversation), I6b the case view. The
+    `chat` namespace holds both and I7's inspector. "overdue" -> **"atrasada(s)"** (the
+    user's choice). Phase names by value (`chat.phase.*`); `PHASE_LABELS` stays for the
+    files not translated yet and goes in I7. `formatCost` / `formatTokens` /
+    `formatDuration` take `language` (default `'en'` until I8) and use `formatDecimal`
+    ("0,02 $", "12,3k tokens", "4,5 s"); `plural()` stays for the inspector until I7.
+    **Deviation from the brief:** `PanelToggle` takes `panel: 'cases' | 'inspector'` and
+    words the whole phrase from the catalog (`panel.hide.*` / `panel.show.*`) instead of
+    taking two labels, so the inspector's toggle is Spanish already (as `CopyButton` in
+    I4); the inspector's resize label stays English until I7. The rail's sr-only " cases"
+    is a plural suffix after the visible count.
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -209,8 +222,9 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
   (`src/document/*`, `src/components/ConfirmByTyping.tsx`, `CopyButton.tsx`).
 - [x] **I5a** Settings and the service status (`src/settings/*`, decision 23).
 - [x] **I5b** Search (`src/search/*`, decision 24).
-- [ ] **I6** Test chat: cases list, filters, case view, composer, send errors, phases,
-  `chat/format.ts` (`src/chat/` minus the inspector).
+- [x] **I6a** Test chat: the cases column, phases, `chat/format.ts`, new conversation
+  (decision 25).
+- [ ] **I6b** Test chat: the case view, composer, send errors, delete dialog.
 - [ ] **I7** Inspector: State, Trace, Summary, Actions tabs, summary errors, export (the
   brief proposes whether the export follows the UI language).
 - [ ] **I8** `locale` defaults removed, lint rule as error, axe in Spanish, docs, final
@@ -387,3 +401,20 @@ I2 adjusts them if the glossary differs.
   nothing to search; nothing above the minimum; a 422 placed as received and a 502 that
   rewords when the browser's language changes) and one English (the Options button's
   name). 609 tests; existing ones unchanged. `pnpm check` passes.
+- 2026-11-24, **I6a** (the chat's cases column). I6 split in two (decision 25). New `chat`
+  namespace: tab title, phase names, the formatters' words, the "Pick a case" state, the
+  cases list (heading, New conversation, loading, no match with Quitar filtros, no
+  conversations, Load more and its error, the collapsed rail with "N casos"), the filters
+  (search, Organización, Fase, Estado by value), the rows ("Caso sin título", turnos,
+  pendientes, atrasadas, Otro canal, "Actualizado hace 1 h"), the panel toggles and the
+  resizer's value text, the new conversation page and dialog. Tests: five Spanish cases in
+  `ChatPage.test.tsx` (page, rows and filters with the API's values kept; no match and no
+  cases; Load more and the rail; a new conversation from the dialog to the empty chat; no
+  organizations), Spanish and duration cases in `format.test.ts`. 635 tests; existing ones
+  unchanged. `pnpm check` passes.
+  **Found, not fixed:** 1 of 4 full runs failed two tests on Vitest's 5 s default, passing
+  alone: "a new conversation asks the tenant, then the first reply opens its case"
+  (`Send.test.tsx`, 4.2 s in the suite) and "a batch failing after another succeeded..."
+  (`bulkDelete.test.tsx`, 4.9 s). The same pattern as I1's side step; proposed: the same
+  fix (15 s each, with a comment), as a side step after I6b or before it, the user's call.
+
