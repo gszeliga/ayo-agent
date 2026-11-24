@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 
 import { loadConnection } from '@/connection/storage'
+import { LANGUAGE_KEY } from '@/lib/language'
 import { API, KEY, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
@@ -131,4 +132,77 @@ test('the key can be shown and hidden', async () => {
   expect(keyField).toHaveAttribute('type', 'password')
   await user.click(screen.getByRole('button', { name: 'Show key' }))
   expect(keyField).toHaveAttribute('type', 'text')
+})
+
+describe('in Spanish', () => {
+  async function fillAndConnectEs(
+    user: ReturnType<typeof renderApp>['user'],
+    { url = API, key = KEY }: { url?: string; key?: string } = {},
+  ) {
+    const address = screen.getByLabelText('Dirección de la API')
+    await user.clear(address)
+    if (url) await user.type(address, url)
+    if (key) await user.type(screen.getByLabelText('Clave de administración'), key)
+    await user.click(screen.getByRole('button', { name: 'Conectar' }))
+  }
+
+  test('the screen and its field checks are Spanish, and reword on a switch', async () => {
+    const { user } = renderApp('/connect', { language: 'es' })
+
+    expect(screen.getByRole('heading', { name: 'Conéctate a la API de AYO' })).toBeInTheDocument()
+    expect(document.title).toBe('Conectar · AYO Admin')
+    expect(screen.getByRole('button', { name: 'Mostrar clave' })).toBeInTheDocument()
+    await fillAndConnectEs(user, { url: 'https://host/admin', key: '' })
+    expect(screen.getByText(/sin ruta/)).toBeInTheDocument()
+    expect(screen.getByText('Escribe la clave de administración.')).toBeInTheDocument()
+
+    // A message already shown follows the language.
+    await user.click(screen.getByRole('button', { name: 'Idioma: Español' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'English' }))
+    expect(screen.getByText('Enter the admin key.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Connect to the AYO API' })).toBeInTheDocument()
+  })
+
+  test('a rejected key is reported in Spanish', async () => {
+    server.use(tenantsAnswer(401))
+    const { user } = renderApp('/connect', { language: 'es' })
+
+    await fillAndConnectEs(user, { key: 'wrong' })
+
+    expect(await screen.findByText('Clave rechazada.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Clave de administración')).toHaveAccessibleDescription(
+      'Clave rechazada.',
+    )
+  })
+
+  test('a CORS refusal is explained in Spanish', async () => {
+    server.use(
+      http.get(`${API}/admin/tenants`, () => HttpResponse.error()),
+      http.get(`${API}/health`, () => HttpResponse.json({ status: 'ok' })),
+    )
+    const { user } = renderApp('/connect', { language: 'es' })
+
+    await fillAndConnectEs(user)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(`La API en ${API} responde, pero rechaza las peticiones`)
+    expect(alert).toHaveTextContent(`Añade ${window.location.origin} a CORS_ALLOWED_ORIGINS`)
+  })
+})
+
+test('a language chosen on the connect screen is kept once connected', async () => {
+  server.use(tenantsAnswer(200))
+  const { user } = renderApp('/connect?next=%2Fsettings')
+
+  await user.click(screen.getByRole('button', { name: 'Language: system' }))
+  await user.click(await screen.findByRole('menuitemradio', { name: 'Español' }))
+  expect(window.localStorage.getItem(LANGUAGE_KEY)).toBe('es')
+  const address = screen.getByLabelText('Dirección de la API')
+  await user.clear(address)
+  await user.type(address, API)
+  await user.type(screen.getByLabelText('Clave de administración'), KEY)
+  await user.click(screen.getByRole('button', { name: 'Conectar' }))
+
+  expect(await screen.findByRole('button', { name: 'Desconectar' })).toBeInTheDocument()
+  expect(screen.getByRole('navigation', { name: 'Principal' })).toHaveTextContent('Búsqueda')
 })

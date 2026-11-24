@@ -1,4 +1,4 @@
-import { ApiError } from './errors'
+import { ApiError, describeError } from './errors'
 
 test('parses the API error format', () => {
   const error = ApiError.fromResponse(404, {
@@ -49,4 +49,35 @@ test('field errors use the last string of each loc, first message wins', () => {
   })
 
   expect(error.fieldErrors()).toEqual({ title: 'too short', doc_ids: 'bad id' })
+})
+
+describe('describeError', () => {
+  const BASE = 'http://api.test'
+
+  test('the API out of reach is worded by the UI, in its language', () => {
+    const error = ApiError.network(new TypeError('Failed to fetch'))
+
+    expect(describeError(error, BASE)).toBe(
+      "Can't reach the API at http://api.test. Check the URL and that the API is running.",
+    )
+    expect(describeError(error, BASE, 'es')).toBe(
+      'No se puede conectar con la API en http://api.test. Comprueba la URL y que la API esté en marcha.',
+    )
+  })
+
+  test('an answer not in the API format names its status, in the UI language', () => {
+    const error = ApiError.fromResponse(502, '<html>Bad gateway</html>')
+
+    expect(describeError(error, BASE)).toBe('The API answered HTTP 502')
+    expect(describeError(error, BASE, 'es')).toBe('La API ha respondido HTTP 502')
+  })
+
+  test("the API's own message is shown as received, in any language", () => {
+    const error = ApiError.fromResponse(500, {
+      detail: [{ type: 'internal_error', loc: [], msg: 'internal server error' }],
+    })
+
+    expect(describeError(error, BASE, 'es')).toBe('internal server error')
+    expect(describeError(new Error('boom'), BASE, 'es')).toBe('boom')
+  })
 })

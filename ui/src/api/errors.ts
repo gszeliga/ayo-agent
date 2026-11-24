@@ -1,3 +1,6 @@
+import { i18n } from '@/i18n'
+import type { Language } from '@/lib/language'
+
 import type { components } from './schema'
 
 export type ErrorItem = components['schemas']['ErrorItem']
@@ -67,10 +70,16 @@ export class ApiError extends Error {
   }
 }
 
-/** What to tell the user about a failed call. */
-export function describeError(error: Error, baseUrl: string): string {
-  if (error instanceof ApiError && error.isNetworkError) {
-    return `Can't reach the API at ${baseUrl}. Check the URL and that the API is running.`
+/**
+ * What to tell the user about a failed call. The UI words what it found itself (the API
+ * out of reach, an answer not in the API's format); the API's own `msg` is shown as is.
+ */
+export function describeError(error: Error, baseUrl: string, language: Language = 'en'): string {
+  if (!(error instanceof ApiError)) return error.message
+  const t = i18n.getFixedT(language, 'common')
+  if (error.isNetworkError) return t('errors.unreachable', { baseUrl })
+  if (error.type === UNEXPECTED_TYPE && error.status !== null) {
+    return t('errors.unexpectedStatus', { status: error.status })
   }
   return error.message
 }

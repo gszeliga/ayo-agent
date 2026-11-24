@@ -6,12 +6,13 @@ import { Route, Routes } from 'react-router'
 import { unwrap } from '@/api/client'
 import { App } from '@/App'
 import { useApiClient } from '@/connection/context'
-import { KEY_REJECTED } from '@/connection/ConnectionProvider'
 import { RequireConnection } from '@/connection/RequireConnection'
 import { loadConnection } from '@/connection/storage'
 import { ConnectPage } from '@/pages/ConnectPage'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
+
+const KEY_REJECTED = 'Your key was rejected. Connect again with a valid key.'
 
 test('the app starts on the connect screen', () => {
   render(<App />)
@@ -65,7 +66,7 @@ function Probe() {
   )
 }
 
-test('a 401 on any request returns to the connect screen with a notice', async () => {
+function rejectEveryKey() {
   server.use(
     http.get(`${API}/admin/tenants`, () =>
       HttpResponse.json(
@@ -74,21 +75,40 @@ test('a 401 on any request returns to the connect screen with a notice', async (
       ),
     ),
   )
-  const routes = (
-    <Routes>
-      <Route path="/connect" element={<ConnectPage />} />
-      <Route element={<RequireConnection />}>
-        <Route path="/probe" element={<Probe />} />
-      </Route>
-    </Routes>
-  )
-  const { user } = renderApp('/probe', { connected: true, routes })
+}
+
+const PROBE_ROUTES = (
+  <Routes>
+    <Route path="/connect" element={<ConnectPage />} />
+    <Route element={<RequireConnection />}>
+      <Route path="/probe" element={<Probe />} />
+    </Route>
+  </Routes>
+)
+
+test('a 401 on any request returns to the connect screen with a notice', async () => {
+  rejectEveryKey()
+  const { user } = renderApp('/probe', { connected: true, routes: PROBE_ROUTES })
 
   await user.click(screen.getByRole('button', { name: 'load' }))
 
   expect(await screen.findByText(KEY_REJECTED)).toBeInTheDocument()
   expect(screen.getByTestId('location')).toHaveTextContent('/connect?next=%2Fprobe')
   expect(loadConnection()).toBeNull()
+})
+
+test('the notice is worded in the language shown, not the one when it was set', async () => {
+  rejectEveryKey()
+  const { user } = renderApp('/probe', { connected: true, routes: PROBE_ROUTES, language: 'es' })
+
+  await user.click(screen.getByRole('button', { name: 'load' }))
+
+  expect(
+    await screen.findByText('Se ha rechazado tu clave. Vuelve a conectarte con una clave válida.'),
+  ).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Idioma: Español' }))
+  await user.click(await screen.findByRole('menuitemradio', { name: 'English' }))
+  expect(screen.getByText(KEY_REJECTED)).toBeInTheDocument()
 })
 
 test('the internal-use banner stays dismissed', async () => {

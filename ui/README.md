@@ -27,8 +27,12 @@ theme; the choice is kept in this browser (`ayo.lang`). System follows the brows
 preferred languages (the first one the UI has: `es-AR` is Spanish, `fr` falls back to
 English) and changes with them while the page is open. `<html lang>` follows the language
 shown. Plan, decisions and progress: `../plans/i18n-progress.md`. Being rolled out one area
-at a time: the shell (header, nav, menus, crash and 404 pages, Retry) is translated; the
-other screens are still English until their step.
+at a time: the shell (header, nav, menus, crash and 404 pages, Retry), the connect screen
+and the UI's own error wording (`describeError`: the API out of reach, an answer not in its
+format) are translated; the other screens are still English until their step. The connect
+screen has its own language menu, since the header's shows only once connected. Messages
+are kept as codes and worded when shown, so a switch rewords one already on screen. The
+Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.
 
 **Translated:** the UI's own copy (labels, aria-labels, placeholders, tab titles, toasts,
 the UI's own error messages) and the shared formatters (`lib/format.ts`: "hace 5 min",
@@ -78,7 +82,8 @@ EMBEDDING_PROVIDER=fake CORS_ALLOWED_ORIGINS=http://localhost:5173 \
 The UI opens on a connect screen: the API address and the admin key, checked with
 `GET /admin/tenants` before they are kept. They live in `sessionStorage`, so only in this
 tab and only until it closes. Any `401` later (a changed key) returns to the connect screen
-with a notice; Disconnect forgets them.
+with a notice (a code in `ConnectionState.notice`, worded on the connect screen);
+Disconnect forgets them.
 
 A browser reports a CORS refusal exactly like a network failure. When the check fails that
 way, the screen sends one `no-cors` request to the public `/health` (exempt from CORS): if

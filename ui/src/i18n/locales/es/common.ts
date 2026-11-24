@@ -46,6 +46,13 @@ export const common: Catalog['common'] = {
     goToDocuments: 'Ir a documentos',
   },
   retry: 'Reintentar',
+  errors: {
+    unreachable:
+      'No se puede conectar con la API en {{baseUrl}}. Comprueba la URL y que la API esté en marcha.',
+    corsRefused:
+      'La API en {{baseUrl}} responde, pero rechaza las peticiones de esta página. Añade {{origin}} a CORS_ALLOWED_ORIGINS y reinicia la API.',
+    unexpectedStatus: 'La API ha respondido HTTP {{status}}',
+  },
   time: {
     justNow: 'ahora mismo',
     minutesAgo: 'hace {{n}} min',

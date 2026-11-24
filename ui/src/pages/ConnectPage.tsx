@@ -1,9 +1,10 @@
 import { Eye, EyeOff, Info } from 'lucide-react'
 import { useId, useState, type SubmitEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useSearchParams } from 'react-router'
 
 import { createApiClient, unwrap } from '@/api/client'
-import { ApiError } from '@/api/errors'
+import { ApiError, describeError } from '@/api/errors'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,12 +14,17 @@ import { defaultBaseUrl, normalizeBaseUrl } from '@/connection/baseUrl'
 import { useConnection } from '@/connection/context'
 import { safeNext } from '@/connection/next'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useLanguage } from '@/layout/languageContext'
+import { LanguageToggle } from '@/layout/LanguageToggle'
 import { isServerReachable, unreachableMessage } from '@/connection/reachability'
 
+/** What went wrong, kept as codes and worded when shown: a language switch rewords it. */
 interface FieldErrors {
-  baseUrl?: string
-  apiKey?: string
-  form?: string
+  baseUrl?: 'invalid'
+  apiKey?: 'missing' | 'rejected'
+  form?:
+    | { kind: 'noAnswer'; baseUrl: string; reachable: boolean }
+    | { kind: 'error'; baseUrl: string; error: ApiError }
 }
 
 /** Tries the URL and key with the cheapest `/admin` call before keeping them. */
@@ -28,17 +34,18 @@ async function checkConnection(baseUrl: string, apiKey: string): Promise<FieldEr
     return {}
   } catch (error) {
     if (!(error instanceof ApiError)) throw error
-    if (error.status === 401) return { apiKey: 'Key rejected.' }
+    if (error.status === 401) return { apiKey: 'rejected' }
     if (error.isNetworkError) {
-      const reachable = await isServerReachable(baseUrl)
-      return { form: unreachableMessage(baseUrl, reachable, window.location.origin) }
+      return { form: { kind: 'noAnswer', baseUrl, reachable: await isServerReachable(baseUrl) } }
     }
-    return { form: error.message }
+    return { form: { kind: 'error', baseUrl, error } }
   }
 }
 
 export function ConnectPage() {
-  useDocumentTitle('Connect')
+  const { t } = useTranslation('connect')
+  const { language } = useLanguage()
+  useDocumentTitle(t('pageTitle'))
   const { connection, connect, notice } = useConnection()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -57,9 +64,8 @@ export function ConnectPage() {
     const url = normalizeBaseUrl(baseUrl)
     const key = apiKey.trim()
     const found: FieldErrors = {}
-    if (url === null)
-      found.baseUrl = 'Enter an http(s) address without a path, like https://host:8000.'
-    if (!key) found.apiKey = 'Enter the admin key.'
+    if (url === null) found.baseUrl = 'invalid'
+    if (!key) found.apiKey = 'missing'
     setErrors(found)
     if (url === null || !key) return
 
@@ -73,8 +79,20 @@ export function ConnectPage() {
     }
   }
 
+  const form = errors.form
+  const formMessage =
+    form === undefined
+      ? null
+      : form.kind === 'noAnswer'
+        ? unreachableMessage(form.baseUrl, form.reachable, window.location.origin, language)
+        : describeError(form.error, form.baseUrl, language)
+
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
+    <main className="relative flex min-h-screen items-center justify-center p-4">
+      {/* The shell's language menu shows only once connected; this screen comes first. */}
+      <div className="absolute top-3 right-3">
+        <LanguageToggle />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -85,20 +103,20 @@ export function ConnectPage() {
               AYO
             </div>
             <CardTitle>
-              <h1 className="text-lg font-semibold">Connect to the AYO API</h1>
+              <h1 className="text-lg font-semibold">{t('title')}</h1>
             </CardTitle>
           </div>
-          <CardDescription>The admin API this UI manages documents through.</CardDescription>
+          <CardDescription>{t('description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" noValidate onSubmit={(event) => void submit(event)}>
             {notice && (
               <Alert>
-                <AlertDescription>{notice}</AlertDescription>
+                <AlertDescription>{t(`notice.${notice}`)}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor={ids.baseUrl}>API address</Label>
+              <Label htmlFor={ids.baseUrl}>{t('address')}</Label>
               <Input
                 id={ids.baseUrl}
                 type="url"
@@ -114,12 +132,12 @@ export function ConnectPage() {
               />
               {errors.baseUrl && (
                 <p id={ids.baseUrlError} className="text-destructive text-[13px]">
-                  {errors.baseUrl}
+                  {t('fieldError.address')}
                 </p>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={ids.apiKey}>Admin key</Label>
+              <Label htmlFor={ids.apiKey}>{t('key')}</Label>
               <div className="relative">
                 <Input
                   id={ids.apiKey}
@@ -137,7 +155,7 @@ export function ConnectPage() {
                 <button
                   type="button"
                   className="text-muted-foreground hover:bg-accent absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-1"
-                  aria-label={showKey ? 'Hide key' : 'Show key'}
+                  aria-label={showKey ? t('hideKey') : t('showKey')}
                   onClick={() => {
                     setShowKey((shown) => !shown)
                   }}
@@ -147,21 +165,23 @@ export function ConnectPage() {
               </div>
               {errors.apiKey && (
                 <p id={ids.apiKeyError} className="text-destructive text-[13px]">
-                  {errors.apiKey}
+                  {errors.apiKey === 'missing'
+                    ? t('fieldError.keyMissing')
+                    : t('fieldError.keyRejected')}
                 </p>
               )}
             </div>
-            {errors.form && (
+            {formMessage !== null && (
               <Alert variant="destructive" role="alert">
-                <AlertDescription>{errors.form}</AlertDescription>
+                <AlertDescription>{formMessage}</AlertDescription>
               </Alert>
             )}
             <Button type="submit" className="w-full" disabled={checking}>
-              {checking ? 'Checking…' : 'Connect'}
+              {checking ? t('checking') : t('submit')}
             </Button>
             <p className="text-muted-foreground flex gap-2 text-[13px]">
               <Info aria-hidden="true" className="mt-0.5 size-4 flex-none" />
-              Internal use only: the key is kept in this tab until you close it.
+              {t('note')}
             </p>
           </form>
         </CardContent>

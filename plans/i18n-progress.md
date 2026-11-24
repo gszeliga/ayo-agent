@@ -7,10 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1 is done (2026-11-24). **Next: I2.** Write its brief and wait for the user's OK; it
-starts by agreeing the glossary (decision 7), then the connect screen, `describeError`
-and the connection messages. The shell's Spanish from I1 is adjusted if the glossary
-differs.
+I1 and I2 are done (2026-11-24). **Next: I3** (documents list: filters, table,
+pagination, selection, bulk delete and reprocess dialogs, upload). Write its brief and
+wait for the user's OK. Use the glossary below; `describeError`, `relativeTime` and
+`formatBytes` take the language there (`useLanguage().language`).
 
 Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
 - ~190 files, ~8,600 lines of TSX under `ui/src/`; every string is an English literal in a
@@ -90,13 +90,46 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
 14. (I1) Status trigger in Spanish: "base de datos OK / sin servicio / estado
     desconocido" (gender-neutral after "base de datos" and "embeddings"). "Embeddings"
     stays untranslated pending the glossary.
+15. (I2) **A language menu on the connect screen** too (top right): the header's shows only
+    once connected, and the first screen should not be stuck on the browser's language.
+    Agreed 2026-11-24 (not in the plan).
+16. (I2) **Messages as codes, worded when shown:** the connect screen's field errors, its
+    form error and the connection notice (`ConnectionNotice = 'keyRejected'`, replacing the
+    `KEY_REJECTED` sentence) are kept as codes or as the error itself, so a switch rewords a
+    message already shown. `describeError(error, baseUrl, language = 'en')` words the
+    network error and `unexpected_response` ("The API answered HTTP 502") itself; any other
+    `msg` is the API's, shown as received (decision 5). Its other callers stay English until
+    their area's step.
 
 ## Glossary
-To be agreed in I2.
+Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
+English (`tenant`, `?status=indexed`); ids are shown as they are.
+
+| English | Spanish | Note |
+|---|---|---|
+| tenant | organización | the user's choice; "Organización" as a label |
+| chunk / chunks | chunk / chunks | kept, the user's choice |
+| embedding(s) | embeddings | kept |
+| trace | traza | |
+| reprocess | reprocesar | |
+| case | caso | |
+| phases | Entender, Cuestionar, Analizar, Actuar, Seguimiento, Cerrado | as the copilot's `prompts/glossary.md` |
+| Test chat | Chat de prueba | |
+| Indexing settings | Ajustes de indexación | |
+| document | documento | |
+| upload | subir | |
+| source key | clave de origen | |
+| turn | turno | |
+| summary | resumen | |
+| action(s) | acción / acciones | |
+| inspector | inspector | |
+| session | sesión | |
+| Indexed / Outdated | Indexado / Desactualizado | |
+| admin key | clave de administración | |
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **I1** Setup, language picker, locale-aware formatters, the shell translated.
-- [ ] **I2** Glossary agreed (recorded above); connect screen, `describeError`, connection
+- [x] **I2** Glossary agreed (recorded above); connect screen, `describeError`, connection
   messages (`src/pages/ConnectPage.tsx`, `src/connection/*`, `src/api/errors.ts`).
 - [ ] **I3** Documents list: filters, table, pagination, selection, bulk delete and
   reprocess dialogs, upload (`src/documents/*`, `src/upload/*`).
@@ -200,3 +233,16 @@ I2 adjusts them if the glossary differs.
   and a 20 s test) -> 30 s wait, 45 s test. Limits only, no test behaviour changed; the
   slowest stay as slow (making them faster is not done). Six full runs after: 524 passed
   each time; `pnpm check` passes.
+- 2026-11-24, **I2** (glossary, connect screen, connection and error messages). Glossary
+  agreed and recorded above (the user: keep "chunk", tenant -> "organización"); the I1
+  shell needed no change. New `connect` namespace (`locales/{en,es}/connect.ts`): the
+  connect screen's copy, field checks, tab title and the key-rejected notice; `common`
+  gets `errors` (unreachable, CORS refusal, unexpected status). A language menu on the
+  connect screen (decision 15). Messages as codes (decision 16): `ConnectionNotice`
+  replaces `KEY_REJECTED`; `describeError` and `unreachableMessage` take a language.
+  Tests: Spanish connect screen (labels, tab title, field checks reworded on a switch,
+  rejected key, CORS), a language chosen there kept once connected, the notice worded in
+  the language shown (`App.test.tsx`), `describeError` and `unreachableMessage` in both
+  languages. 538 tests; existing ones unchanged except `App.test.tsx` (the constant became
+  a literal, the 401 set-up shared). `pnpm check` passes. Docs: `ui/README.md`
+  ("Languages", "Connecting"); `CLAUDE.md`.

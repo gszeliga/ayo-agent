@@ -1,3 +1,6 @@
+import { i18n } from '@/i18n'
+import type { Language } from '@/lib/language'
+
 const PROBE_TIMEOUT_MS = 3000
 
 /**
@@ -22,9 +25,15 @@ export async function isServerReachable(
   }
 }
 
-export function unreachableMessage(baseUrl: string, reachable: boolean, origin: string): string {
+/** Why a call failed without an answer: CORS when the server answers, else unreachable. */
+export function unreachableMessage(
+  baseUrl: string,
+  reachable: boolean,
+  origin: string,
+  language: Language = 'en',
+): string {
+  const t = i18n.getFixedT(language, 'common')
   return reachable
-    ? `The API at ${baseUrl} answers, but refuses requests from this page. Add ${origin} to` +
-        ' CORS_ALLOWED_ORIGINS and restart the API.'
-    : `Can't reach the API at ${baseUrl}. Check the URL and that the API is running.`
+    ? t('errors.corsRefused', { baseUrl, origin })
+    : t('errors.unreachable', { baseUrl })
 }

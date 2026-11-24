@@ -4,14 +4,17 @@ import type { ApiClient } from '@/api/client'
 
 import type { Connection } from './storage'
 
+/** Why a connection ended when it was not the user's choice; worded where it is shown. */
+export type ConnectionNotice = 'keyRejected'
+
 export interface ConnectionState {
   connection: Connection | null
   /** The client for the current connection; null when disconnected. */
   client: ApiClient | null
   /** Why the last connection ended, when it was not the user's choice (a rejected key). */
-  notice: string | null
+  notice: ConnectionNotice | null
   connect: (connection: Connection) => void
-  disconnect: (notice?: string) => void
+  disconnect: (notice?: ConnectionNotice) => void
 }
 
 export const ConnectionContext = createContext<ConnectionState | null>(null)

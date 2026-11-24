@@ -31,3 +31,14 @@ test('the messages name the fix', () => {
     "Can't reach the API at http://api.test. Check the URL and that the API is running.",
   )
 })
+
+test('the messages follow the UI language', () => {
+  expect(unreachableMessage('http://api.test', true, 'http://localhost:5173', 'es')).toBe(
+    'La API en http://api.test responde, pero rechaza las peticiones de esta página. Añade' +
+      ' http://localhost:5173 a CORS_ALLOWED_ORIGINS y reinicia la API.',
+  )
+  expect(unreachableMessage('http://api.test', false, 'http://localhost:5173', 'es')).toBe(
+    'No se puede conectar con la API en http://api.test. Comprueba la URL y que la API esté en' +
+      ' marcha.',
+  )
+})

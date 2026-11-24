@@ -3,14 +3,12 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
 import { createApiClient } from '@/api/client'
 
-import { ConnectionContext, type ConnectionState } from './context'
+import { ConnectionContext, type ConnectionNotice, type ConnectionState } from './context'
 import { clearConnection, loadConnection, saveConnection, type Connection } from './storage'
-
-export const KEY_REJECTED = 'Your key was rejected. Connect again with a valid key.'
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<Connection | null>(() => loadConnection())
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<ConnectionNotice | null>(null)
   const queryClient = useQueryClient()
 
   // Cached data belongs to one API and key: dropped whenever the connection changes.
@@ -25,7 +23,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   )
 
   const disconnect = useCallback(
-    (reason?: string) => {
+    (reason?: ConnectionNotice) => {
       queryClient.clear()
       clearConnection()
       setNotice(reason ?? null)
@@ -39,7 +37,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       connection
         ? createApiClient(connection.baseUrl, connection.apiKey, {
             onUnauthorized: () => {
-              disconnect(KEY_REJECTED)
+              disconnect('keyRejected')
             },
           })
         : null,
