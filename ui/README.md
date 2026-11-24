@@ -20,6 +20,40 @@ reload when a lazy chunk is gone after a deploy. Empty and error states use
 `components/StateMessage.tsx` and `components/LoadError.tsx`; every page sets its tab title
 with `useDocumentTitle`. `src/a11y.test.tsx` runs axe-core on the main screens.
 
+## Languages
+
+English, Español or System (the default) from the header's language menu, next to the
+theme; the choice is kept in this browser (`ayo.lang`). System follows the browser's
+preferred languages (the first one the UI has: `es-AR` is Spanish, `fr` falls back to
+English) and changes with them while the page is open. `<html lang>` follows the language
+shown. Plan, decisions and progress: `../plans/i18n-progress.md`. Being rolled out one area
+at a time: the shell (header, nav, menus, crash and 404 pages, Retry) is translated; the
+other screens are still English until their step.
+
+**Translated:** the UI's own copy (labels, aria-labels, placeholders, tab titles, toasts,
+the UI's own error messages) and the shared formatters (`lib/format.ts`: "hace 5 min",
+"5 oct 2026", "4,2 KB"). **Not translated:** the API's `msg` (shown as received), document
+content, model output, tenant ids, URL parameters, the brand "AYO Admin", the exact-time
+tooltip (`2026-11-05 10:14 UTC`).
+
+How it works: [i18next](https://www.i18next.com/) + react-i18next, initialised at import in
+`src/i18n/index.ts` with the catalogs bundled (no fetch, no flash of untranslated text, no
+Suspense). Catalogs are TypeScript, one namespace per area, in
+`src/i18n/locales/{en,es}/<area>.ts`; English is the source and the type (`Catalog`), so a
+missing or extra Spanish key, or a mistyped key in `t()`, fails `tsc`.
+
+- **A string:** add it to the English catalog under a key named by its place or purpose
+  (not the sentence), then to the Spanish one; use `const { t } = useTranslation()` and
+  `t('area.key', { n })`. Outside React (formatters) take a `language` argument and use
+  `i18n.getFixedT(language, 'common')`. Placeholders are `{{name}}`; plurals use the
+  `_one` / `_other` suffixes with `count` (Spanish `_many` falls back to `_other`).
+  `src/i18n/catalog.test.ts` checks every language for the same keys and placeholders.
+- **A namespace:** a new file per language, added to `locales/{en,es}/index.ts`.
+- **A language:** its code in `Language`, `LANGUAGES`, `LANGUAGE_NAMES` and `INTL_LOCALE`
+  (`src/lib/language.ts`), a `locales/<code>/` typed as `Catalog`, and `supportedLngs` in
+  `src/i18n/index.ts`.
+- **Tests** render in English; `renderApp(path, { language: 'es' })` starts in Spanish.
+
 ## Setup
 
 Needs Node 24+ and pnpm (the version is pinned in `package.json`, `packageManager`).
@@ -409,7 +443,10 @@ src/
                       client.ts (createApiClient, unwrap), errors.ts (ApiError)
   connection/         storage, base URL rules, provider + useConnection/useApiClient, guard
   layout/             AppShell (header, nav, Disconnect, internal-use banner), ErrorBoundary,
-                      ThemeProvider + ThemeToggle, StatusIndicator (status dots, popover)
+                      ThemeProvider + ThemeToggle, LanguageProvider (+ languageContext) +
+                      LanguageToggle, StatusIndicator (status dots, popover)
+  i18n/               i18next set-up (index.ts, imported first by main.tsx), resources,
+                      Catalog type, typed keys (i18next.d.ts), locales/{en,es}/ (catalogs)
   documents/          the list: DocumentsPage, listParams (URL <-> state), queries,
                       mutations (rename, reprocess, delete, bulk delete), useSelection,
                       SelectionBar, BulkDeleteDialog, BulkReprocessDialog + bulkReprocess
@@ -451,12 +488,12 @@ src/
                       warning variants), tooltip, skeleton, tabs, dialog, sonner (toasts;
                       without next-themes), checkbox, collapsible, dropdown-menu,
                       alert-dialog, popover
-  lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes), theme.ts,
-                      chunkError.ts
+  lib/                utils.ts (cn), format.ts (relative time, UTC time, sizes; per language),
+                      theme.ts, language.ts (choice, System, Intl locales), chunkError.ts
   public/theme-boot.js  applies the theme before the first paint
-  test/               setup.ts (jest-dom, MSW, storage reset, 3 s async timeout), server.ts,
+  test/               setup.ts (jest-dom, MSW, storage and language reset, 3 s async timeout), server.ts,
                       handlers.ts, chatApi.ts (a stand-in for the chat's endpoints),
-                      render.tsx (renderApp(path, {connected}): router, query client,
+                      render.tsx (renderApp(path, {connected, language}): router, query client,
                       location probe and Back), fixtures/ (Spanish documents and cases, a procedure
                       in Markdown with a table, links, an image and raw HTML)
 ```

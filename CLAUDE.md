@@ -10,8 +10,9 @@ working rules, update this file in that step's commit.
 ## Where things stand
 
 - **Active (2026-11-23): UI languages (English + Spanish).** No spec file; plan, decisions,
-  steps I1-I8, the I1 brief and log in `plans/i18n-progress.md`. **Read it first.** Planned
-  only: I1 is next (show its brief and wait for the OK). Front end only, no billed calls.
+  steps I1-I8 and log in `plans/i18n-progress.md`. **Read it first.** I1 is done (set-up,
+  picker, formatters, the shell); I2 is next and starts by agreeing the glossary. Front end
+  only, no billed calls.
 - Done (2026-11-23): test chat and case inspector (`/chat`; C1-C10, T0-T5b and side
   steps). Spec `plans/claude-code-prompt-test-chat.md`; decisions, log, final report and
   "Open items" in `plans/chat-progress.md`. `POST /admin/cases/{case_id}/summary` and every
@@ -180,6 +181,7 @@ eval/llm/              ayo-llm-check reports (git-ignored) and example-report.js
 eval/conversations/    transcripts (git-ignored: they hold conversation content)
 tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; layout in ui/README.md
+  src/i18n/            i18next set-up and the catalogs, locales/{en,es}/<area>.ts (typed keys)
   src/api/schema.d.ts  generated from docs/openapi.json (never edit)
 ```
 
@@ -225,7 +227,9 @@ ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; lay
 - UI (`ui/`): TypeScript strict, ESLint type-aware + Prettier (width 100, no semicolons,
   single quotes); `pnpm check` must pass. TypeScript stays on 5.x until typescript-eslint
   and openapi-typescript support 7. Theme colours only through the tokens in
-  `src/index.css`. Tests use MSW; unhandled requests fail. English UI copy. API calls go
+  `src/index.css`. Tests use MSW; unhandled requests fail. UI copy goes through the
+  i18next catalogs (`src/i18n/locales/{en,es}/`: English source, Spanish typed against
+  it; details in `ui/README.md`, "Languages"). API calls go
   through `useApiClient()` + `unwrap()`, errors are `ApiError`. UI routes never start with
   an API path (`/admin`, `/health`, `/docs`, `/redoc`, `/openapi.json`).
 - Integration tests (`tests/integration/`, `tests/api/`; fixtures in `tests/conftest.py`)

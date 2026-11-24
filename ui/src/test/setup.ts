@@ -2,6 +2,8 @@ import '@testing-library/jest-dom/vitest'
 
 import { cleanup, configure } from '@testing-library/react'
 
+import { i18n } from '@/i18n'
+
 import { server } from './server'
 
 // The first test of a file waits for the lazy routes and the Markdown renderer to load
@@ -47,10 +49,12 @@ if (typeof Element.prototype.hasPointerCapture !== 'function') {
   Element.prototype.hasPointerCapture = () => false
 }
 
-// Each test starts disconnected and with the banner showing.
-beforeEach(() => {
+// Each test starts disconnected, with the banner showing, in English and on System.
+beforeEach(async () => {
   window.sessionStorage.clear()
   window.localStorage.clear()
+  await i18n.changeLanguage('en')
+  document.documentElement.lang = 'en'
 })
 // jsdom has no ResizeObserver; Radix tooltips measure their trigger with it. Nothing is laid
 // out in jsdom, so a no-op is enough.

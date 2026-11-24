@@ -148,7 +148,7 @@ export function DocumentsTable({
               </TableCell>
               <TableCell>
                 <time dateTime={doc.updated_at} title={formatUtc(doc.updated_at)}>
-                  {relativeTime(doc.updated_at, now)}
+                  {relativeTime(doc.updated_at, 'en', now)}
                 </time>
               </TableCell>
             </TableRow>

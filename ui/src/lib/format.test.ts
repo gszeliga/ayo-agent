@@ -15,7 +15,22 @@ test.each([
   [29 * 86400, '29 d ago'],
   [30 * 86400, '6 Oct 2026'],
 ])('%i s ago reads %j', (seconds, expected) => {
-  expect(relativeTime(ago(seconds), NOW)).toBe(expected)
+  expect(relativeTime(ago(seconds), 'en', NOW)).toBe(expected)
+})
+
+test.each([
+  [0, 'ahora mismo'],
+  [5 * 60, 'hace 5 min'],
+  [3 * 3600, 'hace 3 h'],
+  [2 * 86400, 'hace 2 d'],
+  [30 * 86400, '6 oct 2026'],
+])('in Spanish, %i s ago reads %j', (seconds, expected) => {
+  expect(relativeTime(ago(seconds), 'es', NOW)).toBe(expected)
+})
+
+test('English is the default', () => {
+  expect(relativeTime(ago(60), undefined, NOW)).toBe('1 min ago')
+  expect(formatBytes(4300)).toBe('4.2 KB')
 })
 
 test('the exact time is UTC to the minute', () => {
@@ -27,7 +42,17 @@ test.each([
   [1023, '1023 B'],
   [1024, '1.0 KB'],
   [4300, '4.2 KB'],
+  [1024 * 1024 - 1, '1024.0 KB'], // no thousands separator, as before
   [5 * 1024 * 1024, '5.0 MB'],
 ])('%i bytes is %j', (bytes, expected) => {
-  expect(formatBytes(bytes)).toBe(expected)
+  expect(formatBytes(bytes, 'en')).toBe(expected)
+})
+
+test.each([
+  [1023, '1023 B'],
+  [4300, '4,2 KB'],
+  [1024 * 1024 - 1, '1024,0 KB'],
+  [5 * 1024 * 1024, '5,0 MB'],
+])('in Spanish, %i bytes is %j', (bytes, expected) => {
+  expect(formatBytes(bytes, 'es')).toBe(expected)
 })

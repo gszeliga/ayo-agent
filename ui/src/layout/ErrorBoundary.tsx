@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/StateMessage'
@@ -39,39 +40,45 @@ export class ErrorBoundary extends Component<
 
   render(): ReactNode {
     if (this.state.error === null) return this.props.children
-    const reload = (
-      <Button
-        onClick={() => {
-          window.location.reload()
-        }}
-      >
-        Reload
-      </Button>
-    )
-    if (isChunkLoadError(this.state.error)) {
-      return (
-        <EmptyState
-          as="h1"
-          title="A new version of this page is available"
-          description="Reload to get it."
-          action={reload}
-        />
-      )
-    }
+    return <CrashMessage newVersion={isChunkLoadError(this.state.error)} />
+  }
+}
+
+/** What a crash shows: a function component, so it can use the translations. */
+function CrashMessage({ newVersion }: { newVersion: boolean }) {
+  const { t } = useTranslation()
+  const reload = (
+    <Button
+      onClick={() => {
+        window.location.reload()
+      }}
+    >
+      {t('crash.reload')}
+    </Button>
+  )
+  if (newVersion) {
     return (
       <EmptyState
         as="h1"
-        title="Something went wrong"
-        description="This page failed to show. Reloading usually helps; if not, the details are in the browser console."
-        action={
-          <>
-            {reload}
-            <Button asChild variant="outline">
-              <a href="/documents">Back to documents</a>
-            </Button>
-          </>
-        }
+        title={t('crash.newVersionTitle')}
+        description={t('crash.newVersionDescription')}
+        action={reload}
       />
     )
   }
+  return (
+    <EmptyState
+      as="h1"
+      title={t('crash.title')}
+      description={t('crash.description')}
+      action={
+        <>
+          {reload}
+          <Button asChild variant="outline">
+            <a href="/documents">{t('crash.backToDocuments')}</a>
+          </Button>
+        </>
+      }
+    />
+  )
 }

@@ -7,11 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-The plan below was agreed on 2026-11-23 and committed with this file; nothing is built yet.
-**Next: I1** (brief below, already presented). Before starting, show the I1 brief again
-and wait for the user's OK (the repo's rule). Two choices were taken as the recommended
-defaults because the user did not answer them; confirm them in the I1 brief:
-i18next + react-i18next (decision 1) and Spain Spanish with *tú* (decision 7).
+I1 is done (2026-11-24). **Next: I2.** Write its brief and wait for the user's OK; it
+starts by agreeing the glossary (decision 7), then the connect screen, `describeError`
+and the connection messages. The shell's Spanish from I1 is adjusted if the glossary
+differs. Open: the flaky-timeout side step proposed in the I1 log entry.
 
 Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
 - ~190 files, ~8,600 lines of TSX under `ui/src/`; every string is an English literal in a
@@ -72,12 +71,31 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
    gets at least one Spanish render test. I8 adds an axe run in Spanish and
    `eslint-plugin-i18next` (`no-literal-string`) as an error in components.
 9. **One commit per step**, brief first, stop after each (the repo's rule).
+10. (I1, 2026-11-24) **i18next 27.2.4**, not 27.2.6: pnpm 11's `minimumReleaseAge` (one
+    day) rejects 27.2.5 and 27.2.6, and `pnpm add` silently writes a
+    `minimumReleaseAgeExclude` into a new `pnpm-workspace.yaml` to get past it. Not done:
+    the gate is a supply-chain guard. A later step may move to a newer 27.x once it is
+    old enough. react-i18next 18.0.3.
+11. (I1) **System** takes the first entry of `navigator.languages` that the UI has
+    (`['fr', 'es-MX']` -> Spanish), else English: decision 3's "`es*` -> Spanish" for the
+    first entry, extended down the list, as browsers mean it.
+12. (I1) **Plurals:** Spanish's CLDR forms are one / many / other; i18next falls back from
+    `_many` to `_other`, so every language keeps the English keys (`_one`, `_other`) and
+    `Catalog` stays one shape. The parity test checks the same keys and placeholders and
+    that every plural has `_other`.
+13. (I1) Formatter signatures: `relativeTime(iso, language = 'en', now)` and
+    `formatBytes(bytes, language = 'en')`; the three call sites that pass `now` now pass
+    `'en'` explicitly until their area's step. Bytes: `Intl.NumberFormat` with one decimal
+    and no grouping, so English output is unchanged ("1024.0 KB").
+14. (I1) Status trigger in Spanish: "base de datos OK / sin servicio / estado
+    desconocido" (gender-neutral after "base de datos" and "embeddings"). "Embeddings"
+    stays untranslated pending the glossary.
 
 ## Glossary
 To be agreed in I2.
 
 ## Order of work (one commit per step, brief first, stop after each)
-- [ ] **I1** Setup, language picker, locale-aware formatters, the shell translated.
+- [x] **I1** Setup, language picker, locale-aware formatters, the shell translated.
 - [ ] **I2** Glossary agreed (recorded above); connect screen, `describeError`, connection
   messages (`src/pages/ConnectPage.tsx`, `src/connection/*`, `src/api/errors.ts`).
 - [ ] **I3** Documents list: filters, table, pagination, selection, bulk delete and
@@ -152,3 +170,24 @@ I2 adjusts them if the glossary differs.
 ## Progress log
 - 2026-11-23: plan agreed and written down (this file); UI surveyed (see "Next"). No code
   yet.
+- 2026-11-24, **I1** (set-up, picker, formatters, shell). i18next 27.2.4 + react-i18next
+  18.0.3 (decision 10). New: `src/i18n/` (init at import, `resources`, `Catalog`, typed
+  keys, `locales/{en,es}/common.ts`), `lib/language.ts`, `LanguageProvider` +
+  `languageContext` + `LanguageToggle` (header, after the theme toggle; names in their own
+  language with `lang`, System in the UI's). Translated: banner, Dismiss, nav and its
+  label, status trigger (aria-label and the two words), theme menu (trigger "Theme:
+  dark" unchanged in English), Disconnect, error boundary (messages moved into a
+  `CrashMessage` function component), 404 page and its tab title, Retry in `ErrorState`.
+  `lib/format.ts` per language (decision 13). Tests: `catalog.test.ts` (parity),
+  `language.test.ts`, `LanguageToggle.test.tsx` (switch, kept, `lang`, System follows
+  `languagechange`, stored choice wins, a stored Spanish opens the 404 page in Spanish),
+  Spanish cases in `format.test.ts` and `ErrorBoundary.test.tsx`; setup resets to English
+  before each test. 524 tests; existing ones unchanged except `format.test.ts` (the
+  argument order). `pnpm check` and `pnpm build` pass. Docs: `ui/README.md` "Languages"
+  and layout; `CLAUDE.md`.
+  **Found, not fixed (pre-existing):** under full-suite load, `bulkDelete.test.tsx` ("more
+  than 100 go in batches of 100") and `DeleteExport.test.tsx` ("delete says what goes...")
+  take 4.4-4.8 s against Vitest's 5 s default, on the base commit `0f8b760` as well
+  (measured in a scratch worktree); 1.6-1.7 s alone either way. With I1's extra tests they
+  timed out in 2 of 4 full runs here (0 of 3 on the base). Proposed side step: a longer
+  timeout for those two tests (or `testTimeout: 10000`), or a faster setup in them.

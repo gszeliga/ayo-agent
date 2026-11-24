@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 
+import { i18n } from '@/i18n'
 import { isChunkLoadError } from '@/lib/chunkError'
 
 import { ErrorBoundary } from './ErrorBoundary'
@@ -29,6 +30,19 @@ test('a crash shows a way out instead of a blank page', () => {
     'href',
     '/documents',
   )
+})
+
+test('the way out is in Spanish when the UI is', async () => {
+  await i18n.changeLanguage('es')
+  render(
+    <ErrorBoundary resetKey="/documents">
+      <Boom error={new Error('x')} />
+    </ErrorBoundary>,
+  )
+
+  expect(screen.getByRole('heading', { name: 'Algo ha fallado' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Recargar' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Volver a documentos' })).toBeInTheDocument()
 })
 
 test('a lazy chunk that is gone asks for a reload', () => {

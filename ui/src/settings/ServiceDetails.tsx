@@ -38,7 +38,7 @@ function When({ iso, now }: { iso: string | null; now: number }) {
   if (iso === null) return <span className="text-muted-foreground">none since the API started</span>
   return (
     <time dateTime={iso} title={formatUtc(iso)}>
-      {relativeTime(iso, now)}
+      {relativeTime(iso, 'en', now)}
     </time>
   )
 }

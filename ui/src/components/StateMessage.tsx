@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -29,13 +30,14 @@ export function EmptyState({
 
 /** A failed load, where the data would be, with Retry. */
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useTranslation()
   return (
     <Alert variant="destructive" role="alert">
       <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
         <span>{message}</span>
         {onRetry && (
           <Button variant="outline" onClick={onRetry}>
-            Retry
+            {t('retry')}
           </Button>
         )}
       </AlertDescription>

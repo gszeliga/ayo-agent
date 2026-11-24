@@ -23,7 +23,7 @@ function Time({ iso, now }: { iso: string | null; now: number }) {
   if (iso === null) return NOT_RECORDED
   return (
     <time dateTime={iso} title={formatUtc(iso)}>
-      {relativeTime(iso, now)}
+      {relativeTime(iso, 'en', now)}
     </time>
   )
 }

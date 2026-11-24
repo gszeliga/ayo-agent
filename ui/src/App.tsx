@@ -6,6 +6,7 @@ import { createQueryClient } from '@/api/queryClient'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConnectionProvider } from '@/connection/ConnectionProvider'
+import { LanguageProvider } from '@/layout/LanguageProvider'
 import { ThemeProvider } from '@/layout/ThemeProvider'
 import { AppRoutes } from '@/routes'
 
@@ -14,14 +15,16 @@ export function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider delayDuration={300}>
-            <ConnectionProvider>
-              <AppRoutes />
-            </ConnectionProvider>
-            <Toaster position="bottom-right" />
-          </TooltipProvider>
-        </QueryClientProvider>
+        <LanguageProvider>
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider delayDuration={300}>
+              <ConnectionProvider>
+                <AppRoutes />
+              </ConnectionProvider>
+              <Toaster position="bottom-right" />
+            </TooltipProvider>
+          </QueryClientProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </BrowserRouter>
   )

@@ -1,5 +1,6 @@
 import { LogOut, MessagesSquare, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
 import { Button } from '@/components/ui/button'
@@ -9,17 +10,19 @@ import { ROUTES } from '@/paths'
 
 import { dismissBanner, isBannerDismissed } from './banner'
 import { ErrorBoundary } from './ErrorBoundary'
+import { LanguageToggle } from './LanguageToggle'
 import { StatusIndicator } from './StatusIndicator'
 import { ThemeToggle } from './ThemeToggle'
 
 /** The knowledge base's pages, after the test chat (decision 21 in plans/chat-progress.md). */
 const KNOWLEDGE_NAV = [
-  { to: ROUTES.documents, label: 'Documents' },
-  { to: ROUTES.search, label: 'Search' },
-  { to: ROUTES.settings, label: 'Indexing settings' },
-]
+  { to: ROUTES.documents, label: 'shell.documents' },
+  { to: ROUTES.search, label: 'shell.search' },
+  { to: ROUTES.settings, label: 'shell.indexingSettings' },
+] as const
 
 export function AppShell() {
+  const { t } = useTranslation()
   const { connection, disconnect } = useConnection()
   const { pathname } = useLocation()
   const [bannerVisible, setBannerVisible] = useState(() => !isBannerDismissed())
@@ -36,12 +39,10 @@ export function AppShell() {
             className="bg-warning-muted text-warning flex items-center gap-3 px-4 py-2 text-[13px]"
           >
             <ShieldAlert aria-hidden="true" className="size-4 flex-none" />
-            <p className="flex-1">
-              Internal use only: this UI sends the shared admin key from your browser.
-            </p>
+            <p className="flex-1">{t('shell.banner')}</p>
             <button
               type="button"
-              aria-label="Dismiss"
+              aria-label={t('shell.dismiss')}
               className="hover:bg-warning/10 rounded-sm p-1"
               onClick={() => {
                 dismissBanner()
@@ -66,7 +67,10 @@ export function AppShell() {
               <div className="text-muted-foreground font-mono text-[12px]">{host}</div>
             </div>
           </div>
-          <nav aria-label="Main" className="flex flex-1 items-center gap-1 whitespace-nowrap">
+          <nav
+            aria-label={t('shell.mainNav')}
+            className="flex flex-1 items-center gap-1 whitespace-nowrap"
+          >
             <NavLink
               to={ROUTES.chat}
               className={({ isActive }) =>
@@ -77,14 +81,14 @@ export function AppShell() {
               }
             >
               <MessagesSquare aria-hidden="true" className="size-4" />
-              Test chat
+              {t('shell.testChat')}
             </NavLink>
             <span aria-hidden="true" className="bg-border mx-2 h-5 w-px" />
             <span
               id="nav-knowledge"
               className="text-muted-foreground mr-1 text-xs font-semibold uppercase"
             >
-              Knowledge
+              {t('shell.knowledge')}
             </span>
             <div role="group" aria-labelledby="nav-knowledge" className="flex gap-1">
               {KNOWLEDGE_NAV.map(({ to, label }) => (
@@ -98,13 +102,14 @@ export function AppShell() {
                     )
                   }
                 >
-                  {label}
+                  {t(label)}
                 </NavLink>
               ))}
             </div>
           </nav>
           <StatusIndicator />
           <ThemeToggle />
+          <LanguageToggle />
           <Button
             variant="outline"
             onClick={() => {
@@ -112,7 +117,7 @@ export function AppShell() {
             }}
           >
             <LogOut aria-hidden="true" />
-            Disconnect
+            {t('shell.disconnect')}
           </Button>
         </div>
       </header>
