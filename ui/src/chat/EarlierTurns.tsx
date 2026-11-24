@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import { ErrorState } from '@/components/StateMessage'
 import { Button } from '@/components/ui/button'
 
@@ -8,10 +10,11 @@ import type { useCaseTurns } from './queries'
  * conversation. The chat and the Trace tab share it, and the pages it loads.
  */
 export function EarlierTurns({ turns }: { turns: ReturnType<typeof useCaseTurns> }) {
+  const { t } = useTranslation('chat')
   if (turns.isFetchPreviousPageError) {
     return (
       <ErrorState
-        message="Earlier turns could not be loaded."
+        message={t('earlier.failed')}
         onRetry={() => {
           void turns.fetchPreviousPage()
         }}
@@ -27,9 +30,9 @@ export function EarlierTurns({ turns }: { turns: ReturnType<typeof useCaseTurns>
           void turns.fetchPreviousPage()
         }}
       >
-        {turns.isFetchingPreviousPage ? 'Loading…' : 'Load earlier turns'}
+        {turns.isFetchingPreviousPage ? t('earlier.loading') : t('earlier.load')}
       </Button>
     )
   }
-  return <p className="text-muted-foreground text-xs">Start of the conversation</p>
+  return <p className="text-muted-foreground text-xs">{t('earlier.start')}</p>
 }

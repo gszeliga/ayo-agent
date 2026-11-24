@@ -2,6 +2,10 @@ import type { Catalog } from '../../catalog'
 
 export const chat: Catalog['chat'] = {
   pageTitle: 'Chat de prueba',
+  untitled: 'Caso sin título',
+  turns_one: '{{count}} turno',
+  turns_other: '{{count}} turnos',
+  conversation: 'Conversación',
   phase: {
     understand: 'Entender',
     challenge: 'Cuestionar',
@@ -55,9 +59,6 @@ export const chat: Catalog['chat'] = {
     states: { all: 'Todos', open: 'Abiertos', closed: 'Cerrados' },
   },
   row: {
-    untitled: 'Caso sin título',
-    turns_one: '{{count}} turno',
-    turns_other: '{{count}} turnos',
     pending_one: '{{count}} pendiente',
     pending_other: '{{count}} pendientes',
     overdue_one: '{{count}} atrasada',
@@ -70,6 +71,71 @@ export const chat: Catalog['chat'] = {
     show: { cases: 'Mostrar casos', inspector: 'Mostrar inspector' },
     width: '{{n}} píxeles de ancho',
   },
+  header: { refresh: 'Actualizar', export: 'Exportar', delete: 'Eliminar' },
+  stepper: {
+    label: 'Fases',
+    state: { completed: 'completada', current: 'actual', notStarted: 'sin empezar' },
+  },
+  phaseMarker: 'Pasó a <to/> (desde {{from}})',
+  turn: {
+    label: 'Turno {{n}}',
+    trace: 'Turno {{n}} · traza',
+    user: 'Usuario: ',
+    copilot: 'Copiloto: ',
+    copyReply: 'Copiar respuesta',
+  },
+  turnList: { loading: 'Cargando conversación', empty: 'Aún no hay mensajes.' },
+  earlier: {
+    failed: 'No se han podido cargar los turnos anteriores.',
+    loading: 'Cargando…',
+    load: 'Cargar turnos anteriores',
+    start: 'Inicio de la conversación',
+  },
+  pending: { sending: 'Enviando…', answering: 'El copiloto está respondiendo' },
+  composer: {
+    label: 'Mensaje',
+    send: 'Enviar',
+    hint: 'Enter envía, Mayús+Enter añade una línea. Cada mensaje llama al modelo de lenguaje (con coste).',
+  },
+  sendError: {
+    unreachable:
+      'No se puede conectar con la API, así que puede que el mensaje no haya llegado. Vuelve a enviarlo o recarga el caso para ver si llegó.',
+    caseClosed: 'Este caso está cerrado: no admite más mensajes.',
+    conflict:
+      'Se ha guardado otro mensaje de esta conversación mientras se respondía el tuyo. No se ha guardado nada tuyo: recarga el caso y vuelve a enviarlo.',
+    refused: 'La API ha rechazado el mensaje: {{message}}',
+    modelFailed:
+      'El modelo de lenguaje ha fallado, así que no se ha guardado nada. Puedes volver a enviarlo.',
+    noModel:
+      'La API no tiene ningún modelo de lenguaje configurado (OPENROUTER_API_KEY), así que no se ha guardado nada.',
+    sendAgain: 'Volver a enviar',
+    reload: 'Recargar el caso',
+  },
+  readOnly: {
+    closed: 'Este caso está cerrado: se puede leer aquí, pero no continuar.',
+    otherChannel: 'Este caso viene de otro canal: se puede leer aquí, pero no continuar.',
+  },
+  notFound: {
+    title: 'Este caso ya no existe',
+    description: 'Puede que se haya eliminado o que el enlace sea incorrecto.',
+    back: 'Volver a los casos',
+  },
+  deleteCase: {
+    title: '¿Eliminar este caso?',
+    what: 'Se elimina para siempre, con todo lo que contiene: {{turns}} (mensajes, respuestas y trazas), {{annotations}}, {{actions}}. No se puede deshacer.',
+    whatWithSummary:
+      'Se elimina para siempre, con todo lo que contiene: {{turns}} (mensajes, respuestas y trazas), {{annotations}}, {{actions}} y su resumen de IA. No se puede deshacer.',
+    annotations_one: '{{count}} anotación',
+    annotations_other: '{{count}} anotaciones',
+    actions_one: '{{count}} acción',
+    actions_other: '{{count}} acciones',
+    newCase: 'Un mensaje posterior en la sesión de esta conversación abre un caso nuevo.',
+    cancel: 'Cancelar',
+    deleting: 'Eliminando…',
+    confirm: 'Eliminar caso',
+    done: 'Caso eliminado',
+    alreadyGone: 'El caso ya estaba eliminado',
+  },
   newConversation: {
     title: 'Nueva conversación',
     description: 'El primer mensaje crea el caso, para esta organización.',
@@ -81,7 +147,6 @@ export const chat: Catalog['chat'] = {
     start: 'Empezar',
     noDraftTitle: 'Empieza una conversación nueva',
     noDraftDescription: 'Elige la organización; el primer mensaje abre el caso.',
-    conversation: 'Conversación',
     firstMessage: 'Envía el primer mensaje para abrir un caso.',
   },
 }

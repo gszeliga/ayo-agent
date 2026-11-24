@@ -243,3 +243,78 @@ test('a failed read offers Retry and downloads nothing', async () => {
   await user.click(within(dialog).getByRole('button', { name: 'Retry' }))
   expect(await within(dialog).findByLabelText('Preview')).toHaveTextContent('### Turn 1 ·')
 })
+
+describe('in Spanish', () => {
+  test('the delete dialog says what goes, and the toast, in Spanish', async () => {
+    const cases = chatCases()
+    const first = cases[0]
+    if (!first) throw new Error('no case')
+    first.detail = {
+      ...first.detail,
+      summary: {
+        content: '**Problema:** merma en la línea 2.',
+        model: 'test/model',
+        generated_at: '2026-11-12T10:00:00Z',
+        source_version: 10,
+        stale: false,
+        usage: {
+          llm_calls: 1,
+          prompt_tokens: null,
+          completion_tokens: null,
+          total_tokens: 1900,
+          cost: 0.0011,
+        },
+      },
+    }
+    serve(cases)
+    const { user } = renderApp(`/chat/${first.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+    await screen.findByRole('heading', { level: 1 })
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+    const dialog = await screen.findByRole('alertdialog', { name: '¿Eliminar este caso?' })
+    expect(dialog).toHaveTextContent(
+      'Se elimina para siempre, con todo lo que contiene: 9 turnos (mensajes, respuestas y trazas), 0 anotaciones, 0 acciones y su resumen de IA. No se puede deshacer.',
+    )
+    expect(dialog).toHaveTextContent(
+      'Un mensaje posterior en la sesión de esta conversación abre un caso nuevo.',
+    )
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar caso' }))
+
+    expect(await screen.findByText('Caso eliminado')).toBeVisible()
+    await waitFor(() => {
+      expect(location()).toBe('/chat')
+    })
+  })
+
+  test('an already deleted case and a failure are Spanish; the API message as received', async () => {
+    const cases = chatCases()
+    const first = cases[0]
+    if (!first) throw new Error('no case')
+    serve(cases, 500)
+    const { user } = renderApp(`/chat/${first.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+    await screen.findByRole('heading', { level: 1 })
+
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar caso' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('The API failed.')
+
+    server.use(
+      http.delete(`${API}/admin/cases/:caseId`, () =>
+        HttpResponse.json(
+          { detail: [{ type: 'case_not_found', loc: [], msg: 'No case.' }] },
+          { status: 404 },
+        ),
+      ),
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Eliminar caso' }))
+    expect(await screen.findByText('El caso ya estaba eliminado')).toBeVisible()
+  })
+})

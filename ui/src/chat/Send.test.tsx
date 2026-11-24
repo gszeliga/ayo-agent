@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 
 import { CASES } from '@/test/fixtures/cases'
@@ -337,4 +337,96 @@ test('nothing of the conversation reaches browser storage, only the tenant name'
   expect(stored.join('\n')).not.toMatch(/confidencial|Entendido|Merma|Respuesta|Mensaje/)
   expect(Object.keys(window.localStorage)).toEqual(['ayo.chat.last-tenant'])
   expect(document.cookie).toBe('')
+})
+
+describe('in Spanish', () => {
+  const messageBoxEs = () => screen.findByRole('textbox', { name: 'Mensaje' })
+  const turnItemsEs = async () =>
+    within(await screen.findByRole('log', { name: 'Conversación' })).findAllByRole('listitem', {
+      name: /^Turno \d+$/,
+    })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function openCaseEs(served: ServedCase) {
+    const rendered = renderApp(`/chat/${served.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+    await turnItemsEs()
+    return rendered
+  }
+
+  test('while a turn runs: sending and the typing indicator are Spanish', async () => {
+    const cases = chatCases()
+    const api = serveChat(cases)
+    const gate = deferred()
+    api.control.gate = gate.promise
+    const { user } = await openCaseEs(cases[0] as ServedCase)
+
+    await user.type(await messageBoxEs(), 'Tengo fotos de la junta{Enter}')
+
+    const pending = await screen.findByTestId('pending-turn')
+    expect(pending).toHaveTextContent('Usuario: Tengo fotos de la junta')
+    expect(pending).toHaveTextContent('Enviando…')
+    expect(within(pending).getByRole('status')).toHaveTextContent('El copiloto está respondiendo')
+    gate.resolve()
+    await waitFor(() => {
+      expect(screen.queryByTestId('pending-turn')).not.toBeInTheDocument()
+    })
+  })
+
+  test.each([
+    [409, 'case_changed', 'Se ha guardado otro mensaje de esta conversación', 'Recargar el caso'],
+    [409, 'case_closed', 'Este caso está cerrado: no admite más mensajes.', 'Recargar el caso'],
+    // The API's own message, as received.
+    [422, 'tenant_mismatch', 'La API ha rechazado el mensaje: tenant does not match', null],
+    [502, 'llm_unavailable', 'El modelo de lenguaje ha fallado', 'Volver a enviar'],
+    [503, 'llm_not_configured', 'ningún modelo de lenguaje configurado', null],
+  ])('a %d %s is said in Spanish', async (status, type, text, action) => {
+    const cases = chatCases()
+    serveChat(cases)
+    server.use(
+      http.post(`${API}/copilot/messages`, () =>
+        errorBody(status, type, type === 'tenant_mismatch' ? 'tenant does not match' : 'failed'),
+      ),
+    )
+    const { user } = await openCaseEs(cases[0] as ServedCase)
+
+    await user.type(await messageBoxEs(), 'Mensaje que falla{Enter}')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(text)
+    for (const name of ['Volver a enviar', 'Recargar el caso']) {
+      const button = within(alert).queryByRole('button', { name })
+      if (name === action) expect(button).toBeInTheDocument()
+      else expect(button).not.toBeInTheDocument()
+    }
+  })
+
+  test('a network failure is said in Spanish, and rewords when the browser switches', async () => {
+    const cases = chatCases()
+    serveChat(cases)
+    server.use(http.post(`${API}/copilot/messages`, () => HttpResponse.error()))
+    let browser = ['es-ES']
+    vi.spyOn(navigator, 'languages', 'get').mockImplementation(() => browser)
+    const { user } = renderApp(`/chat/${(cases[0] as ServedCase).detail.case_id}`, {
+      connected: true,
+    })
+    await turnItemsEs()
+
+    await user.type(await messageBoxEs(), 'Otra vez{Enter}')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/^No se puede conectar con la API/)
+    expect(within(alert).getByRole('button', { name: 'Volver a enviar' })).toBeInTheDocument()
+
+    browser = ['en-GB']
+    act(() => {
+      window.dispatchEvent(new Event('languagechange'))
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Can't reach the API/)
+    expect(screen.getByRole('button', { name: 'Send again' })).toBeInTheDocument()
+  })
 })

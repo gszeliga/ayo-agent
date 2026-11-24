@@ -7,9 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1-I5 and I6a are done (2026-11-24). **Next: I6b** (the case view: header, stepper, turns,
-phase marker, composer, send errors as codes, read-only notice, not found, delete dialog;
-brief agreed with I6, decision 25). Write its brief again only if it changes; wait for the
+I1-I6 are done (2026-11-24). **Next: I7** (the inspector: its rail, the State, Trace,
+Summary and Actions tabs, `CaseTotals`, `trace.ts` `usageLine`, the export and summary
+dialogs, `summaryErrors`; then `PHASE_LABELS` and `plural()` go). Write its brief (it
+proposes whether the export follows the UI language; consider a split) and wait for the
 user's OK. Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
@@ -183,6 +184,16 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     I4); the inspector's resize label stays English until I7. The rail's sr-only " cases"
     is a plural suffix after the visible count.
 
+26. (I6b, 2026-11-24) **Send problems and read-only reasons are codes**, worded when shown
+    (decision 16): `describeSendError` returns `{ problem, action }` (`refused` carries the
+    API's `msg`, `other` the error, worded by `describeError`); `readOnlyReason` returns
+    `'closed' | 'otherChannel'`. The delete dialog keeps the `Error` (decision 19).
+    `untitled`, `turns` and `conversation` moved to the top of the `chat` catalog (rows,
+    header, delete dialog and both logs share them). `EarlierTurns` is shared with the
+    Trace tab, which gets its Spanish now. The message box's placeholder stays Spanish in
+    both languages (the conversation's language, as decision 24). The delete sentence is
+    two whole keys (with and without the AI summary), the counts worded by plural keys.
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -224,7 +235,7 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
 - [x] **I5b** Search (`src/search/*`, decision 24).
 - [x] **I6a** Test chat: the cases column, phases, `chat/format.ts`, new conversation
   (decision 25).
-- [ ] **I6b** Test chat: the case view, composer, send errors, delete dialog.
+- [x] **I6b** Test chat: the case view, composer, send errors, delete dialog (decision 26).
 - [ ] **I7** Inspector: State, Trace, Summary, Actions tabs, summary errors, export (the
   brief proposes whether the export follows the UI language).
 - [ ] **I8** `locale` defaults removed, lint rule as error, axe in Spanish, docs, final
@@ -425,4 +436,18 @@ I2 adjusts them if the glossary differs.
   dialogs" (`ChatSession.test.tsx`, 1.3 s alone, 3.4-4.3 s). The others over 3 s stayed at
   3.8 s or less, left as they are. Limits only, no test behaviour changed. Three full runs:
   635 passed each time; `pnpm check` passes.
+- 2026-11-24, **I6b** (the case view). `chat` gets the header (facts per language: "3
+  turnos · 0,02 $ · 30k tokens", Actualizar / Exportar / Eliminar), the stepper (Fases,
+  completada / actual / sin empezar, the Cerrado badge), the phase marker ("Pasó a
+  **Cuestionar** (desde Entender)", `<Trans>`), turns (Turno N, "Turno N · traza", Usuario /
+  Copiloto for screen readers, Copiar respuesta), the turn list and earlier turns, the
+  pending turn, the message box (label, Enviar, hint), the send errors (decision 26), the
+  read-only notices, the not-found page, the delete dialog (the sentence, plurals, toasts,
+  the error in the UI's language). Tests: four Spanish cases in `CaseView.test.tsx`
+  (header, stepper, turns, marker and message box; a closed case; another channel, an
+  untitled case and no turns; not found), seven in `Send.test.tsx` (pending turn, each
+  send error, a network error reworded when the browser's language changes), two in
+  `DeleteExport.test.tsx` (the dialog with a summary and the toast; a failure with the
+  API's message, then an already deleted case). 648 tests; existing ones unchanged.
+  `pnpm check` passes.
 

@@ -1,6 +1,11 @@
-/** The test chat: the cases column, new conversations, phases and the chat's formatters. */
+/** The test chat: the cases column, the case view, new conversations, phases, formatters. */
 export const chat = {
   pageTitle: 'Test chat',
+  // Shared by the rows, the case header and the delete dialog.
+  untitled: 'Untitled case',
+  turns_one: '{{count}} turn',
+  turns_other: '{{count}} turns',
+  conversation: 'Conversation',
   // By the API's value; the URL and the API keep the value.
   phase: {
     understand: 'Understand',
@@ -58,9 +63,6 @@ export const chat = {
     states: { all: 'All', open: 'Open', closed: 'Closed' },
   },
   row: {
-    untitled: 'Untitled case',
-    turns_one: '{{count}} turn',
-    turns_other: '{{count}} turns',
     pending_one: '{{count}} pending',
     pending_other: '{{count}} pending',
     overdue_one: '{{count}} overdue',
@@ -75,6 +77,76 @@ export const chat = {
     show: { cases: 'Show cases', inspector: 'Show inspector' },
     width: '{{n}} pixels wide',
   },
+  header: { refresh: 'Refresh', export: 'Export', delete: 'Delete' },
+  stepper: {
+    label: 'Phases',
+    // For screen readers, after the phase's name.
+    state: { completed: 'completed', current: 'current', notStarted: 'not started' },
+  },
+  // <to/> is the new phase's name, in bold.
+  phaseMarker: 'Moved to <to/> (from {{from}})',
+  turn: {
+    label: 'Turn {{n}}',
+    trace: 'Turn {{n}} · trace',
+    // Before each message, for screen readers.
+    user: 'User: ',
+    copilot: 'Copilot: ',
+    copyReply: 'Copy reply',
+  },
+  turnList: { loading: 'Loading conversation', empty: 'No messages yet.' },
+  earlier: {
+    failed: 'Earlier turns could not be loaded.',
+    loading: 'Loading…',
+    load: 'Load earlier turns',
+    start: 'Start of the conversation',
+  },
+  pending: { sending: 'Sending…', answering: 'The copilot is answering' },
+  composer: {
+    label: 'Message',
+    send: 'Send',
+    hint: 'Enter sends, Shift+Enter adds a line. Each message calls the language model (billed).',
+  },
+  // `sendErrors.ts`, by problem; the API's own `msg` goes in {{message}} as received.
+  sendError: {
+    unreachable:
+      "Can't reach the API, so the message may not have arrived. Send it again, or reload the case to see whether it did.",
+    caseClosed: 'This case is closed: it takes no more messages.',
+    conflict:
+      'Another message in this conversation was saved while yours was being answered. Nothing of yours was stored: reload the case, then send it again.',
+    refused: 'The API refused the message: {{message}}',
+    modelFailed: 'The language model failed, so nothing was stored. You can send it again.',
+    noModel:
+      'The API has no language model configured (OPENROUTER_API_KEY), so nothing was stored.',
+    sendAgain: 'Send again',
+    reload: 'Reload case',
+  },
+  // `readOnly.ts`, by reason.
+  readOnly: {
+    closed: 'This case is closed: it can be read here but not continued.',
+    otherChannel: 'This case came from another channel: it can be read here but not continued.',
+  },
+  notFound: {
+    title: 'This case no longer exists',
+    description: 'It may have been deleted, or the link is wrong.',
+    back: 'Back to the cases',
+  },
+  deleteCase: {
+    title: 'Delete this case?',
+    // {{turns}}, {{annotations}}, {{actions}}: the counts below, already worded.
+    what: 'It is removed for good, with everything it holds: {{turns}} (messages, replies and traces), {{annotations}}, {{actions}}. There is no undo.',
+    whatWithSummary:
+      'It is removed for good, with everything it holds: {{turns}} (messages, replies and traces), {{annotations}}, {{actions}} and its AI summary. There is no undo.',
+    annotations_one: '{{count}} annotation',
+    annotations_other: '{{count}} annotations',
+    actions_one: '{{count}} action',
+    actions_other: '{{count}} actions',
+    newCase: "A later message on this conversation's session starts a new case.",
+    cancel: 'Cancel',
+    deleting: 'Deleting…',
+    confirm: 'Delete case',
+    done: 'Case deleted',
+    alreadyGone: 'The case was already deleted',
+  },
   newConversation: {
     title: 'New conversation',
     description: 'The case is created by the first message, for this tenant.',
@@ -86,7 +158,6 @@ export const chat = {
     start: 'Start',
     noDraftTitle: 'Start a new conversation',
     noDraftDescription: 'Pick the tenant; the first message opens the case.',
-    conversation: 'Conversation',
     firstMessage: 'Send the first message to open a case.',
   },
 }

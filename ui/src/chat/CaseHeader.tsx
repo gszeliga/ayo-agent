@@ -1,10 +1,12 @@
 import { Download, RefreshCw, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/layout/languageContext'
 import { cn } from '@/lib/utils'
 
-import { formatCost, formatTokens, plural } from './format'
+import { formatCost, formatTokens } from './format'
 import { PhaseStepper } from './PhaseStepper'
 
 type CaseDetail = components['schemas']['CaseDetail']
@@ -22,12 +24,14 @@ interface Props {
  * Export and Delete work on read-only cases too. The inspector has its own toggle.
  */
 export function CaseHeader({ detail, refreshing, onRefresh, onExport, onDelete }: Props) {
+  const { t } = useTranslation('chat')
+  const { language } = useLanguage()
   const { cost, total_tokens: tokens } = detail.usage
   const facts = [
     detail.tenant,
-    plural(detail.turns, 'turn', 'turns'),
-    ...(cost !== null ? [formatCost(cost)] : []),
-    ...(tokens !== null ? [formatTokens(tokens)] : []),
+    t('turns', { count: detail.turns }),
+    ...(cost !== null ? [formatCost(cost, language)] : []),
+    ...(tokens !== null ? [formatTokens(tokens, language)] : []),
   ]
   return (
     <header className="space-y-3 border-b pb-3">
@@ -39,7 +43,7 @@ export function CaseHeader({ detail, refreshing, onRefresh, onExport, onDelete }
               detail.title === null && 'text-muted-foreground italic',
             )}
           >
-            {detail.title ?? 'Untitled case'}
+            {detail.title ?? t('untitled')}
           </h1>
           <p className="text-muted-foreground text-[13px]" data-testid="case-facts">
             {facts.join(' · ')}
@@ -48,11 +52,11 @@ export function CaseHeader({ detail, refreshing, onRefresh, onExport, onDelete }
         <div className="flex flex-none flex-wrap justify-end gap-2">
           <Button variant="outline" disabled={refreshing} onClick={onRefresh}>
             <RefreshCw aria-hidden="true" className={cn(refreshing && 'animate-spin')} />
-            Refresh
+            {t('header.refresh')}
           </Button>
           <Button variant="outline" onClick={onExport} aria-haspopup="dialog">
             <Download aria-hidden="true" />
-            Export
+            {t('header.export')}
           </Button>
           <Button
             variant="outline"
@@ -61,7 +65,7 @@ export function CaseHeader({ detail, refreshing, onRefresh, onExport, onDelete }
             aria-haspopup="dialog"
           >
             <Trash2 aria-hidden="true" />
-            Delete
+            {t('header.delete')}
           </Button>
         </div>
       </div>

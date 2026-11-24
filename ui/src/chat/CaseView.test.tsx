@@ -431,3 +431,127 @@ test('switching cases shows the other case and keeps the list', async () => {
   expect(await turnItems()).toHaveLength(14)
   expect(screen.getByRole('list', { name: 'Cases' })).toBe(list)
 })
+
+describe('in Spanish', () => {
+  const logEs = () => screen.findByRole('log', { name: 'Conversación' })
+  const turnItemsEs = async () =>
+    within(await logEs()).findAllByRole('listitem', { name: /^Turno \d+$/ })
+
+  test('the header, the stepper, the turns and the message box are Spanish', async () => {
+    const turns = [
+      makeTurn(1, { phase: 'understand' }),
+      makeTurn(2, { phase: 'understand', phaseAfter: 'challenge' }),
+      makeTurn(3, { phase: 'challenge' }),
+    ]
+    const served = openCase(
+      0,
+      {
+        turns: 3,
+        phase: 'challenge',
+        usage: {
+          llm_calls: 4,
+          prompt_tokens: 27_000,
+          completion_tokens: 3000,
+          total_tokens: 30_000,
+          cost: 0.0189,
+        },
+      },
+      turns,
+    )
+    serve([served])
+    renderApp(`/chat/${served.detail.case_id}`, { connected: true, language: 'es' })
+
+    const [first, second, third] = await turnItemsEs()
+    const header = await caseHeader()
+    expect(screen.getByTestId('case-facts')).toHaveTextContent(
+      'cliente-acme · 3 turnos · 0,02 $ · 30k tokens',
+    )
+    for (const name of ['Actualizar', 'Exportar', 'Eliminar']) {
+      expect(header.getByRole('button', { name })).toBeInTheDocument()
+    }
+    const steps = within(header.getByRole('list', { name: 'Fases' })).getAllByRole('listitem')
+    expect(steps.map((step) => step.textContent)).toEqual([
+      'Entender (completada)', // a check, not its number
+      '2Cuestionar (actual)',
+      '3Analizar (sin empezar)',
+      '4Actuar (sin empezar)',
+      '5Seguimiento (sin empezar)',
+    ])
+
+    expect(first).toHaveTextContent('Usuario: Mensaje 1 del operario')
+    expect(first).toHaveTextContent('Copiloto: Respuesta 1 del copiloto')
+    expect(
+      within(first ?? document.body).getByRole('button', { name: 'Turno 1 · traza' }),
+    ).toBeInTheDocument()
+    expect(
+      within(first ?? document.body).getByRole('button', { name: 'Copiar respuesta' }),
+    ).toBeInTheDocument()
+    expect(second).toHaveTextContent('Pasó a Cuestionar (desde Entender)')
+    expect(within(second ?? document.body).getByText('Cuestionar').tagName).toBe('STRONG')
+    expect(third).not.toHaveTextContent('Pasó a')
+    expect(screen.getByText('Inicio de la conversación')).toBeInTheDocument()
+
+    const box = screen.getByRole('textbox', { name: 'Mensaje' })
+    // The conversation's language, in every UI language.
+    expect(box).toHaveAttribute('placeholder', 'Escribe un mensaje…')
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Enter envía, Mayús+Enter añade una línea. Cada mensaje llama al modelo de lenguaje (con coste).',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('a closed case: every phase done, the badge and why it is read-only', async () => {
+    const served = openCase(2)
+    serve([served])
+    renderApp(`/chat/${served.detail.case_id}`, { connected: true, language: 'es' })
+
+    const header = await caseHeader()
+    const steps = within(header.getByRole('list', { name: 'Fases' })).getAllByRole('listitem')
+    for (const step of steps) expect(step).toHaveTextContent('(completada)')
+    expect(header.getByText('Cerrado')).toHaveAttribute('data-slot', 'badge')
+    const notice = await screen.findByText(
+      'Este caso está cerrado: se puede leer aquí, pero no continuar.',
+    )
+    expect(notice.closest('[role="note"]')).not.toBeNull()
+  })
+
+  test('another channel, an untitled case and no turns are Spanish', async () => {
+    const other = openCase(3)
+    const untitled = openCase(4, { turns: 0 }, [])
+    serve([other, untitled])
+    const { user } = renderApp(`/chat/${other.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+
+    expect(
+      await screen.findByText(
+        'Este caso viene de otro canal: se puede leer aquí, pero no continuar.',
+      ),
+    ).toBeInTheDocument()
+
+    const list = await screen.findByRole('list', { name: 'Casos' })
+    await user.click(within(list).getByRole('link', { name: /Caso sin título/ }))
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Caso sin título' }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('Aún no hay mensajes.')).toBeInTheDocument()
+  })
+
+  test('an unknown case says so, with a way back', async () => {
+    serve([])
+    const { user } = renderApp('/chat/0b0e0c0a-0000-4000-8000-000000000000', {
+      connected: true,
+      language: 'es',
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Este caso ya no existe' })).toBeVisible()
+    expect(
+      screen.getByText('Puede que se haya eliminado o que el enlace sea incorrecto.'),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'Volver a los casos' }))
+    expect(await screen.findByRole('heading', { name: 'Elige un caso' })).toBeInTheDocument()
+  })
+})

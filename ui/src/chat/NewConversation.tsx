@@ -51,12 +51,7 @@ function DraftConversation({ draft }: { draft: Draft }) {
         <p className="text-muted-foreground text-[13px]">{draft.tenant}</p>
       </header>
       <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto pr-1">
-        <div
-          role="log"
-          aria-live="polite"
-          aria-label={t('newConversation.conversation')}
-          className="py-2"
-        >
+        <div role="log" aria-live="polite" aria-label={t('conversation')} className="py-2">
           {input.pendingText !== null ? (
             <PendingTurn text={input.pendingText} />
           ) : (

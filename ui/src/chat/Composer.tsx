@@ -1,4 +1,5 @@
 import { SendHorizontal } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,7 @@ interface Props {
 
 /** The message box: Enter sends, Shift+Enter adds a line. Disabled while a turn runs. */
 export function Composer({ value, onChange, onSend, sending }: Props) {
+  const { t } = useTranslation('chat')
   const empty = value.trim() === ''
   return (
     <form
@@ -23,12 +25,13 @@ export function Composer({ value, onChange, onSend, sending }: Props) {
     >
       <div className="flex items-end gap-2">
         <label htmlFor="chat-message" className="sr-only">
-          Message
+          {t('composer.label')}
         </label>
         <textarea
           id="chat-message"
           rows={2}
           disabled={sending}
+          // The conversation's language (the copilot speaks Spanish), in every UI language.
           placeholder="Escribe un mensaje…"
           className={cn(
             'border-input placeholder:text-muted-foreground dark:bg-input/30 block max-h-48 min-h-14 w-full flex-1 resize-y rounded-md border bg-transparent px-3 py-2 text-base shadow-xs outline-none md:text-sm',
@@ -47,12 +50,10 @@ export function Composer({ value, onChange, onSend, sending }: Props) {
         />
         <Button type="submit" disabled={empty || sending}>
           <SendHorizontal aria-hidden="true" />
-          Send
+          {t('composer.send')}
         </Button>
       </div>
-      <p className="text-muted-foreground text-xs">
-        Enter sends, Shift+Enter adds a line. Each message calls the language model (billed).
-      </p>
+      <p className="text-muted-foreground text-xs">{t('composer.hint')}</p>
     </form>
   )
 }

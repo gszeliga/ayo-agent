@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
@@ -18,9 +19,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { useApiClient, useConnection } from '@/connection/context'
+import { useLanguage } from '@/layout/languageContext'
 import { ROUTES } from '@/paths'
 
-import { plural } from './format'
 import { caseKey, caseTurnsKey } from './queries'
 
 type CaseDetail = components['schemas']['CaseDetail']
@@ -37,11 +38,14 @@ interface Props {
  * caches dropped and the list read again.
  */
 export function DeleteCaseDialog({ detail, open, onOpenChange }: Props) {
+  const { t } = useTranslation('chat')
+  const { language } = useLanguage()
   const client = useApiClient()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { connection } = useConnection()
-  const [error, setError] = useState<string | null>(null)
+  // Kept as the error and worded when shown, so a language switch rewords it.
+  const [error, setError] = useState<Error | null>(null)
   const caseId = detail.case_id
   const remove = useMutation({
     mutationFn: () =>
@@ -63,14 +67,14 @@ export function DeleteCaseDialog({ detail, open, onOpenChange }: Props) {
     setError(null)
     remove.mutate(undefined, {
       onSuccess: () => {
-        done('Case deleted')
+        done(t('deleteCase.done'))
       },
       onError: (failure) => {
         if (failure instanceof ApiError && failure.status === 404) {
-          done('The case was already deleted')
+          done(t('deleteCase.alreadyGone'))
           return
         }
-        setError(describeError(failure, connection?.baseUrl ?? ''))
+        setError(failure)
       },
     })
   }
@@ -86,32 +90,32 @@ export function DeleteCaseDialog({ detail, open, onOpenChange }: Props) {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete this case?</AlertDialogTitle>
+          <AlertDialogTitle>{t('deleteCase.title')}</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2">
               <p>
-                It is removed for good, with everything it holds:{' '}
-                {plural(detail.turns, 'turn', 'turns')} (messages, replies and traces),{' '}
-                {plural(detail.events.length, 'annotation', 'annotations')},{' '}
-                {plural(detail.actions.length, 'action', 'actions')}
-                {detail.summary ? ' and its AI summary' : ''}. There is no undo.
+                {t(detail.summary ? 'deleteCase.whatWithSummary' : 'deleteCase.what', {
+                  turns: t('turns', { count: detail.turns }),
+                  annotations: t('deleteCase.annotations', { count: detail.events.length }),
+                  actions: t('deleteCase.actions', { count: detail.actions.length }),
+                })}
               </p>
-              {detail.web_session_id !== null && (
-                <p>A later message on this conversation&apos;s session starts a new case.</p>
-              )}
+              {detail.web_session_id !== null && <p>{t('deleteCase.newCase')}</p>}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
           <Alert variant="destructive" role="alert">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {describeError(error, connection?.baseUrl ?? '', language)}
+            </AlertDescription>
           </Alert>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={busy}>{t('deleteCase.cancel')}</AlertDialogCancel>
           {/* Not AlertDialogAction: that closes at once; this waits for the answer. */}
           <Button variant="destructive" disabled={busy} onClick={confirm}>
-            {busy ? 'Deleting…' : 'Delete case'}
+            {busy ? t('deleteCase.deleting') : t('deleteCase.confirm')}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

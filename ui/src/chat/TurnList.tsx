@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import { LoadError } from '@/components/LoadError'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -16,9 +18,10 @@ interface Props {
 
 /** The conversation, oldest first, with "Load earlier turns" above it. */
 export function TurnList({ turns, pending = null, onShowTrace }: Props) {
+  const { t } = useTranslation('chat')
   if (turns.isPending) {
     return (
-      <div className="space-y-4" aria-label="Loading conversation">
+      <div className="space-y-4" aria-label={t('turnList.loading')}>
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-20" />
         ))}
@@ -41,9 +44,9 @@ export function TurnList({ turns, pending = null, onShowTrace }: Props) {
       <div className="flex justify-center">
         <EarlierTurns turns={turns} />
       </div>
-      <div role="log" aria-live="polite" aria-label="Conversation">
+      <div role="log" aria-live="polite" aria-label={t('conversation')}>
         {items.length === 0 && pending === null && (
-          <p className="text-muted-foreground text-center">No messages yet.</p>
+          <p className="text-muted-foreground text-center">{t('turnList.empty')}</p>
         )}
         {items.length > 0 && (
           <ol className="space-y-6">

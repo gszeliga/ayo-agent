@@ -31,7 +31,7 @@ export function CaseRow({ item, selected }: { item: CaseListItem; selected: bool
             item.title === null && 'text-muted-foreground italic',
           )}
         >
-          {item.title ?? t('row.untitled')}
+          {item.title ?? t('untitled')}
         </span>
         <Badge variant={closed ? 'outline' : 'secondary'} className="mt-0.5">
           {t(`phase.${item.phase}`)}
@@ -40,7 +40,7 @@ export function CaseRow({ item, selected }: { item: CaseListItem; selected: bool
       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
         <span>{item.tenant}</span>
         <span aria-hidden="true">·</span>
-        <span>{t('row.turns', { count: item.turns })}</span>
+        <span>{t('turns', { count: item.turns })}</span>
         {item.pending_actions > 0 && (
           <>
             <span aria-hidden="true">·</span>

@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 
 import { ApiError } from '@/api/errors'
@@ -35,12 +36,13 @@ function isMissing(error: unknown): boolean {
  * conversation content, and the tab title reaches the browser's history.
  */
 export function CaseView() {
+  const { t } = useTranslation('chat')
   const { caseId = '' } = useParams()
   const detail = useCase(caseId)
 
   if (detail.isPending) {
     return (
-      <div className="space-y-3" aria-label="Loading case">
+      <div className="space-y-3" aria-label={t('page.loadingCase')}>
         <Skeleton className="h-8 w-2/3" />
         <Skeleton className="h-6 w-1/2" />
         <Skeleton className="h-40" />
