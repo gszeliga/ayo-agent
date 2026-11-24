@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router'
 
 import type { components } from '@/api/schema'
@@ -12,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useLanguage } from '@/layout/languageContext'
 import { formatBytes, formatUtc, relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -23,24 +25,26 @@ type Document = components['schemas']['Document']
 const SKELETON_ROWS = 6
 
 function Head({ selectAll }: { selectAll?: ReactNode }) {
+  const { t } = useTranslation('documents')
   return (
     <TableHeader>
       <TableRow>
         <TableHead className="w-10">{selectAll}</TableHead>
-        <TableHead>Document</TableHead>
-        <TableHead>Tenant</TableHead>
-        <TableHead>Status</TableHead>
-        <TableHead className="text-right">Chunks</TableHead>
-        <TableHead className="text-right">Size</TableHead>
-        <TableHead>Updated</TableHead>
+        <TableHead>{t('table.document')}</TableHead>
+        <TableHead>{t('table.tenant')}</TableHead>
+        <TableHead>{t('table.status')}</TableHead>
+        <TableHead className="text-right">{t('table.chunks')}</TableHead>
+        <TableHead className="text-right">{t('table.size')}</TableHead>
+        <TableHead>{t('table.updated')}</TableHead>
       </TableRow>
     </TableHeader>
   )
 }
 
 export function DocumentsTableSkeleton() {
+  const { t } = useTranslation('documents')
   return (
-    <Table aria-busy="true" aria-label="Loading documents">
+    <Table aria-busy="true" aria-label={t('table.loading')}>
       <Head />
       <TableBody>
         {Array.from({ length: SKELETON_ROWS }, (_, i) => (
@@ -84,17 +88,19 @@ export function DocumentsTable({
   now: number
   selection: Selection
 }) {
+  const { t } = useTranslation('documents')
+  const { language } = useLanguage()
   const onPage = documents.filter((doc) => selection.has(doc.doc_id)).length
   const allOnPage = documents.length > 0 && onPage === documents.length
   const navigate = useNavigate()
   // The detail's "← Documents" returns to the list as it is now.
   const state = { listSearch: useLocation().search || '?' }
   return (
-    <Table aria-busy={busy} aria-label="Documents" className={cn(busy && 'opacity-60')}>
+    <Table aria-busy={busy} aria-label={t('table.label')} className={cn(busy && 'opacity-60')}>
       <Head
         selectAll={
           <Checkbox
-            aria-label="Select all on this page"
+            aria-label={t('table.selectAll')}
             checked={allOnPage ? true : onPage > 0 ? 'indeterminate' : false}
             onCheckedChange={() => {
               selection.setAll(documents, !allOnPage)
@@ -119,7 +125,7 @@ export function DocumentsTable({
             >
               <TableCell>
                 <Checkbox
-                  aria-label={`Select ${doc.title ?? doc.source_key}`}
+                  aria-label={t('table.select', { name: doc.title ?? doc.source_key })}
                   checked={selection.has(doc.doc_id)}
                   onCheckedChange={() => {
                     selection.toggle(doc)
@@ -144,11 +150,11 @@ export function DocumentsTable({
               </TableCell>
               <TableCell className="text-right tabular-nums">{doc.chunk_count}</TableCell>
               <TableCell className="text-right tabular-nums">
-                {doc.size_bytes === null ? '—' : formatBytes(doc.size_bytes)}
+                {doc.size_bytes === null ? '—' : formatBytes(doc.size_bytes, language)}
               </TableCell>
               <TableCell>
                 <time dateTime={doc.updated_at} title={formatUtc(doc.updated_at)}>
-                  {relativeTime(doc.updated_at, 'en', now)}
+                  {relativeTime(doc.updated_at, language, now)}
                 </time>
               </TableCell>
             </TableRow>

@@ -398,3 +398,97 @@ test('reconnecting never shows rows cached before', async () => {
   expect(screen.queryByText('PRO-014 Control de sellado')).not.toBeInTheDocument()
   expect(await screen.findByRole('heading', { name: 'No documents yet' })).toBeInTheDocument()
 })
+
+describe('in Spanish', () => {
+  const docs = [
+    makeDocument({ hoursAgo: 3 }),
+    makeDocument({
+      title: 'Manual de la caldera B2',
+      source_key: 'manual-caldera-b2.md',
+      status: 'outdated',
+      outdated_reason: 'chunker_changed',
+      size_bytes: 52_000,
+    }),
+  ]
+
+  test('filters, table, badge, dates, sizes, pagination and selection are Spanish', async () => {
+    serve(docs)
+    const { user } = renderApp('/documents', { connected: true, language: 'es' })
+
+    const table = await screen.findByRole('table', { name: 'Documentos' })
+    expect(document.title).toBe('Documentos · AYO Admin')
+    expect(screen.getByRole('heading', { name: 'Documentos', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('2 documentos')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Subir' })).toBeInTheDocument()
+    expect(await screen.findByRole('navigation', { name: 'Organizaciones' })).toHaveTextContent(
+      'Todas las organizaciones',
+    )
+    expect(screen.getByLabelText('Buscar por título o nombre de archivo')).toBeInTheDocument()
+    const status = screen.getByLabelText('Estado')
+    expect(
+      within(status)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Todos los estados', 'Indexado', 'Desactualizado'])
+    expect(within(screen.getByLabelText('Ordenar')).getAllByRole('option')[0]).toHaveTextContent(
+      'Actualizados recientemente',
+    )
+
+    const headers = within(table)
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent)
+    expect(headers.slice(1)).toEqual([
+      'Documento',
+      'Organización',
+      'Estado',
+      'Chunks',
+      'Tamaño',
+      'Actualizado',
+    ])
+    const [first, second] = within(table).getAllByRole('row').slice(1)
+    expect(first).toHaveTextContent('Indexado')
+    expect(first).toHaveTextContent('4,2 KB')
+    expect(first).toHaveTextContent('hace 3 h')
+    expect(second).toHaveTextContent(
+      'Desactualizado: La configuración de chunks ha cambiado desde que se indexó',
+    )
+    expect(screen.getByRole('navigation', { name: 'Paginación' })).toHaveTextContent('1–2 de 2')
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+
+    await user.click(
+      within(table).getByRole('checkbox', { name: 'Seleccionar todos en esta página' }),
+    )
+    const bar = screen.getByRole('region', { name: 'Selección' })
+    expect(bar).toHaveTextContent('2 seleccionados')
+    expect(within(bar).getByRole('button', { name: 'Eliminar' })).toBeInTheDocument()
+  })
+
+  test('the outdated button and a count of one are Spanish', async () => {
+    serve([docs[1]!])
+    renderApp('/documents?status=outdated', { connected: true, language: 'es' })
+
+    expect(
+      await screen.findByRole('button', { name: 'Reprocesar 1 desactualizado' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 documento')).toBeInTheDocument()
+  })
+
+  test('no documents at all says so in Spanish', async () => {
+    serve([])
+    renderApp('/documents', { connected: true, language: 'es' })
+
+    expect(
+      await screen.findByRole('heading', { name: 'Aún no hay documentos' }),
+    ).toBeInTheDocument()
+  })
+
+  test('no match says so in Spanish', async () => {
+    serve([])
+    renderApp('/documents?q=nada', { connected: true, language: 'es' })
+
+    expect(
+      await screen.findByRole('heading', { name: 'Ningún documento coincide' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Prueba con otra búsqueda, organización o estado.')).toBeInTheDocument()
+  })
+})

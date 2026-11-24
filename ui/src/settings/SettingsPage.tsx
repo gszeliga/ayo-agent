@@ -7,7 +7,7 @@ import { LoadError } from '@/components/LoadError'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_PARAMS, toSearchParams } from '@/documents/listParams'
-import { OUTDATED_REASONS } from '@/documents/status'
+import { OUTDATED_REASONS, outdatedReasonLabel } from '@/documents/status'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -72,9 +72,7 @@ const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1
 
 function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
   const { total, indexed, outdated } = counts
-  const reasons = (Object.keys(OUTDATED_REASONS) as (keyof typeof OUTDATED_REASONS)[]).map(
-    (reason) => ({ reason, count: outdated[reason] }),
-  )
+  const reasons = OUTDATED_REASONS.map((reason) => ({ reason, count: outdated[reason] }))
   const outdatedTotal = reasons.reduce((sum, r) => sum + r.count, 0)
   const share = (n: number) => (total === 0 ? 0 : (n / total) * 100)
   return (
@@ -95,7 +93,7 @@ function DocumentsCard({ counts }: { counts: IndexingSettings['documents'] }) {
         {reasons.map(({ reason, count }) => (
           <Setting
             key={reason}
-            label={OUTDATED_REASONS[reason]}
+            label={outdatedReasonLabel(reason, 'en')}
             className="text-muted-foreground pl-4 text-[13px]"
           >
             {count}

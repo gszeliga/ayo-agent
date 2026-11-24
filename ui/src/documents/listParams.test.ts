@@ -86,9 +86,7 @@ test("the limits match the API's", () => {
   const status = parameters.find((parameter) => parameter.name === 'status')?.schema as {
     anyOf: { enum?: string[] }[]
   }
-  expect(STATUS_OPTIONS.map((option) => option.value)).toEqual(status.anyOf[0]?.enum)
+  expect(STATUS_OPTIONS).toEqual(status.anyOf[0]?.enum)
   const sorts = parameters.find((parameter) => parameter.name === 'sort')?.schema
-  expect(new Set(SORT_OPTIONS.map((option) => option.value))).toEqual(
-    new Set((sorts as { enum: string[] }).enum),
-  )
+  expect(new Set(SORT_OPTIONS)).toEqual(new Set((sorts as { enum: string[] }).enum))
 })

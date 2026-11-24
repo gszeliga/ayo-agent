@@ -1,10 +1,17 @@
 import type { components } from '@/api/schema'
+import { i18n } from '@/i18n'
+import type { Language } from '@/lib/language'
 
-type OutdatedReason = NonNullable<components['schemas']['Document']['outdated_reason']>
+export type OutdatedReason = NonNullable<components['schemas']['Document']['outdated_reason']>
+
+/** Every `outdated_reason`, in the order they are listed. */
+export const OUTDATED_REASONS: readonly OutdatedReason[] = [
+  'chunker_changed',
+  'embedder_changed',
+  'unknown',
+]
 
 /** `outdated_reason` in words. */
-export const OUTDATED_REASONS: Record<OutdatedReason, string> = {
-  chunker_changed: 'Chunking settings changed since it was indexed',
-  embedder_changed: 'Embedding model or size changed since it was indexed',
-  unknown: 'Indexed before settings were recorded',
+export function outdatedReasonLabel(reason: OutdatedReason, language: Language): string {
+  return i18n.getFixedT(language, 'documents')(`outdatedReason.${reason}`)
 }

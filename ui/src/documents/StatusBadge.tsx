@@ -1,8 +1,12 @@
+import { useTranslation } from 'react-i18next'
+
 import type { components } from '@/api/schema'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-import { OUTDATED_REASONS } from './status'
+import { useLanguage } from '@/layout/languageContext'
+
+import { outdatedReasonLabel } from './status'
 
 type Document = components['schemas']['Document']
 
@@ -12,13 +16,18 @@ export function StatusBadge({
 }: {
   document: Pick<Document, 'status' | 'outdated_reason'>
 }) {
-  if (document.status === 'indexed') return <Badge variant="success">Indexed</Badge>
-  const reason = OUTDATED_REASONS[document.outdated_reason ?? 'unknown']
+  const { t } = useTranslation('documents')
+  const { language } = useLanguage()
+  if (document.status === 'indexed') {
+    return <Badge variant="success">{t('status.indexed')}</Badge>
+  }
+  const reason = outdatedReasonLabel(document.outdated_reason ?? 'unknown', language)
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Badge variant="warning" tabIndex={0}>
-          Outdated<span className="sr-only">: {reason}</span>
+          {t('status.outdated')}
+          <span className="sr-only">: {reason}</span>
         </Badge>
       </TooltipTrigger>
       <TooltipContent>{reason}</TooltipContent>

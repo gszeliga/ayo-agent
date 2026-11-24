@@ -1,5 +1,6 @@
 import { Loader2, RefreshCw, Search, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 
 import { LoadError } from '@/components/LoadError'
@@ -34,7 +35,8 @@ import { useSelection } from './useSelection'
 export const SEARCH_DELAY_MS = 300
 
 export function DocumentsPage() {
-  useDocumentTitle('Documents')
+  const { t } = useTranslation('documents')
+  useDocumentTitle(t('pageTitle'))
   const [searchParams, setSearchParams] = useSearchParams()
   const params = parseListParams(searchParams)
   const canonical = toSearchParams(params).toString()
@@ -55,7 +57,7 @@ export function DocumentsPage() {
       }}
     >
       <Upload aria-hidden="true" />
-      Upload
+      {t('upload')}
     </Button>
   )
 
@@ -104,10 +106,10 @@ export function DocumentsPage() {
       <section className="min-w-0 flex-1 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-xl font-semibold">Documents</h1>
+            <h1 className="text-xl font-semibold">{t('heading')}</h1>
             {data && (
               <p className="text-muted-foreground tabular-nums">
-                {data.total === 1 ? '1 document' : `${String(data.total)} documents`}
+                {t('total', { count: data.total })}
               </p>
             )}
           </div>
@@ -137,13 +139,13 @@ export function DocumentsPage() {
                 className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2"
               />
               <label htmlFor="q" className="sr-only">
-                Search title or file name
+                {t('filters.search')}
               </label>
               <Input
                 id="q"
                 type="search"
                 className="pl-9"
-                placeholder="Search title or file name"
+                placeholder={t('filters.search')}
                 maxLength={Q_MAX_LENGTH}
                 value={qDraft}
                 onChange={(event) => {
@@ -152,7 +154,7 @@ export function DocumentsPage() {
               />
             </div>
             <label htmlFor="status" className="sr-only">
-              Status
+              {t('filters.status')}
             </label>
             <select
               id="status"
@@ -162,15 +164,15 @@ export function DocumentsPage() {
                 update({ status: (event.target.value || null) as StatusFilter | null })
               }}
             >
-              <option value="">All statuses</option>
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              <option value="">{t('filters.allStatuses')}</option>
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {t(`status.${status}`)}
                 </option>
               ))}
             </select>
             <label htmlFor="sort" className="sr-only">
-              Sort
+              {t('filters.sort')}
             </label>
             <select
               id="sort"
@@ -180,9 +182,9 @@ export function DocumentsPage() {
                 update({ sort: event.target.value as DocumentSort })
               }}
             >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {SORT_OPTIONS.map((sort) => (
+                <option key={sort} value={sort}>
+                  {t(`sort.${sort}`)}
                 </option>
               ))}
             </select>
@@ -193,7 +195,7 @@ export function DocumentsPage() {
                   update(NO_FILTERS)
                 }}
               >
-                Clear filters
+                {t('filters.clear')}
               </Button>
             )}
             {params.status === 'outdated' &&
@@ -207,13 +209,13 @@ export function DocumentsPage() {
                   }}
                 >
                   <RefreshCw aria-hidden="true" />
-                  Reprocess all {data.total} outdated
+                  {t('filters.reprocessOutdated', { count: data.total })}
                 </Button>
               )}
             {documents.isFetching && data && (
               <Loader2
                 role="status"
-                aria-label="Loading"
+                aria-label={t('filters.loading')}
                 className="text-muted-foreground size-4 animate-spin"
               />
             )}
@@ -227,8 +229,8 @@ export function DocumentsPage() {
         ) : data.total === 0 ? (
           hasFilters(params) ? (
             <EmptyState
-              title="No documents match"
-              description="Try another search, tenant or status."
+              title={t('empty.noMatchTitle')}
+              description={t('empty.noMatchDescription')}
               action={
                 <Button
                   variant="outline"
@@ -236,14 +238,14 @@ export function DocumentsPage() {
                     update(NO_FILTERS)
                   }}
                 >
-                  Clear filters
+                  {t('filters.clear')}
                 </Button>
               }
             />
           ) : (
             <EmptyState
-              title="No documents yet"
-              description="Upload a Markdown document to make it available to the copilot."
+              title={t('empty.noneTitle')}
+              description={t('empty.noneDescription')}
               action={uploadButton}
             />
           )

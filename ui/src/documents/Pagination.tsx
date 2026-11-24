@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 
 import { lastPage, PAGE_SIZE } from './listParams'
@@ -13,11 +15,12 @@ export function Pagination({
   shown: number
   onPage: (page: number) => void
 }) {
+  const { t } = useTranslation('documents')
   const from = (page - 1) * PAGE_SIZE + 1
   return (
-    <nav aria-label="Pagination" className="flex items-center justify-between gap-4">
+    <nav aria-label={t('pagination.label')} className="flex items-center justify-between gap-4">
       <p className="text-muted-foreground tabular-nums">
-        {shown > 0 ? `${String(from)}–${String(from + shown - 1)} of ${String(total)}` : ''}
+        {shown > 0 ? t('pagination.range', { from, to: from + shown - 1, total }) : ''}
       </p>
       <div className="flex gap-2">
         <Button
@@ -27,7 +30,7 @@ export function Pagination({
             onPage(page - 1)
           }}
         >
-          Previous
+          {t('pagination.previous')}
         </Button>
         <Button
           variant="outline"
@@ -36,7 +39,7 @@ export function Pagination({
             onPage(page + 1)
           }}
         >
-          Next
+          {t('pagination.next')}
         </Button>
       </div>
     </nav>

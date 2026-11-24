@@ -4,22 +4,19 @@ type ListQuery = NonNullable<paths['/admin/documents']['get']['parameters']['que
 export type DocumentSort = NonNullable<ListQuery['sort']>
 export type StatusFilter = NonNullable<ListQuery['status']>
 
-/** The status filter's options, "all" being no filter. */
-export const STATUS_OPTIONS: readonly { value: StatusFilter; label: string }[] = [
-  { value: 'indexed', label: 'Indexed' },
-  { value: 'outdated', label: 'Outdated' },
-]
+/** The status filter's options, "all" being no filter; labels in the `documents` catalog. */
+export const STATUS_OPTIONS: readonly StatusFilter[] = ['indexed', 'outdated']
 
-/** The prototype's sort options, in its order. */
-export const SORT_OPTIONS: readonly { value: DocumentSort; label: string }[] = [
-  { value: '-updated_at', label: 'Recently updated' },
-  { value: 'updated_at', label: 'Least recently updated' },
-  { value: '-created_at', label: 'Newest' },
-  { value: 'created_at', label: 'Oldest' },
-  { value: 'title', label: 'Title A–Z' },
-  { value: '-title', label: 'Title Z–A' },
-  { value: '-chunk_count', label: 'Most chunks' },
-  { value: 'chunk_count', label: 'Fewest chunks' },
+/** The prototype's sort options, in its order; labels in the `documents` catalog. */
+export const SORT_OPTIONS: readonly DocumentSort[] = [
+  '-updated_at',
+  'updated_at',
+  '-created_at',
+  'created_at',
+  'title',
+  '-title',
+  '-chunk_count',
+  'chunk_count',
 ]
 
 export const PAGE_SIZE = 25
@@ -46,11 +43,11 @@ export const DEFAULT_PARAMS: ListParams = {
 }
 
 function isStatus(value: string): value is StatusFilter {
-  return STATUS_OPTIONS.some((option) => option.value === value)
+  return (STATUS_OPTIONS as readonly string[]).includes(value)
 }
 
 function isSort(value: string): value is DocumentSort {
-  return SORT_OPTIONS.some((option) => option.value === value)
+  return (SORT_OPTIONS as readonly string[]).includes(value)
 }
 
 /** The list's state from the URL; invalid values fall back to their defaults. */

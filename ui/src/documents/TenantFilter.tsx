@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 
 import type { components } from '@/api/schema'
@@ -15,11 +16,11 @@ interface Entry {
 }
 
 /** "All tenants", each tenant, and the selected one even when it has no documents (any more). */
-function entries(tenants: TenantSummary[], selected: string | null): Entry[] {
+function entries(tenants: TenantSummary[], selected: string | null, all: string): Entry[] {
   const list: Entry[] = [
     {
       tenant: null,
-      label: 'All tenants',
+      label: all,
       count: tenants.reduce((sum, t) => sum + t.document_count, 0),
     },
     ...tenants.map((t) => ({ tenant: t.tenant, label: t.tenant, count: t.document_count })),
@@ -42,6 +43,7 @@ interface Props {
 
 /** The tenants as a sidebar, on wide screens (TenantSelect replaces it on narrow ones). */
 export function TenantSidebar({ tenants, params }: Props) {
+  const { t } = useTranslation('documents')
   if (tenants === undefined) {
     return (
       <div className="hidden w-56 flex-none space-y-2 lg:block" aria-hidden="true">
@@ -52,10 +54,12 @@ export function TenantSidebar({ tenants, params }: Props) {
     )
   }
   return (
-    <nav aria-label="Tenants" className="hidden w-56 flex-none lg:block">
-      <h2 className="text-muted-foreground mb-2 px-2.5 text-xs font-semibold uppercase">Tenants</h2>
+    <nav aria-label={t('tenants.label')} className="hidden w-56 flex-none lg:block">
+      <h2 className="text-muted-foreground mb-2 px-2.5 text-xs font-semibold uppercase">
+        {t('tenants.label')}
+      </h2>
       <ul className="space-y-0.5">
-        {entries(tenants, params.tenant).map((entry) => {
+        {entries(tenants, params.tenant, t('tenants.all')).map((entry) => {
           const current = entry.tenant === params.tenant
           return (
             <li key={entry.tenant ?? ''}>
@@ -80,12 +84,13 @@ export function TenantSidebar({ tenants, params }: Props) {
 
 /** The tenants as a select in the toolbar, below the sidebar's breakpoint. */
 export function TenantSelect({ tenants, params }: Props) {
+  const { t } = useTranslation('documents')
   const navigate = useNavigate()
   if (tenants === undefined) return null
   return (
     <div className="lg:hidden">
       <label htmlFor="tenant-select" className="sr-only">
-        Tenant
+        {t('tenants.select')}
       </label>
       <select
         id="tenant-select"
@@ -95,7 +100,7 @@ export function TenantSelect({ tenants, params }: Props) {
           void navigate(href(params, event.target.value || null))
         }}
       >
-        {entries(tenants, params.tenant).map((entry) => (
+        {entries(tenants, params.tenant, t('tenants.all')).map((entry) => (
           <option key={entry.tenant ?? ''} value={entry.tenant ?? ''}>
             {entry.label} ({entry.count})
           </option>

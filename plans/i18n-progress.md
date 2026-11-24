@@ -7,10 +7,11 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1 and I2 are done (2026-11-24). **Next: I3** (documents list: filters, table,
-pagination, selection, bulk delete and reprocess dialogs, upload). Write its brief and
-wait for the user's OK. Use the glossary below; `describeError`, `relativeTime` and
-`formatBytes` take the language there (`useLanguage().language`).
+I1, I2 and I3a are done (2026-11-24). **Next: I3b** (bulk delete and bulk reprocess
+dialogs, their toasts, `ConfirmByTyping`; the phrase to type is translated, decision 17).
+Write its brief and wait for the user's OK. Use the glossary below; `describeError`,
+`relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
+i18next plurals (`count`, `_one` / `_other`).
 
 Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
 - ~190 files, ~8,600 lines of TSX under `ui/src/`; every string is an English literal in a
@@ -101,6 +102,19 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     `msg` is the API's, shown as received (decision 5). Its other callers stay English until
     their area's step.
 
+17. (I3, 2026-11-24) **I3 split in three** (I3a list, I3b bulk dialogs, I3c upload): about
+    2,300 lines in 21 files, too much for one reviewable step. `ConfirmByTyping` moves
+    from I4 to I3b (bulk delete uses it first). **The phrase to type is translated**
+    ("delete 130" -> "eliminar 130"): people type what they see. The single delete's
+    phrase is the document's name, unchanged.
+18. (I3a) **Option labels by value:** `STATUS_OPTIONS`, `SORT_OPTIONS` and
+    `OUTDATED_REASONS` are lists of the API's values; their words are in the `documents`
+    catalog keyed by those values (`sort.-updated_at`), so `listParams.ts` holds no UI
+    text and the URL stays English. `outdatedReasonLabel(reason, language)`; Settings
+    passes `'en'` until I5. `LoadError` (shared by every screen) takes the language now,
+    in step with its Retry, Spanish since I1. English copy unchanged, including "(1 on
+    other pages)" (the plural keys are there; English wording kept as it was).
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -131,8 +145,11 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
 - [x] **I1** Setup, language picker, locale-aware formatters, the shell translated.
 - [x] **I2** Glossary agreed (recorded above); connect screen, `describeError`, connection
   messages (`src/pages/ConnectPage.tsx`, `src/connection/*`, `src/api/errors.ts`).
-- [ ] **I3** Documents list: filters, table, pagination, selection, bulk delete and
-  reprocess dialogs, upload (`src/documents/*`, `src/upload/*`).
+- [x] **I3a** Documents list: page, filters, table, badge, pagination, selection bar,
+  empty states (decision 17).
+- [ ] **I3b** Bulk delete and bulk reprocess dialogs, their toasts, `ConfirmByTyping`.
+- [ ] **I3c** Upload: dialog, file drop, field checks, API error placement, toasts
+  (`src/upload/*`).
 - [ ] **I4** Document detail: facts, content, chunks, rename, reprocess, delete
   (`src/document/*`, `src/components/ConfirmByTyping.tsx`, `CopyButton.tsx`).
 - [ ] **I5** Search and Settings, including `ServiceDetails` (`src/search/*`, `src/settings/*`).
@@ -246,3 +263,13 @@ I2 adjusts them if the glossary differs.
   languages. 538 tests; existing ones unchanged except `App.test.tsx` (the constant became
   a literal, the 401 set-up shared). `pnpm check` passes. Docs: `ui/README.md`
   ("Languages", "Connecting"); `CLAUDE.md`.
+- 2026-11-24, **I3a** (documents list). I3 split in three (decision 17). New `documents`
+  namespace: tab title, heading, the count ("2 documentos", plurals), Upload button,
+  filters (search, status, sort, Clear filters, "Reprocesar los N desactualizados"),
+  organización sidebar and select, table headers and aria-labels, status badge and the
+  outdated reasons, pagination ("1–25 de 130", Anterior / Siguiente), selection bar, empty
+  states. Labels by value (decision 18); the table's dates and sizes and `LoadError`
+  follow the language. Tests: four Spanish cases in `DocumentsPage.test.tsx` (the whole
+  list, a count of one and the outdated button, no documents, no match); the catalog
+  parity test covers the new namespace. 547 tests; existing ones unchanged except
+  `listParams.test.ts` (the options are plain values now). `pnpm check` passes.
