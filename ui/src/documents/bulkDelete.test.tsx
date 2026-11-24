@@ -266,7 +266,9 @@ test('a batch failing after another succeeded says what was done, and keeps the 
   )
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   expect(screen.getByRole('region', { name: 'Selection' })).toHaveTextContent('30 selected')
-})
+  // 130 documents over six pages and two batches: about 1.8 s alone, 4.9 s when every file
+  // runs at once (near the default 5 s).
+}, 15_000)
 
 describe('in Spanish', () => {
   afterEach(() => {

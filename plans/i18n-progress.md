@@ -10,7 +10,7 @@ change, and no billed call anywhere in this milestone.
 I1-I5 and I6a are done (2026-11-24). **Next: I6b** (the case view: header, stepper, turns,
 phase marker, composer, send errors as codes, read-only notice, not found, delete dialog;
 brief agreed with I6, decision 25). Write its brief again only if it changes; wait for the
-user's OK. Then propose the side step for the two slow tests (I6a's log entry). Use the glossary below; `describeError`,
+user's OK. Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -417,4 +417,12 @@ I2 adjusts them if the glossary differs.
   (`Send.test.tsx`, 4.2 s in the suite) and "a batch failing after another succeeded..."
   (`bulkDelete.test.tsx`, 4.9 s). The same pattern as I1's side step; proposed: the same
   fix (15 s each, with a comment), as a side step after I6b or before it, the user's call.
+- 2026-11-24, **side step: slow tests' limits, again** (the user: before I6b). The two tests
+  in I6a's entry get 15 s, each with a comment saying why (1.8 s alone each). A scan of
+  three full runs for tests over 3 s on the 5 s default found two more near it, fixed the
+  same way: "rename > Enter saves the trimmed title..." (`actions.test.tsx`, 1.7 s alone,
+  3.9-4.5 s in the suite) and "the chat page has no accessibility violations, nor its
+  dialogs" (`ChatSession.test.tsx`, 1.3 s alone, 3.4-4.3 s). The others over 3 s stayed at
+  3.8 s or less, left as they are. Limits only, no test behaviour changed. Three full runs:
+  635 passed each time; `pnpm check` passes.
 

@@ -112,7 +112,9 @@ describe('rename', () => {
     expect(
       await screen.findByRole('link', { name: 'Caldera B2: mantenimiento (rev. 4)' }),
     ).toBeInTheDocument()
-  })
+    // A rename, then the list: about 1.7 s alone, up to 4.5 s when every file runs at once
+    // (near the default 5 s).
+  }, 15_000)
 
   test('Esc cancels without a request', async () => {
     const { doc, calls } = serve()

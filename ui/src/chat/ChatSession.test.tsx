@@ -138,4 +138,6 @@ test('the chat page has no accessibility violations, nor its dialogs', async () 
 
   await user.click(screen.getByRole('button', { name: 'Delete' }))
   expect(await a11yViolations(await screen.findByRole('alertdialog'))).toEqual([])
-})
+  // axe three times (the page, Export, Delete): about 1.3 s alone, up to 4.3 s when every file
+  // runs at once (near the default 5 s).
+}, 15_000)

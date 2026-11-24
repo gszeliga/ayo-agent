@@ -64,7 +64,9 @@ test('a new conversation asks the tenant, then the first reply opens its case', 
   const [turn] = await turnItems()
   expect(turn).toHaveTextContent('La línea 3 se para cada noche')
   expect(await within(turn ?? document.body).findByText(/Entendido/)).toBeInTheDocument()
-})
+  // A dialog, typing, a send and a navigation: about 1.8 s alone, 4.2 s when every file runs
+  // at once (near the default 5 s).
+}, 15_000)
 
 test('the dialog preselects the first tenant when none was used, and can be cancelled', async () => {
   serveChat(chatCases())
