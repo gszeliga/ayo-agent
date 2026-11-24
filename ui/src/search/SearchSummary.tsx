@@ -1,32 +1,44 @@
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { useLanguage } from '@/layout/languageContext'
+import { formatDecimal } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { tenantsSummary } from './format'
 import type { LastSearch } from './useSearch'
 
-const ms = (value: number) => `${value.toFixed(1)} ms`
-
 /** The count, the scope, the timings and, folded away, how the search ran. */
 export function SearchSummary({ last }: { last: LastSearch }) {
+  const { t } = useTranslation('search')
+  const { language } = useLanguage()
   const [open, setOpen] = useState(false)
   const { response, options } = last
   const count = response.results.length
+  const ms = (value: number) => t('summary.ms', { n: formatDecimal(value, language, { min: 1 }) })
   const scope = [
-    `top ${String(options.topK)}`,
-    ...(options.minSimilarity !== null ? [`min ${String(options.minSimilarity)}`] : []),
-    options.tenants.length > 0 ? tenantsSummary(options.tenants) : 'all tenants',
-    ...(options.includeOutdated ? ['other models included'] : []),
+    t('summary.top', { n: options.topK }),
+    ...(options.minSimilarity !== null
+      ? [
+          t('summary.min', {
+            n: formatDecimal(options.minSimilarity, language, { min: 0, max: 15 }),
+          }),
+        ]
+      : []),
+    options.tenants.length > 0
+      ? tenantsSummary(options.tenants, language)
+      : t('summary.allTenants'),
+    ...(options.includeOutdated ? [t('summary.otherModels')] : []),
   ].join(' · ')
   const debug = response.debug
   const rows: [string, string, boolean][] = debug
     ? [
-        [`Embedded query (input_type: ${debug.input_type})`, debug.embedded_query, false],
-        ['Embedder config searched', debug.embedder_config, true],
-        ['Current chunker config', debug.chunker_config, true],
-        ['Skipped (embedder_mismatch)', String(response.skipped.embedder_mismatch), false],
+        [t('summary.embeddedQuery', { type: debug.input_type }), debug.embedded_query, false],
+        [t('summary.embedderConfig'), debug.embedder_config, true],
+        [t('summary.chunkerConfig'), debug.chunker_config, true],
+        [t('summary.skipped'), String(response.skipped.embedder_mismatch), false],
       ]
     : []
 
@@ -34,22 +46,23 @@ export function SearchSummary({ last }: { last: LastSearch }) {
     <Collapsible open={open} onOpenChange={setOpen} className="space-y-2.5">
       <div
         role="status"
-        aria-label="Search summary"
+        aria-label={t('summary.label')}
         className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]"
       >
-        <span className="text-foreground font-semibold">
-          {count} {count === 1 ? 'result' : 'results'}
-        </span>
+        <span className="text-foreground font-semibold">{t('summary.results', { count })}</span>
         <span>{scope}</span>
         {debug && (
           <span className="font-mono text-[12px]">
-            Embedding {ms(debug.timings_ms.embed)} · Search {ms(debug.timings_ms.search)} · Total{' '}
-            {ms(debug.timings_ms.total)}
+            {t('summary.timings', {
+              embed: ms(debug.timings_ms.embed),
+              search: ms(debug.timings_ms.search),
+              total: ms(debug.timings_ms.total),
+            })}
           </span>
         )}
         {debug && (
           <CollapsibleTrigger className="text-link inline-flex items-center gap-1 font-medium hover:underline">
-            Details
+            {t('summary.details')}
             <ChevronDown
               aria-hidden="true"
               className={cn('size-3.5 transition-transform', open && 'rotate-180')}

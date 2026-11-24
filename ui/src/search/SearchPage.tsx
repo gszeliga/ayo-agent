@@ -1,5 +1,6 @@
 import { AlertTriangle, Search } from 'lucide-react'
 import { useId, useState, type KeyboardEvent, type SubmitEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 
 import { ApiError, describeError } from '@/api/errors'
@@ -12,6 +13,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useConnection } from '@/connection/context'
 import { DEFAULT_PARAMS, toSearchParams as toListSearch } from '@/documents/listParams'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { i18n } from '@/i18n'
+import { useLanguage } from '@/layout/languageContext'
+import { formatDecimal } from '@/lib/format'
+import type { Language } from '@/lib/language'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/paths'
 import { useCachedServiceHealth } from '@/settings/healthQuery'
@@ -34,11 +39,32 @@ import { useLastSearch, useSearch, type LastSearch } from './useSearch'
 
 const OUTDATED_LIST = `${ROUTES.documents}?${toListSearch({ ...DEFAULT_PARAMS, status: 'outdated' }).toString()}`
 
+/** A field's problem, worded when shown (`describeProblem`); `api` is the API's own message. */
+type FieldProblem =
+  | { code: 'queryEmpty' | 'topK' | 'minSimilarity' }
+  | { code: 'queryTooLong'; length: number }
+  | { code: 'api'; message: string }
+
+/** A failed search that no field owns. */
+type OtherProblem = { code: 'providerFailed' } | { code: 'error'; error: Error }
+
 interface Problems {
-  query?: string
-  top_k?: string
-  min_similarity?: string
-  other?: string
+  query?: FieldProblem
+  top_k?: FieldProblem
+  min_similarity?: FieldProblem
+  other?: OtherProblem
+}
+
+function describeProblem(problem: FieldProblem, language: Language): string {
+  const t = i18n.getFixedT(language, 'search')
+  switch (problem.code) {
+    case 'api':
+      return problem.message
+    case 'queryTooLong':
+      return t('problem.queryTooLong', { max: QUERY_MAX_CHARS, n: problem.length })
+    default:
+      return t(`problem.${problem.code}`)
+  }
 }
 
 /** The form as typed: options start from the URL, the question from the last search. */
@@ -64,15 +90,13 @@ function draftFrom(options: SearchOptions, question: string): Draft {
 function validate(draft: Draft): { options: SearchOptions } | { problems: Problems } {
   const problems: Problems = {}
   const length = charCount(draft.question.trim())
-  if (length === 0) problems.query = 'Type a question.'
-  else if (length > QUERY_MAX_CHARS) {
-    problems.query = `At most ${String(QUERY_MAX_CHARS)} characters (now ${String(length)}).`
-  }
+  if (length === 0) problems.query = { code: 'queryEmpty' }
+  else if (length > QUERY_MAX_CHARS) problems.query = { code: 'queryTooLong', length }
   const topK = parseTopK(draft.topK)
-  if (topK === null) problems.top_k = 'A whole number from 1 to 50.'
+  if (topK === null) problems.top_k = { code: 'topK' }
   const min = draft.minSimilarity.trim() ? parseMinSimilarity(draft.minSimilarity) : null
   if (draft.minSimilarity.trim() && min === null) {
-    problems.min_similarity = 'A number from 0 to 1, or empty for none.'
+    problems.min_similarity = { code: 'minSimilarity' }
   }
   if (Object.keys(problems).length > 0 || topK === null) return { problems }
   return {
@@ -86,27 +110,26 @@ function validate(draft: Draft): { options: SearchOptions } | { problems: Proble
 }
 
 /** A failed search, worded for the user; a 422 goes next to its fields instead. */
-function problemsFrom(error: Error, baseUrl: string): Problems {
+function problemsFrom(error: Error): Problems {
   if (error instanceof ApiError && error.status === 422) {
     const fields = error.fieldErrors()
     const placed: Problems = {}
     for (const key of ['query', 'top_k', 'min_similarity'] as const) {
-      if (fields[key]) placed[key] = fields[key]
+      const message = fields[key]
+      if (message) placed[key] = { code: 'api', message }
     }
     if (Object.keys(placed).length > 0) return placed
   }
   if (error instanceof ApiError && error.status === 502) {
-    return {
-      other:
-        'The embedding provider failed: the question could not be embedded, so nothing was' +
-        ' searched. Try again in a moment.',
-    }
+    return { other: { code: 'providerFailed' } }
   }
-  return { other: describeError(error, baseUrl) }
+  return { other: { code: 'error', error } }
 }
 
 export function SearchPage() {
-  useDocumentTitle('Test search')
+  const { t } = useTranslation('search')
+  const { language } = useLanguage()
+  useDocumentTitle(t('pageTitle'))
   const { connection } = useConnection()
   const [searchParams, setSearchParams] = useSearchParams()
   const last = useLastSearch()
@@ -121,7 +144,7 @@ export function SearchPage() {
   const questionNoteId = useId()
   const topKId = useId()
 
-  const failed = search.error ? problemsFrom(search.error, connection?.baseUrl ?? '') : {}
+  const failed = search.error ? problemsFrom(search.error) : {}
   const problems: Problems = { ...failed, ...checked }
   const shown: LastSearch | null = search.isError ? null : last
 
@@ -168,35 +191,42 @@ export function SearchPage() {
   }
 
   const length = charCount(draft.question.trim())
+  const words = (problem: FieldProblem | undefined) =>
+    problem ? describeProblem(problem, language) : undefined
+  const other = problems.other
+  const otherMessage =
+    other === undefined
+      ? null
+      : other.code === 'providerFailed'
+        ? t('problem.providerFailed')
+        : describeError(other.error, connection?.baseUrl ?? '', language)
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div>
-        <h1 className="text-[22px] font-semibold">Test search</h1>
-        <p className="text-muted-foreground">
-          Ask a question the way a plant team would and see which chunks the copilot would retrieve,
-          nearest first.
-        </p>
+        <h1 className="text-[22px] font-semibold">{t('heading')}</h1>
+        <p className="text-muted-foreground">{t('intro')}</p>
       </div>
 
       {embeddings?.status === 'down' && (
         <Alert role="note" className="bg-warning-muted text-warning border-transparent">
           <AlertTriangle aria-hidden="true" />
           <AlertDescription className="text-warning">
-            The embedding provider is down: every question is embedded first, so searches fail until
-            it is back{embeddings.error ? ` (${embeddings.error})` : ''}.
+            {embeddings.error
+              ? t('providerDownWithError', { error: embeddings.error })
+              : t('providerDown')}
           </AlertDescription>
         </Alert>
       )}
 
       <form
         noValidate
-        aria-label="Search"
+        aria-label={t('form.label')}
         className="bg-card space-y-4 rounded-xl border p-4"
         onSubmit={submit}
       >
         <div className="space-y-1.5">
-          <Label htmlFor={questionId}>Question</Label>
+          <Label htmlFor={questionId}>{t('form.question')}</Label>
           <textarea
             id={questionId}
             rows={3}
@@ -216,12 +246,9 @@ export function SearchPage() {
           />
           <div id={questionNoteId} className="flex justify-between gap-3 text-[13px]">
             {problems.query ? (
-              <p className="text-destructive">{problems.query}</p>
+              <p className="text-destructive">{words(problems.query)}</p>
             ) : (
-              <p className="text-muted-foreground">
-                Enter searches, Shift+Enter adds a line. Questions are never logged or put in the
-                URL.
-              </p>
+              <p className="text-muted-foreground">{t('form.hint')}</p>
             )}
             <p
               className={cn(
@@ -242,7 +269,7 @@ export function SearchPage() {
             }}
           />
           <div className="space-y-1.5">
-            <Label htmlFor={topKId}>Top k</Label>
+            <Label htmlFor={topKId}>{t('form.topK')}</Label>
             <Input
               id={topKId}
               type="number"
@@ -264,7 +291,7 @@ export function SearchPage() {
             onMinSimilarity={(minSimilarity) => {
               edit({ minSimilarity }, 'min_similarity')
             }}
-            minError={problems.min_similarity}
+            minError={words(problems.min_similarity)}
             includeOutdated={draft.includeOutdated}
             onIncludeOutdated={(includeOutdated) => {
               edit({ includeOutdated })
@@ -272,20 +299,24 @@ export function SearchPage() {
           />
           <Button type="submit" className="ml-auto min-w-28" disabled={search.isPending}>
             <Search aria-hidden="true" />
-            {search.isPending ? 'Searching…' : 'Search'}
+            {search.isPending ? t('form.searching') : t('form.submit')}
           </Button>
         </div>
-        {problems.top_k && <p className="text-destructive text-[13px]">Top k: {problems.top_k}</p>}
+        {problems.top_k && (
+          <p className="text-destructive text-[13px]">
+            {t('form.topK')}: {words(problems.top_k)}
+          </p>
+        )}
         {problems.min_similarity && !optionsOpen && (
           <p className="text-destructive text-[13px]">
-            Minimum similarity: {problems.min_similarity}
+            {t('options.min')}: {words(problems.min_similarity)}
           </p>
         )}
       </form>
 
-      {problems.other && (
+      {otherMessage !== null && (
         <ErrorState
-          message={problems.other}
+          message={otherMessage}
           onRetry={() => {
             run()
           }}
@@ -304,14 +335,14 @@ export function SearchPage() {
       {shown && <SearchSummary last={shown} />}
 
       {search.isPending && !shown ? (
-        <div aria-busy="true" aria-label="Searching" className="space-y-2.5">
+        <div aria-busy="true" aria-label={t('form.loading')} className="space-y-2.5">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
       ) : shown && shown.response.results.length > 0 ? (
         <ol
-          aria-label="Results"
+          aria-label={t('form.results')}
           aria-busy={search.isPending}
           className={cn('space-y-2.5', search.isPending && 'opacity-50')}
         >
@@ -319,7 +350,7 @@ export function SearchPage() {
             <ResultCard
               key={hit.chunk_id}
               hit={hit}
-              embedderConfig={shown.response.debug?.embedder_config ?? 'the current one'}
+              embedderConfig={shown.response.debug?.embedder_config ?? t('result.currentConfig')}
             />
           ))}
         </ol>
@@ -332,10 +363,7 @@ export function SearchPage() {
         />
       ) : (
         !problems.other && (
-          <EmptyState
-            title="Results appear here"
-            description="Each result is a chunk: how close it is to the question (cosine similarity, 1 is the same direction), its document, and where in it the chunk sits. Each search embeds the question once."
-          />
+          <EmptyState title={t('empty.introTitle')} description={t('empty.introDescription')} />
         )
       )}
     </div>
@@ -343,23 +371,18 @@ export function SearchPage() {
 }
 
 function SkippedBanner({ count, onInclude }: { count: number; onInclude: () => void }) {
-  const one = count === 1
+  const { t } = useTranslation('search')
   return (
     <Alert role="status" className="bg-warning-muted text-warning border-transparent">
       <AlertTriangle aria-hidden="true" />
       <AlertDescription className="text-warning flex flex-wrap items-center justify-between gap-3">
-        <span className="flex-[1_1_22rem]">
-          {one ? '1 document was' : `${String(count)} documents were`} left out:{' '}
-          {one ? 'it was' : 'they were'} embedded with a different model (or before models were
-          recorded), so {one ? 'its' : 'their'} vectors can’t be compared. Reprocess{' '}
-          {one ? 'it' : 'them'} to make {one ? 'it' : 'them'} searchable.
-        </span>
+        <span className="flex-[1_1_22rem]">{t('skipped.text', { count })}</span>
         <span className="flex gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onInclude}>
-            Include them
+            {t('skipped.include')}
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to={OUTDATED_LIST}>Review outdated documents</Link>
+            <Link to={OUTDATED_LIST}>{t('skipped.review')}</Link>
           </Button>
         </span>
       </AlertDescription>
@@ -372,15 +395,20 @@ function SkippedBanner({ count, onInclude }: { count: number; onInclude: () => v
  * nothing was searchable; with one, the API does not say whether anything was searched.
  */
 function NoResults({ last, onClearMinimum }: { last: LastSearch; onClearMinimum: () => void }) {
+  const { t } = useTranslation('search')
+  const { language } = useLanguage()
   const { options, response } = last
   if (options.minSimilarity !== null) {
     return (
       <EmptyState
-        title="Nothing reached the minimum similarity"
-        description={`None of the top ${String(options.topK)} chunks scored ${String(options.minSimilarity)} or more.`}
+        title={t('empty.minTitle')}
+        description={t('empty.minDescription', {
+          topK: options.topK,
+          min: formatDecimal(options.minSimilarity, language, { min: 0, max: 15 }),
+        })}
         action={
           <Button type="button" variant="outline" onClick={onClearMinimum}>
-            Clear the minimum and search again
+            {t('empty.clearMin')}
           </Button>
         }
       />
@@ -389,19 +417,15 @@ function NoResults({ last, onClearMinimum }: { last: LastSearch; onClearMinimum:
   if (response.skipped.embedder_mismatch > 0) {
     return (
       <EmptyState
-        title="No searchable documents"
-        description="Every matching document was embedded with another model."
+        title={t('empty.noSearchableTitle')}
+        description={t('empty.noSearchableDescription')}
       />
     )
   }
   return (
     <EmptyState
-      title="Nothing to search"
-      description={
-        options.tenants.length > 0
-          ? 'These tenants have no documents.'
-          : 'The knowledge base is empty: upload a document first.'
-      }
+      title={t('empty.nothingTitle')}
+      description={options.tenants.length > 0 ? t('empty.nothingTenants') : t('empty.nothingEmpty')}
     />
   )
 }

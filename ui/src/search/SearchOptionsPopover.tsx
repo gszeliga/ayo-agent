@@ -1,5 +1,6 @@
 import { SlidersHorizontal } from 'lucide-react'
 import { useId } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -26,34 +27,40 @@ export function SearchOptionsPopover({
   includeOutdated: boolean
   onIncludeOutdated: (include: boolean) => void
 }) {
+  const { t } = useTranslation('search')
   const outdatedId = useId()
   const set = (minSimilarity.trim() ? 1 : 0) + (includeOutdated ? 1 : 0)
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" aria-invalid={minError ? true : undefined}>
+        <Button
+          type="button"
+          variant="outline"
+          aria-invalid={minError ? true : undefined}
+          // With options set, the name says how many: "Options, 1 set". The badge alone would
+          // run into the word ("Options1 set"), as names are joined without spaces.
+          aria-label={set > 0 ? t('options.buttonSet', { count: set }) : undefined}
+        >
           <SlidersHorizontal aria-hidden="true" />
-          Options
+          {t('options.button')}
           {set > 0 && (
-            <span className="bg-secondary text-muted-foreground rounded-sm px-1.5 text-[11px] font-semibold">
+            <span
+              aria-hidden="true"
+              className="bg-secondary text-muted-foreground rounded-sm px-1.5 text-[11px] font-semibold"
+            >
               {set}
-              <span className="sr-only"> set</span>
             </span>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" aria-label="Search options" className="w-84 space-y-4">
-        <Field
-          label="Minimum similarity"
-          error={minError}
-          hint="0 to 1. Chunks below it are dropped from the top k. Empty keeps them all."
-        >
+      <PopoverContent align="start" aria-label={t('options.label')} className="w-84 space-y-4">
+        <Field label={t('options.min')} error={minError} hint={t('options.minHint')}>
           {(props) => (
             <Input
               {...props}
               inputMode="decimal"
               autoComplete="off"
-              placeholder="None"
+              placeholder={t('options.minPlaceholder')}
               className="w-32 tabular-nums"
               value={minSimilarity}
               onChange={(event) => {
@@ -72,10 +79,9 @@ export function SearchOptionsPopover({
             }}
           />
           <label htmlFor={outdatedId} className="cursor-pointer text-sm">
-            <span className="font-medium">Include documents embedded with another model</span>
+            <span className="font-medium">{t('options.outdated')}</span>
             <span className="text-muted-foreground block text-[13px]">
-              Their vectors live in another space, so their similarity means little. They are
-              flagged in the results.
+              {t('options.outdatedHint')}
             </span>
           </label>
         </div>

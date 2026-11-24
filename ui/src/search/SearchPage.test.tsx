@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
@@ -104,6 +104,12 @@ test('the form checks the limits before sending', async () => {
   expect(await screen.findByText('A number from 0 to 1, or empty for none.')).toBeInTheDocument()
 
   expect(bodies).toEqual([])
+})
+
+test('the options button says how many are set', async () => {
+  await openSearch('/search?min=0.2&outdated=1')
+
+  expect(screen.getByRole('button', { name: 'Options, 2 set' })).toBeInTheDocument()
 })
 
 test('an over-long question is refused, with the count', async () => {
@@ -380,4 +386,173 @@ test('a result opens its chunk, and Back to search keeps the results', async () 
   await results()
   expect(question()).toHaveValue(QUESTION)
   expect(bodies).toHaveLength(1)
+})
+
+describe('in Spanish', () => {
+  async function openSearchEs(path = '/search') {
+    const rendered = renderApp(path, { connected: true, language: 'es' })
+    await screen.findByRole('heading', { name: 'Búsqueda de prueba', level: 1 })
+    return rendered
+  }
+  const pregunta = () => screen.getByLabelText('Pregunta')
+  async function askEs(user: ReturnType<typeof renderApp>['user']) {
+    await user.type(pregunta(), QUESTION)
+    await user.keyboard('{Enter}')
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('the form, its hint and the first-visit state are Spanish', async () => {
+    await openSearchEs()
+
+    expect(document.title).toBe('Búsqueda de prueba · AYO Admin')
+    expect(screen.getByText('Los resultados aparecen aquí')).toBeInTheDocument()
+    expect(pregunta()).toHaveAccessibleDescription(/^Enter busca, Mayús\+Enter añade una línea/)
+    // The placeholder is an example question in the content's language, in any UI language.
+    expect(pregunta()).toHaveAttribute(
+      'placeholder',
+      '¿Qué hago si la junta de la bomba pierde presión?',
+    )
+    expect(screen.getByRole('button', { name: 'Buscar' })).toBeInTheDocument()
+  })
+
+  test('the local checks are Spanish, with the count', async () => {
+    answer()
+    const { user } = await openSearchEs()
+
+    await user.click(screen.getByRole('button', { name: 'Buscar' }))
+    expect(screen.getByText('Escribe una pregunta.')).toBeInTheDocument()
+    await user.click(pregunta())
+    await user.paste('a'.repeat(2001))
+    await user.keyboard('{Enter}')
+    expect(screen.getByText('Como máximo 2000 caracteres (ahora 2001).')).toBeInTheDocument()
+
+    await user.clear(pregunta())
+    await user.type(pregunta(), 'x')
+    const topK = screen.getByLabelText('Top k')
+    await user.clear(topK)
+    await user.type(topK, '51')
+    await user.keyboard('{Enter}')
+    expect(screen.getByText('Top k: Un número entero del 1 al 50.')).toBeInTheDocument()
+  })
+
+  test('the organization picker and the options are Spanish', async () => {
+    const { user } = await openSearchEs()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Organizaciones Todas las organizaciones' }),
+    )
+    const picker = await screen.findByRole('dialog', { name: 'Organizaciones en las que buscar' })
+    expect(
+      within(picker).getByRole('checkbox', { name: /planta-norte\s*2 docs · 60 ch/ }),
+    ).toBeVisible()
+    expect(picker).toHaveTextContent('la organización compartida ayo, nunca entre clientes')
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getByRole('button', { name: 'Opciones' }))
+    const options = await screen.findByRole('dialog', { name: 'Opciones de búsqueda' })
+    expect(within(options).getByLabelText('Similitud mínima')).toHaveAccessibleDescription(
+      /^De 0 a 1\./,
+    )
+    await user.click(
+      within(options).getByLabelText(/^Incluir documentos con embeddings de otro modelo/),
+    )
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'Opciones, 1 activa' })).toBeInTheDocument()
+  })
+
+  test('results and the summary are Spanish, with decimal commas', async () => {
+    answer(makeSearchResponse())
+    const { user } = await openSearchEs('/search?min=0.2')
+    await askEs(user)
+    const list = await screen.findByRole('list', { name: 'Resultados' })
+
+    const first = within(list).getByRole('listitem', { name: 'Resultado 1' })
+    expect(first).toHaveTextContent('Similitud 0,8734')
+    expect(first).toHaveTextContent('pro-014-control-sellado.md · chunk 2')
+    expect(within(first).getByRole('button', { name: 'Mostrar más' })).toBeVisible()
+    const second = within(list).getByRole('listitem', { name: 'Resultado 2' })
+    expect(second).toHaveTextContent('Antes del primer encabezado')
+    expect(within(second).getByText('Otro modelo')).toBeInTheDocument()
+
+    const summary = screen.getByRole('status', { name: 'Resumen de la búsqueda' })
+    expect(summary).toHaveTextContent('2 resultados')
+    expect(summary).toHaveTextContent('top 5 · mín. 0,2 · todas las organizaciones')
+    expect(summary).toHaveTextContent('Embedding 41,2 ms · Búsqueda 6,3 ms · Total 47,5 ms')
+    await user.click(screen.getByRole('button', { name: 'Detalles' }))
+    expect(
+      screen.getByText('Consulta convertida en embedding (input_type: query)'),
+    ).toBeInTheDocument()
+  })
+
+  test('the skipped banner and the empty states are Spanish', async () => {
+    answer(
+      makeSearchResponse({ skipped: { embedder_mismatch: 1 } }),
+      makeSearchResponse({ results: [], skipped: { embedder_mismatch: 0 } }),
+    )
+    const { user } = await openSearchEs()
+    await askEs(user)
+    await screen.findByRole('list', { name: 'Resultados' })
+
+    expect(screen.getByText(/^1 documento se ha quedado fuera/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Incluirlos' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Revisar documentos desactualizados' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Incluirlos' }))
+    expect(await screen.findByText('Nada en lo que buscar')).toBeInTheDocument()
+    expect(
+      screen.getByText('La base de conocimiento está vacía: sube un documento primero.'),
+    ).toBeInTheDocument()
+  })
+
+  test('nothing above the minimum says so in Spanish', async () => {
+    answer(makeSearchResponse({ results: [] }))
+    const { user } = await openSearchEs('/search?min=0.9')
+    await askEs(user)
+
+    expect(await screen.findByText('Nada ha alcanzado la similitud mínima')).toBeInTheDocument()
+    expect(
+      screen.getByText('Ninguno de los 5 primeros chunks ha llegado a 0,9.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Quitar el mínimo y volver a buscar' }),
+    ).toBeInTheDocument()
+  })
+
+  test('a 422 is placed as received; a 502 is worded, and rewords on a switch', async () => {
+    answer(
+      () =>
+        HttpResponse.json(
+          { detail: [{ type: 'too_long', loc: ['body', 'query'], msg: 'String too long' }] },
+          { status: 422 },
+        ),
+      () =>
+        HttpResponse.json(
+          { detail: [{ type: 'embedding_failed', loc: [], msg: 'provider failed' }] },
+          { status: 502 },
+        ),
+    )
+    let browser = ['es-ES']
+    vi.spyOn(navigator, 'languages', 'get').mockImplementation(() => browser)
+    const { user } = renderApp('/search', { connected: true })
+    await screen.findByRole('heading', { name: 'Búsqueda de prueba', level: 1 })
+    await askEs(user)
+    expect(await screen.findByText('String too long')).toBeInTheDocument()
+
+    await user.type(pregunta(), '?')
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /^El proveedor de embeddings ha fallado: no se ha podido convertir la pregunta/,
+    )
+
+    browser = ['en-GB']
+    act(() => {
+      window.dispatchEvent(new Event('languagechange'))
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /^The embedding provider failed: the question could not be embedded/,
+    )
+  })
 })

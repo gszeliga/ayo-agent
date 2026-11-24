@@ -73,3 +73,29 @@ export function formatBytes(bytes: number, language: Language = 'en'): string {
   if (bytes < 1024 * 1024) return t('size.kilobytes', { n: decimal.format(bytes / 1024) })
   return t('size.megabytes', { n: decimal.format(bytes / (1024 * 1024)) })
 }
+
+const decimals = new Map<string, Intl.NumberFormat>()
+
+/**
+ * A number with a fixed count of decimals, no grouping, in the language's style: what
+ * `toFixed` gives in English ("0.8231", "12.3"), with a comma in Spanish ("0,8231").
+ * `max` above `min` drops trailing zeros: `{ min: 0, max: 15 }` shows a typed 0.3 as "0.3"
+ * (15, not more: past that the binary value shows, "0.2999…").
+ */
+export function formatDecimal(
+  value: number,
+  language: Language,
+  { min, max = min }: { min: number; max?: number },
+): string {
+  const key = `${language}/${String(min)}/${String(max)}`
+  let format = decimals.get(key)
+  if (format === undefined) {
+    format = new Intl.NumberFormat(INTL_LOCALE[language], {
+      minimumFractionDigits: min,
+      maximumFractionDigits: max,
+      useGrouping: false,
+    })
+    decimals.set(key, format)
+  }
+  return format.format(value)
+}

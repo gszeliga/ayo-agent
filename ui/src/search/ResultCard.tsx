@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router'
 
 import type { components } from '@/api/schema'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { chunkLink, type FromSearch } from '@/document/params'
+import { useLanguage } from '@/layout/languageContext'
+import { formatDecimal } from '@/lib/format'
 
 import { isLong } from './format'
 
@@ -12,6 +15,8 @@ type SearchHit = components['schemas']['SearchHitResult']
 
 /** One chunk found: how close, which document, where in it, and its text. */
 export function ResultCard({ hit, embedderConfig }: { hit: SearchHit; embedderConfig: string }) {
+  const { t } = useTranslation('search')
+  const { language } = useLanguage()
   const [expanded, setExpanded] = useState(false)
   const { search } = useLocation()
   const title = hit.document_title ?? hit.source_key
@@ -21,7 +26,10 @@ export function ResultCard({ hit, embedderConfig }: { hit: SearchHit; embedderCo
   const width = `${String(Math.max(0, Math.min(1, hit.similarity)) * 100)}%`
 
   return (
-    <li aria-label={`Result ${String(hit.rank)}`} className="bg-card rounded-xl border p-4">
+    <li
+      aria-label={t('result.label', { rank: hit.rank })}
+      className="bg-card rounded-xl border p-4"
+    >
       <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <span className="bg-secondary text-muted-foreground rounded-sm px-1.5 py-0.5 font-mono text-[12px] font-semibold">
           #{hit.rank}
@@ -34,8 +42,8 @@ export function ResultCard({ hit, embedderConfig }: { hit: SearchHit; embedderCo
             <span className="bg-primary block h-full" style={{ width }} />
           </span>
           <span className="font-mono text-[13px] font-semibold tabular-nums">
-            <span className="sr-only">Similarity </span>
-            {hit.similarity.toFixed(4)}
+            <span className="sr-only">{t('result.similarity')} </span>
+            {formatDecimal(hit.similarity, language, { min: 4 })}
           </span>
         </span>
         <Link
@@ -52,25 +60,24 @@ export function ResultCard({ hit, embedderConfig }: { hit: SearchHit; embedderCo
           <Tooltip>
             <TooltipTrigger asChild>
               <Badge variant="warning" tabIndex={0}>
-                Other model
+                {t('result.otherModel')}
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              Embedded with another model than {embedderConfig}: this similarity is not comparable.
-              Reprocess the document.
+              {t('result.otherModelHint', { config: embedderConfig })}
             </TooltipContent>
           </Tooltip>
         )}
         <span className="text-muted-foreground ml-auto text-[12.5px] whitespace-nowrap tabular-nums">
-          {hit.char_count} chars
+          {t('result.chars', { n: hit.char_count })}
         </span>
       </div>
       <div className="text-muted-foreground mb-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[13px]">
         <span className={hit.heading ? undefined : 'italic'}>
-          {hit.heading ?? 'Before the first heading'}
+          {hit.heading ?? t('result.noHeading')}
         </span>
         <span className="font-mono text-[12px]">
-          {hit.source_key} · chunk {hit.chunk_index}
+          {hit.source_key} · {t('result.chunk', { index: hit.chunk_index })}
         </span>
       </div>
       <p className={long && !expanded ? 'line-clamp-3 whitespace-pre-wrap' : 'whitespace-pre-wrap'}>
@@ -85,7 +92,7 @@ export function ResultCard({ hit, embedderConfig }: { hit: SearchHit; embedderCo
             setExpanded(!expanded)
           }}
         >
-          {expanded ? 'Show less' : 'Show more'}
+          {expanded ? t('result.less') : t('result.more')}
         </button>
       )}
     </li>

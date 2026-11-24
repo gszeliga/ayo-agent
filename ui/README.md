@@ -31,8 +31,8 @@ at a time: the shell (header, nav, menus, crash and 404 pages, Retry), the conne
 the UI's own error wording (`describeError`: the API out of reach, an answer not in its
 format; `LoadError` on every screen), the documents list with its bulk delete and
 reprocess dialogs, the upload dialog and the document page (facts, content and chunks
-tabs, rename, reprocess, delete; `CopyButton` everywhere), the indexing settings and the
-service status (its card and the header's popover) are translated; the other screens are still English until their step. The connect
+tabs, rename, reprocess, delete; `CopyButton` everywhere), the indexing settings, the
+service status (its card and the header's popover) and the test search are translated; the other screens are still English until their step. The connect
 screen has its own language menu, since the header's shows only once connected. Messages
 are kept as codes and worded when shown, so a switch rewords one already on screen. The
 Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.
@@ -62,6 +62,8 @@ missing or extra Spanish key, or a mistyped key in `t()`, fails `tsc`.
 - **A language:** its code in `Language`, `LANGUAGES`, `LANGUAGE_NAMES` and `INTL_LOCALE`
   (`src/lib/language.ts`), a `locales/<code>/` typed as `Catalog`, and `supportedLngs` in
   `src/i18n/index.ts`.
+- **Numbers** with decimals go through `formatDecimal(value, language, { min, max })` in
+  `lib/format.ts` ("0.8734" / "0,8734"); sizes and relative times have their own helpers.
 - **Tests** render in English; `renderApp(path, { language: 'es' })` starts in Spanish.
 
 ## Setup

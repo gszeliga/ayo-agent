@@ -7,9 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1-I4 and I5a are done (2026-11-24). **Next: I5b** (the test search: form, options,
-organization picker, results, summary, banners, empty states, errors; `src/search/*`).
-Write its brief and wait for the user's OK. Use the glossary below; `describeError`,
+I1-I5 are done (2026-11-24). **Next: I6** (test chat: cases list, filters, case view,
+composer, send errors, phases, `chat/format.ts`; `src/chat/` minus the inspector). Write
+its brief and wait for the user's OK. The chat area is the largest left: consider a split
+in the brief, as I3 and I5. Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -157,6 +158,18 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     data). Settings' outdated reasons follow the UI language now (closes decision 18's
     `'en'`).
 
+24. (I5b) **`search` namespace.** Search problems are codes (`FieldProblem`,
+    `OtherProblem`), worded when shown; a 422's `msg` for a field is the API's. Decimals
+    through a new `formatDecimal(value, language, { min, max })` in `lib/format.ts`
+    (cached `Intl.NumberFormat`, no grouping; `toFixed` output in English): similarity 4
+    decimals, timings 1, the typed minimum up to 15 (more shows the binary value).
+    `tenantsSummary` takes a language (default `'en'` until I8). The question placeholder
+    is an example question in Spanish in both languages (the content's language). **A
+    small English change:** with options set, the Options button's accessible name was the
+    run-together "Options1set" (names are joined without spaces, so the badge's sr-only
+    " set" lost its space; no test covered it); it now has an `aria-label`, "Options, 2
+    set" / "Opciones, 2 activas", and the badge is `aria-hidden`. New English test for it.
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -195,7 +208,7 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
 - [x] **I4** Document detail: facts, content, chunks, rename, reprocess, delete
   (`src/document/*`, `src/components/ConfirmByTyping.tsx`, `CopyButton.tsx`).
 - [x] **I5a** Settings and the service status (`src/settings/*`, decision 23).
-- [ ] **I5b** Search (`src/search/*`).
+- [x] **I5b** Search (`src/search/*`, decision 24).
 - [ ] **I6** Test chat: cases list, filters, case view, composer, send errors, phases,
   `chat/format.ts` (`src/chat/` minus the inspector).
 - [ ] **I7** Inspector: State, Trace, Summary, Actions tabs, summary errors, export (the
@@ -363,3 +376,14 @@ I2 adjusts them if the glossary differs.
   Tests: four Spanish cases in `SettingsPage.test.tsx` (the cards; the fallback and no
   key; the popover from the header; an unreachable status endpoint). 595 tests; existing
   ones unchanged. `pnpm check` passes.
+- 2026-11-24, **I5b** (test search). New `search` namespace (decision 24): title, intro,
+  provider-down note, the form and its hint, the local checks ("ahora N"), the 422 and
+  502 messages, the organization picker (counts, loading / failed / none, the note with
+  `<Trans>` for `ayo`), the options popover, result cards (similarity "0,8734", other
+  model, no heading, chunk, show more / less), the summary ("mín. 0,2", timings "41,2
+  ms", details rows), the skipped banner (plurals), the empty states. The Options button's
+  name fixed (decision 24). Tests: seven Spanish cases in `SearchPage.test.tsx` (form and
+  first visit; local checks; picker and options; results and summary; skipped banner and
+  nothing to search; nothing above the minimum; a 422 placed as received and a 502 that
+  rewords when the browser's language changes) and one English (the Options button's
+  name). 609 tests; existing ones unchanged. `pnpm check` passes.
