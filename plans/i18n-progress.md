@@ -7,11 +7,10 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1-I6 are done (2026-11-24). **Next: I7** (the inspector: its rail, the State, Trace,
-Summary and Actions tabs, `CaseTotals`, `trace.ts` `usageLine`, the export and summary
-dialogs, `summaryErrors`; then `PHASE_LABELS` and `plural()` go). Write its brief (it
-proposes whether the export follows the UI language; consider a split) and wait for the
-user's OK. Use the glossary below; `describeError`,
+I1-I6 and I7a are done (2026-11-24). **Next: I7b** (the Summary tab: structured summary,
+AI summary, `GenerateSummaryDialog`, `summaryErrors` as codes; `ExportDialog`; the
+Markdown export in the UI language; then `PHASE_LABELS` and `plural()` go; brief agreed
+with I7, decision 27). Write its brief again only if it changes; wait for the user's OK. Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -194,6 +193,18 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     both languages (the conversation's language, as decision 24). The delete sentence is
     two whole keys (with and without the AI summary), the counts worded by plural keys.
 
+27. (I7, 2026-11-24) **I7 split in two** (agreed): I7a the inspector's frame, rail, State,
+    Actions and Trace tabs (with `CaseTotals`, `usageLine`); I7b the Summary tab and the
+    export. **The Markdown export follows the UI language** at the time of export (the
+    user's choice); the JSON export (the API's data), the file name and the UTC times do
+    not change. In I7a: `EVENT_GROUPS` is a list of types, titled by type
+    (`chat.state.groups`); the State facts by key; `usageLine(usage, language = 'en')`
+    (the export and the Summary tab pass `'en'` until I7b); `phaseChange` ("A → B") is
+    shared by the Trace tab and the export; the trace's error code goes through
+    `<Trans>` (`<error/>`, the code as its children). Spanish: "Tope alcanzado" (capped),
+    "Recuperación fallida", "N rechazada(s)", "No informado", "Responsable", "Fecha
+    límite", "Hecha", "Atrasada".
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -236,8 +247,10 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
 - [x] **I6a** Test chat: the cases column, phases, `chat/format.ts`, new conversation
   (decision 25).
 - [x] **I6b** Test chat: the case view, composer, send errors, delete dialog (decision 26).
-- [ ] **I7** Inspector: State, Trace, Summary, Actions tabs, summary errors, export (the
-  brief proposes whether the export follows the UI language).
+- [x] **I7a** Inspector: frame, rail, State, Actions and Trace tabs, case totals
+  (decision 27).
+- [ ] **I7b** Inspector: Summary tab, summary dialog and errors, export dialog, the
+  Markdown export in the UI language.
 - [ ] **I8** `locale` defaults removed, lint rule as error, axe in Spanish, docs, final
   report and "Open items"; CLAUDE.md marks the milestone done.
 
@@ -449,5 +462,18 @@ I2 adjusts them if the glossary differs.
   send error, a network error reworded when the browser's language changes), two in
   `DeleteExport.test.tsx` (the dialog with a summary and the toast; a failure with the
   API's message, then an already deleted case). 648 tests; existing ones unchanged.
+  `pnpm check` passes.
+- 2026-11-24, **I7a** (inspector: frame, State, Actions, Trace). I7 split in two, the
+  export follows the UI language (decision 27). `chat` gets the inspector (title, tabs,
+  the resize handle, the drawer's description), the rail (its group, "Mostrar …" per tab,
+  "Mostrar acciones (2 atrasadas)"), the State tab (facts by key, groups by type, "Aún sin
+  registrar", "En Cuestionar · …", "Ninguna todavía", the discard note), the Actions tab
+  (Responsable, Fecha límite, Pendiente / Hecha / Atrasada, none), the Trace tab and its
+  entries (title, the never-shown note, "Traza del turno N", "Cuestionar → Analizar", "4
+  llamadas · 0,0084 $ · 4,5 s", the badges, tool calls, retrieved chunks with "Similitud
+  0,82", the details and "No informado", "9,7k tokens (9000 de entrada, 700 de
+  salida)"), the case totals. Tests: three Spanish cases in `Inspector.test.tsx` (frame
+  and State; Actions and none; rail and drawer), three in `Trace.test.tsx` (a rich entry;
+  chunks, nothing reported and totals; no turns). 654 tests; existing ones unchanged.
   `pnpm check` passes.
 

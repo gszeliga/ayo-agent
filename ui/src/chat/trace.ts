@@ -1,6 +1,8 @@
 import type { components } from '@/api/schema'
+import { i18n } from '@/i18n'
+import type { Language } from '@/lib/language'
 
-import { formatCost, formatTokens, plural } from './format'
+import { formatCost, formatTokens } from './format'
 
 type CaseDetail = components['schemas']['CaseDetail']
 type CaseTrace = components['schemas']['CaseTrace']
@@ -41,11 +43,15 @@ export function turnsUsage(detail: CaseDetail): LLMUsage {
   }
 }
 
-/** "3 calls · 8.3k tokens · $0.0027", leaving out what was not reported. */
-export function usageLine(usage: LLMUsage): string {
+/**
+ * "3 calls · 8.3k tokens · $0.0027", leaving out what was not reported ("3 llamadas · 8,3k
+ * tokens · 0,0027 $" in Spanish).
+ */
+export function usageLine(usage: LLMUsage, language: Language = 'en'): string {
+  const t = i18n.getFixedT(language, 'chat')
   return [
-    plural(usage.llm_calls, 'call', 'calls'),
-    ...(usage.total_tokens !== null ? [formatTokens(usage.total_tokens)] : []),
-    ...(usage.cost !== null ? [formatCost(usage.cost)] : []),
+    t('usage.calls', { count: usage.llm_calls }),
+    ...(usage.total_tokens !== null ? [formatTokens(usage.total_tokens, language)] : []),
+    ...(usage.cost !== null ? [formatCost(usage.cost, language)] : []),
   ].join(' · ')
 }

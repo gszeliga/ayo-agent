@@ -1,17 +1,20 @@
 import { ChevronRight } from 'lucide-react'
+import type { TFunction } from 'i18next'
 import { useEffect, useRef } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
 import type { components } from '@/api/schema'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { chunkLink, type FromChat } from '@/document/params'
-import { formatUtc } from '@/lib/format'
+import { useLanguage } from '@/layout/languageContext'
+import { formatDecimal, formatUtc } from '@/lib/format'
+import type { Language } from '@/lib/language'
 import { cn } from '@/lib/utils'
 import { chatCasePath } from '@/paths'
 
-import { formatCost, formatDuration, formatTokens, plural } from './format'
-import { PHASE_LABELS } from './phases'
+import { formatCost, formatDuration, formatTokens } from './format'
 import { traceFlags } from './trace'
 
 type CaseTurn = components['schemas']['CaseTurn']
@@ -30,13 +33,18 @@ interface Props {
 
 /** One turn's trace: a summary line that expands to its tool calls, retrieval and metrics. */
 export function TraceEntry({ caseId, turn, open, onOpenChange, focused, focusNonce }: Props) {
+  const { t } = useTranslation('chat')
+  const { language } = useLanguage()
   const ref = useRef<HTMLLIElement>(null)
   const { trace } = turn
   const flags = traceFlags(trace)
   const phase =
     turn.phase_before === turn.phase_after
-      ? PHASE_LABELS[turn.phase_after]
-      : `${PHASE_LABELS[turn.phase_before]} → ${PHASE_LABELS[turn.phase_after]}`
+      ? t(`phase.${turn.phase_after}`)
+      : t('phaseChange', {
+          from: t(`phase.${turn.phase_before}`),
+          to: t(`phase.${turn.phase_after}`),
+        })
 
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
@@ -45,7 +53,7 @@ export function TraceEntry({ caseId, turn, open, onOpenChange, focused, focusNon
   return (
     <li
       ref={ref}
-      aria-label={`Trace of turn ${String(turn.turn)}`}
+      aria-label={t('trace.entry', { n: turn.turn })}
       data-focused={focused || undefined}
       className={cn('rounded-md border text-sm', focused && 'border-primary ring-primary ring-1')}
     >
@@ -57,76 +65,85 @@ export function TraceEntry({ caseId, turn, open, onOpenChange, focused, focusNon
           />
           <span className="min-w-0 flex-1 space-y-1">
             <span className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-semibold">Turn {turn.turn}</span>
+              <span className="font-semibold">{t('turn.label', { n: turn.turn })}</span>
               <span className="text-muted-foreground">{phase}</span>
             </span>
             <span className="text-muted-foreground block text-xs">
               {[
-                plural(trace.usage.llm_calls, 'call', 'calls'),
-                ...(trace.usage.cost !== null ? [formatCost(trace.usage.cost)] : []),
-                formatDuration(trace.duration_ms),
+                t('usage.calls', { count: trace.usage.llm_calls }),
+                ...(trace.usage.cost !== null ? [formatCost(trace.usage.cost, language)] : []),
+                formatDuration(trace.duration_ms, language),
               ].join(' · ')}
             </span>
             {(flags.capped || flags.retrievalFailed || flags.refused > 0) && (
               <span className="flex flex-wrap gap-1.5">
-                {flags.capped && <Badge variant="warning">Capped</Badge>}
-                {flags.retrievalFailed && <Badge variant="warning">Retrieval failed</Badge>}
+                {flags.capped && <Badge variant="warning">{t('trace.capped')}</Badge>}
+                {flags.retrievalFailed && (
+                  <Badge variant="warning">{t('trace.retrievalFailed')}</Badge>
+                )}
                 {flags.refused > 0 && (
-                  <Badge variant="outline">{String(flags.refused)} refused</Badge>
+                  <Badge variant="outline">{t('trace.refused', { count: flags.refused })}</Badge>
                 )}
               </span>
             )}
           </span>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-3 border-t px-3 py-3">
-          <div role="group" aria-label="Tool calls" className="space-y-1.5">
-            <h3 className="text-xs font-semibold">Tool calls</h3>
+          <div role="group" aria-label={t('trace.toolCalls')} className="space-y-1.5">
+            <h3 className="text-xs font-semibold">{t('trace.toolCalls')}</h3>
             {trace.tool_calls.length === 0 ? (
-              <p className="text-muted-foreground text-xs italic">None</p>
+              <p className="text-muted-foreground text-xs italic">{t('trace.noCalls')}</p>
             ) : (
               <ul className="space-y-1">
                 {trace.tool_calls.map((call, i) => (
-                  <ToolCallRow key={i} call={call} />
+                  <ToolCallRow key={i} call={call} t={t} />
                 ))}
               </ul>
             )}
           </div>
-          <div role="group" aria-label="Retrieved" className="space-y-1.5">
-            <h3 className="text-xs font-semibold">Retrieved</h3>
+          <div role="group" aria-label={t('trace.retrieved')} className="space-y-1.5">
+            <h3 className="text-xs font-semibold">{t('trace.retrieved')}</h3>
             {trace.retrieval_error !== null && (
               <p className="text-warning text-xs">
-                The knowledge search failed:{' '}
-                <code className="font-mono">{trace.retrieval_error}</code>
+                <Trans
+                  t={t}
+                  i18nKey="trace.searchFailed"
+                  components={{ error: <code className="font-mono">{trace.retrieval_error}</code> }}
+                />
               </p>
             )}
             {trace.retrieved.length === 0 ? (
               trace.retrieval_error === null && (
-                <p className="text-muted-foreground text-xs italic">Nothing</p>
+                <p className="text-muted-foreground text-xs italic">{t('trace.nothing')}</p>
               )
             ) : (
               <ul className="space-y-1">
                 {trace.retrieved.map((chunk, i) => (
-                  <RetrievedRow key={i} caseId={caseId} chunk={chunk} />
+                  <RetrievedRow key={i} caseId={caseId} chunk={chunk} t={t} language={language} />
                 ))}
               </ul>
             )}
           </div>
           <dl className="text-muted-foreground grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-            <dt>Model</dt>
-            <dd className="text-foreground font-mono break-all">{trace.model ?? 'Not reported'}</dd>
-            <dt>Prompts</dt>
-            <dd className="text-foreground font-mono break-all">{trace.prompts_version}</dd>
-            <dt>Calls</dt>
-            <dd className="text-foreground">{trace.usage.llm_calls}</dd>
-            <dt>Tokens</dt>
-            <dd className="text-foreground">{tokensLine(trace.usage)}</dd>
-            <dt>Cost</dt>
-            <dd className="text-foreground">
-              {trace.usage.cost !== null ? formatCost(trace.usage.cost) : 'Not reported'}
+            <dt>{t('trace.detail.model')}</dt>
+            <dd className="text-foreground font-mono break-all">
+              {trace.model ?? t('trace.notReported')}
             </dd>
-            <dt>Duration</dt>
-            <dd className="text-foreground">{formatDuration(trace.duration_ms)}</dd>
-            <dt>Time</dt>
+            <dt>{t('trace.detail.prompts')}</dt>
+            <dd className="text-foreground font-mono break-all">{trace.prompts_version}</dd>
+            <dt>{t('trace.detail.calls')}</dt>
+            <dd className="text-foreground">{trace.usage.llm_calls}</dd>
+            <dt>{t('trace.detail.tokens')}</dt>
+            <dd className="text-foreground">{tokensLine(trace.usage, t, language)}</dd>
+            <dt>{t('trace.detail.cost')}</dt>
+            <dd className="text-foreground">
+              {trace.usage.cost !== null
+                ? formatCost(trace.usage.cost, language)
+                : t('trace.notReported')}
+            </dd>
+            <dt>{t('trace.detail.duration')}</dt>
+            <dd className="text-foreground">{formatDuration(trace.duration_ms, language)}</dd>
+            <dt>{t('trace.detail.time')}</dt>
             <dd className="text-foreground">
               <time dateTime={turn.created_at}>{formatUtc(turn.created_at)}</time>
             </dd>
@@ -137,25 +154,33 @@ export function TraceEntry({ caseId, turn, open, onOpenChange, focused, focusNon
   )
 }
 
-function tokensLine(usage: components['schemas']['LLMUsage']): string {
-  if (usage.total_tokens === null) return 'Not reported'
-  const parts =
-    usage.prompt_tokens !== null && usage.completion_tokens !== null
-      ? ` (${String(usage.prompt_tokens)} in, ${String(usage.completion_tokens)} out)`
-      : ''
-  return `${formatTokens(usage.total_tokens)}${parts}`
+type ChatT = TFunction<'chat'>
+
+function tokensLine(
+  usage: components['schemas']['LLMUsage'],
+  t: ChatT,
+  language: Language,
+): string {
+  if (usage.total_tokens === null) return t('trace.notReported')
+  const total = formatTokens(usage.total_tokens, language)
+  if (usage.prompt_tokens === null || usage.completion_tokens === null) return total
+  return t('trace.tokensInOut', {
+    total,
+    in: String(usage.prompt_tokens),
+    out: String(usage.completion_tokens),
+  })
 }
 
-function ToolCallRow({ call }: { call: CaseToolCall }) {
+function ToolCallRow({ call, t }: { call: CaseToolCall; t: ChatT }) {
   return (
     <li className="text-xs">
       <code className="font-mono">{call.name}</code>
-      {call.target !== null && <span> → {PHASE_LABELS[call.target]}</span>}{' '}
+      {call.target !== null && <span> → {t(`phase.${call.target}`)}</span>}{' '}
       {call.ok ? (
-        <span className="text-success">accepted</span>
+        <span className="text-success">{t('trace.accepted')}</span>
       ) : (
         <span className="text-warning">
-          refused
+          {t('trace.refusedCall')}
           {call.error_code !== null && (
             <>
               {' '}
@@ -167,7 +192,7 @@ function ToolCallRow({ call }: { call: CaseToolCall }) {
       {call.missing.length > 0 && (
         <span className="text-muted-foreground">
           {' '}
-          · missing:{' '}
+          · {t('trace.missing')}{' '}
           {call.missing.map((code, i) => (
             <span key={code}>
               {i > 0 && ', '}
@@ -180,22 +205,32 @@ function ToolCallRow({ call }: { call: CaseToolCall }) {
   )
 }
 
-function RetrievedRow({ caseId, chunk }: { caseId: string; chunk: CaseRetrievedChunk }) {
+function RetrievedRow({
+  caseId,
+  chunk,
+  t,
+  language,
+}: {
+  caseId: string
+  chunk: CaseRetrievedChunk
+  t: ChatT
+  language: Language
+}) {
   const similarity = (
     <span className="text-muted-foreground font-mono tabular-nums">
-      <span className="sr-only">Similarity </span>
-      {chunk.similarity.toFixed(2)}
+      <span className="sr-only">{t('trace.similarity')}</span>
+      {formatDecimal(chunk.similarity, language, { min: 2 })}
     </span>
   )
   if (chunk.document_deleted) {
     return (
       <li className="flex items-baseline gap-2 text-xs">
         {similarity}
-        <span className="text-muted-foreground italic">Deleted document</span>
+        <span className="text-muted-foreground italic">{t('trace.deletedDocument')}</span>
       </li>
     )
   }
-  const title = chunk.document_title ?? 'Untitled document'
+  const title = chunk.document_title ?? t('trace.untitledDocument')
   const from = chatCasePath(caseId)
   const changed = chunk.chunk_index === null
   const state: FromChat = changed
@@ -215,11 +250,13 @@ function RetrievedRow({ caseId, chunk }: { caseId: string; chunk: CaseRetrievedC
           {title}
         </Link>{' '}
         {changed ? (
-          <Badge variant="outline" title="The document was reprocessed or replaced since this turn">
-            Changed since
+          <Badge variant="outline" title={t('trace.changedSinceTitle')}>
+            {t('trace.changedSince')}
           </Badge>
         ) : (
-          <span className="text-muted-foreground">· chunk #{chunk.chunk_index}</span>
+          <span className="text-muted-foreground">
+            {t('trace.chunk', { n: chunk.chunk_index })}
+          </span>
         )}
       </span>
     </li>

@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { components } from '@/api/schema'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -24,6 +25,7 @@ interface TabsProps {
 
 /** The tabs: what the case holds, from the case and turns already loaded. */
 function InspectorTabs({ detail, tab, onTabChange, trace }: TabsProps) {
+  const { t } = useTranslation('chat')
   return (
     <Tabs
       value={tab}
@@ -32,11 +34,11 @@ function InspectorTabs({ detail, tab, onTabChange, trace }: TabsProps) {
       }}
       className="min-h-0 flex-1"
     >
-      <TabsList aria-label="Inspector" className="w-full">
-        <TabsTrigger value="state">State</TabsTrigger>
-        <TabsTrigger value="actions">Actions</TabsTrigger>
-        <TabsTrigger value="trace">Trace</TabsTrigger>
-        <TabsTrigger value="summary">Summary</TabsTrigger>
+      <TabsList aria-label={t('inspector.title')} className="w-full">
+        <TabsTrigger value="state">{t('inspector.tabs.state')}</TabsTrigger>
+        <TabsTrigger value="actions">{t('inspector.tabs.actions')}</TabsTrigger>
+        <TabsTrigger value="trace">{t('inspector.tabs.trace')}</TabsTrigger>
+        <TabsTrigger value="summary">{t('inspector.tabs.summary')}</TabsTrigger>
       </TabsList>
       <TabsContent value="state" className="min-h-0 overflow-y-auto pr-1">
         <StateTab detail={detail} />
@@ -66,14 +68,15 @@ interface PanelProps extends TabsProps {
  * CSS keeps it within 60% of the row too, should the window shrink after a resize.
  */
 export function InspectorPanel({ width, onResize, onHide, ...props }: PanelProps) {
+  const { t } = useTranslation('chat')
   return (
     <aside
-      aria-label="Inspector"
+      aria-label={t('inspector.title')}
       style={{ width }}
       className="relative flex max-w-[60%] min-w-80 flex-none flex-col pl-4"
     >
       <PanelResizer
-        label="Resize inspector"
+        label={t('inspector.resize')}
         edge="left"
         width={width}
         limits={INSPECTOR_LIMITS}
@@ -82,7 +85,7 @@ export function InspectorPanel({ width, onResize, onHide, ...props }: PanelProps
       {/* Mirrors the cases list's header: the toggle on the inner corner, by the chat. */}
       <div className="flex items-center gap-2 pb-3">
         <PanelToggle side="right" panel="inspector" expanded onClick={onHide} />
-        <h2 className="font-semibold">Inspector</h2>
+        <h2 className="font-semibold">{t('inspector.title')}</h2>
       </div>
       <InspectorTabs {...props} />
     </aside>
@@ -99,6 +102,7 @@ interface DrawerProps extends TabsProps {
 
 /** The inspector as a drawer from the right (narrow screens); Esc or Close shuts it. */
 export function InspectorDrawer({ open, onOpenChange, returnFocusTo, ...props }: DrawerProps) {
+  const { t } = useTranslation('chat')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -108,9 +112,9 @@ export function InspectorDrawer({ open, onOpenChange, returnFocusTo, ...props }:
         }}
         className="top-0 right-0 left-auto flex h-full w-full max-w-md translate-x-0 translate-y-0 flex-col rounded-none border-l sm:max-w-md data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100"
       >
-        <DialogTitle>Inspector</DialogTitle>
+        <DialogTitle>{t('inspector.title')}</DialogTitle>
         <DialogDescription className="sr-only">
-          What the case holds: its facts, annotations, actions, turn traces and summaries.
+          {t('inspector.drawerDescription')}
         </DialogDescription>
         <InspectorTabs {...props} />
       </DialogContent>

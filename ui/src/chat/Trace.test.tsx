@@ -364,3 +364,136 @@ test('on a narrow screen a turn chip opens the drawer on that trace', async () =
   expect(toggleOf(one)).toHaveAttribute('aria-expanded', 'true')
   expect(await a11yViolations(drawer)).toEqual([])
 })
+
+describe('in Spanish', () => {
+  async function openTraceEs(served: ServedCase[]) {
+    const first = served[0]
+    if (!first) throw new Error('no case')
+    serveChat(served)
+    const rendered = renderApp(`/chat/${first.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+    const inspector = await screen.findByRole('complementary', { name: 'Inspector' })
+    await rendered.user.click(within(inspector).getByRole('tab', { name: 'Traza' }))
+    await within(inspector).findByRole('list', { name: 'Trazas' })
+    return { ...rendered, inspector }
+  }
+  const entryEs = (root: HTMLElement, turn: number) =>
+    within(root).getByRole('listitem', { name: `Traza del turno ${String(turn)}` })
+
+  test('an entry with every badge, its calls and details are Spanish', async () => {
+    screenWidth(true)
+    const { inspector } = await openTraceEs(cases([makeTurn(1), makeTurn(2), RICH_TURN]))
+
+    const rich = entryEs(inspector, 3)
+    expect(toggleOf(rich)).toHaveTextContent('Turno 3Cuestionar → Analizar')
+    expect(toggleOf(rich)).toHaveTextContent('4 llamadas · 0,0084 $ · 4,5 s')
+    for (const badge of ['Tope alcanzado', 'Recuperación fallida', '1 rechazada']) {
+      expect(within(toggleOf(rich)).getByText(badge)).toBeVisible()
+    }
+    const calls = within(
+      within(rich).getByRole('group', { name: 'Llamadas a herramientas' }),
+    ).getAllByRole('listitem')
+    expect(calls.map((li) => li.textContent)).toEqual([
+      'log_event aceptada',
+      'propose_transition → Actuar rechazada (criteria_not_met) · faltan: validated_cause, evidence_count',
+      'propose_transition → Analizar aceptada',
+    ])
+    const failed = within(rich).getByText(/La búsqueda de conocimiento ha fallado/)
+    expect(within(failed).getByText('embedding_failed').tagName).toBe('CODE')
+    const details = within(rich).getByText('Modelo').closest('dl') as HTMLElement
+    for (const label of ['Prompts', 'Llamadas', 'Tokens', 'Coste', 'Duración', 'Hora']) {
+      expect(within(details).getByText(label)).toBeInTheDocument()
+    }
+    expect(details).toHaveTextContent('9,7k tokens (9000 de entrada, 700 de salida)')
+    expect(details).toHaveTextContent('0,0084 $')
+    expect(within(inspector).getByText(/^Nunca se muestran el texto de los chunks/)).toBeVisible()
+  })
+
+  test('retrieved chunks, nothing reported and the totals are Spanish', async () => {
+    screenWidth(true)
+    const turn = withTrace(makeTurn(1), {
+      model: null,
+      usage: {
+        llm_calls: 1,
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        cost: null,
+      },
+      retrieved: [
+        {
+          chunk_id: 'c1',
+          chunk_index: 27,
+          doc_id: DOC,
+          document_deleted: false,
+          document_title: 'PRO-014 Control del sellado',
+          similarity: 0.8234,
+        },
+        {
+          chunk_id: 'c2',
+          chunk_index: null,
+          doc_id: 'upload-aaaaaaaaaaaa',
+          document_deleted: false,
+          document_title: null,
+          similarity: 0.61,
+        },
+        {
+          chunk_id: 'c3',
+          chunk_index: null,
+          doc_id: 'upload-bbbbbbbbbbbb',
+          document_deleted: true,
+          document_title: null,
+          similarity: 0.58,
+        },
+      ],
+    })
+    const { inspector } = await openTraceEs(
+      cases([turn], {
+        usage: {
+          llm_calls: 12,
+          prompt_tokens: 30_000,
+          completion_tokens: 3000,
+          total_tokens: 33_000,
+          cost: 0.03,
+        },
+      }),
+    )
+
+    const [kept, changed, deleted] = within(
+      within(inspector).getByRole('group', { name: 'Recuperado' }),
+    ).getAllByRole('listitem') as [HTMLElement, HTMLElement, HTMLElement]
+    expect(kept).toHaveTextContent('Similitud 0,82')
+    expect(kept).toHaveTextContent('chunk #27')
+    expect(within(changed).getByRole('link', { name: 'Documento sin título' })).toBeVisible()
+    expect(within(changed).getByText('Cambiado desde entonces')).toHaveAttribute(
+      'title',
+      'El documento se ha reprocesado o sustituido después de este turno',
+    )
+    expect(deleted).toHaveTextContent('Documento eliminado')
+    const details = within(entryEs(inspector, 1)).getByText('Modelo').closest('dl') as HTMLElement
+    expect(within(details).getAllByText('No informado')).toHaveLength(3)
+    expect(within(entryEs(inspector, 1)).getByText('Ninguna')).toBeVisible()
+
+    expect(within(inspector).getByRole('heading', { name: 'Totales del caso' })).toBeVisible()
+    expect(within(inspector).getByTestId('case-total')).toHaveTextContent(
+      '12 llamadas · 33k tokens · 0,03 $',
+    )
+    expect(within(inspector).getByText('Turnos')).toBeVisible()
+  })
+
+  test('no turns yet is Spanish', async () => {
+    screenWidth(true)
+    serveChat(cases([], { turns: 0 }))
+    const first = cases()[0]
+    if (!first) throw new Error('no case')
+    const { user } = renderApp(`/chat/${first.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+    const inspector = await screen.findByRole('complementary', { name: 'Inspector' })
+    await user.click(within(inspector).getByRole('tab', { name: 'Traza' }))
+    expect(await within(inspector).findByText('Aún no hay turnos')).toBeVisible()
+  })
+})

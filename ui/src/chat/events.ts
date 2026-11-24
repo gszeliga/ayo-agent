@@ -3,12 +3,12 @@ import type { components } from '@/api/schema'
 export type CaseEvent = components['schemas']['CopilotSessionEvent']
 type EventType = CaseEvent['event_type']
 
-/** The State tab's groups, in the order it shows them. */
-export const EVENT_GROUPS: readonly { type: EventType; title: string }[] = [
-  { type: 'hypothesis', title: 'Hypotheses' },
-  { type: 'hypothesis_discarded', title: 'Discarded hypotheses' },
-  { type: 'validated_cause', title: 'Validated cause' },
-  { type: 'evidence', title: 'Evidence' },
+/** The State tab's groups, in the order it shows them; titled by type (`chat.state.groups`). */
+export const EVENT_GROUPS: readonly EventType[] = [
+  'hypothesis',
+  'hypothesis_discarded',
+  'validated_cause',
+  'evidence',
 ]
 
 /** The annotations of each type, each group in the API's order (oldest first). */

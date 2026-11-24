@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import type { components } from '@/api/schema'
 import { LoadError } from '@/components/LoadError'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,6 +17,7 @@ type CaseDetail = components['schemas']['CaseDetail']
  * user opens or closes one.
  */
 export function TraceTab({ detail, trace }: { detail: CaseDetail; trace: TraceView }) {
+  const { t } = useTranslation('chat')
   const { turns } = trace
   const items = turns.data ? turns.data.pages.flatMap((page) => page.items).reverse() : []
   const newest = items[0]?.turn
@@ -23,12 +26,9 @@ export function TraceTab({ detail, trace }: { detail: CaseDetail; trace: TraceVi
   return (
     <div className="space-y-4">
       <CaseTotals detail={detail} />
-      <p className="text-muted-foreground text-xs">
-        Never shown: chunk text, tool arguments and the model&apos;s reasoning. The API does not
-        return them.
-      </p>
+      <p className="text-muted-foreground text-xs">{t('trace.neverShown')}</p>
       {turns.isPending ? (
-        <Skeleton aria-label="Loading traces" className="h-24" />
+        <Skeleton aria-label={t('trace.loading')} className="h-24" />
       ) : turns.isError && !turns.data ? (
         <LoadError
           error={turns.error}
@@ -37,10 +37,10 @@ export function TraceTab({ detail, trace }: { detail: CaseDetail; trace: TraceVi
           }}
         />
       ) : items.length === 0 ? (
-        <p className="text-muted-foreground text-sm italic">No turns yet</p>
+        <p className="text-muted-foreground text-sm italic">{t('trace.none')}</p>
       ) : (
         <>
-          <ol aria-label="Traces" className="space-y-2">
+          <ol aria-label={t('trace.list')} className="space-y-2">
             {items.map((turn) => (
               <TraceEntry
                 key={turn.turn}

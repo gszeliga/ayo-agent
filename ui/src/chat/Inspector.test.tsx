@@ -423,3 +423,118 @@ test('a stored width that is not a usable number gives the default', async () =>
     '320',
   )
 })
+
+describe('in Spanish', () => {
+  async function openFirstEs(served: ServedCase[]) {
+    const first = served[0]
+    if (!first) throw new Error('no case')
+    serveChat(served)
+    const rendered = renderApp(`/chat/${first.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+    await screen.findByRole('heading', { level: 1 })
+    return rendered
+  }
+  const panelEs = () => screen.findByRole('complementary', { name: 'Inspector' })
+
+  test('the frame and the State tab are Spanish', async () => {
+    screenWidth(true)
+    const served = cases([
+      event('hypothesis', 'Desgaste de la junta'),
+      event('hypothesis_discarded', 'No es la temperatura'),
+    ])
+    const first = served[0]
+    if (first) first.detail.fields = { ...first.detail.fields, since: null }
+    await openFirstEs(served)
+
+    const inspector = await panelEs()
+    expect(
+      within(inspector)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Estado', 'Acciones', 'Traza', 'Resumen'])
+    expect(within(inspector).getByRole('tab', { name: 'Estado', selected: true })).toBeVisible()
+    expect(
+      screen.getByRole('separator', { name: 'Cambiar el ancho del inspector' }),
+    ).toHaveAttribute('aria-valuetext', expect.stringMatching(/píxeles de ancho$/))
+    expect(within(inspector).getByRole('button', { name: 'Ocultar inspector' })).toBeVisible()
+
+    const facts = section(inspector, 'Datos')
+    expect(facts.getByText('Dónde').nextSibling).toHaveTextContent('Línea 2, envasadora')
+    expect(facts.getByText('Desde cuándo').nextSibling).toHaveTextContent('Aún sin registrar')
+    expect(
+      within(inspector)
+        .getAllByRole('heading', { level: 2 })
+        .map((h) => h.textContent),
+    ).toEqual([
+      'Inspector',
+      'Datos',
+      'Hipótesis (1)',
+      'Hipótesis descartadas (1)',
+      'Causa validada (0)',
+      'Evidencias (0)',
+    ])
+    expect(section(inspector, 'Hipótesis \\(').getAllByRole('listitem')[0]).toHaveTextContent(
+      /^Desgaste de la juntaEn Cuestionar · 2026-11-12/,
+    )
+    expect(
+      section(inspector, 'Hipótesis descartadas').getByText(/no está vinculado a la hipótesis/),
+    ).toBeVisible()
+    expect(section(inspector, 'Causa validada').getByText('Ninguna todavía')).toBeVisible()
+  })
+
+  test('the Actions tab is Spanish, and says when there are none', async () => {
+    screenWidth(true)
+    const served = cases(
+      [],
+      [
+        action({ description: 'Medir la presión', overdue: true }),
+        action({ description: 'Formar al turno de noche', status: 'done' }),
+      ],
+    )
+    const { user } = await openFirstEs(served)
+
+    const inspector = await panelEs()
+    await user.click(within(inspector).getByRole('tab', { name: 'Acciones' }))
+    const [late, done] = within(
+      within(inspector).getByRole('list', { name: 'Acciones' }),
+    ).getAllByRole('listitem') as [HTMLElement, HTMLElement]
+    expect(within(late).getByText('Responsable').nextSibling).toHaveTextContent(
+      'Marta (mantenimiento)',
+    )
+    expect(within(late).getByText('Fecha límite').nextSibling).toHaveTextContent('2026-11-20')
+    expect(within(late).getByText('Pendiente')).toBeVisible()
+    expect(within(late).getByText('Atrasada')).toBeVisible()
+    expect(within(done).getByText('Hecha')).toBeVisible()
+
+    await user.click(screen.getByRole('link', { name: /Fugas en la junta/ }))
+    await user.click(within(await panelEs()).getByRole('tab', { name: 'Acciones' }))
+    expect(await screen.findByText('Aún no hay acciones')).toBeVisible()
+  })
+
+  test('the rail and the drawer are Spanish', async () => {
+    screenWidth(false)
+    const served = cases([], [action({ overdue: true }), action({ overdue: true })])
+    const { user } = await openFirstEs(served)
+
+    const railEs = await screen.findByRole('complementary', { name: 'Inspector (contraído)' })
+    expect(within(railEs).getByRole('group', { name: 'Pestañas del inspector' })).toBeVisible()
+    expect(
+      within(railEs)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label')),
+    ).toEqual([
+      'Mostrar inspector',
+      'Mostrar estado',
+      'Mostrar acciones (2 atrasadas)',
+      'Mostrar traza',
+      'Mostrar resumen',
+    ])
+
+    await user.click(within(railEs).getByRole('button', { name: 'Mostrar acciones (2 atrasadas)' }))
+    const drawer = await screen.findByRole('dialog', { name: 'Inspector' })
+    expect(drawer).toHaveAccessibleDescription(/^Lo que contiene el caso/)
+    expect(within(drawer).getByRole('tab', { name: 'Acciones', selected: true })).toBeVisible()
+  })
+})

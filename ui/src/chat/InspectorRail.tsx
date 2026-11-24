@@ -1,4 +1,5 @@
 import { Activity, ClipboardList, ListChecks, Sparkles } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type { components } from '@/api/schema'
 
@@ -8,10 +9,10 @@ import { PanelButton, PanelRail, PanelToggle } from './PanelToggle'
 type CaseDetail = components['schemas']['CaseDetail']
 
 const TABS = [
-  { tab: 'state', name: 'state', icon: ClipboardList },
-  { tab: 'actions', name: 'actions', icon: ListChecks },
-  { tab: 'trace', name: 'trace', icon: Activity },
-  { tab: 'summary', name: 'summary', icon: Sparkles },
+  { tab: 'state', icon: ClipboardList },
+  { tab: 'actions', icon: ListChecks },
+  { tab: 'trace', icon: Activity },
+  { tab: 'summary', icon: Sparkles },
 ] as const
 
 interface Props {
@@ -27,10 +28,11 @@ interface Props {
  * Actions button carries a dot when the API says an action is overdue (never recomputed).
  */
 export function InspectorRail({ detail, drawer, onOpen }: Props) {
+  const { t } = useTranslation('chat')
   const overdue = detail.actions.filter((action) => action.overdue).length
   return (
-    <aside aria-label="Inspector (collapsed)" className="flex">
-      <PanelRail side="right" label="Inspector tabs">
+    <aside aria-label={t('rail.label')} className="flex">
+      <PanelRail side="right" label={t('rail.tabs')}>
         <PanelToggle
           side="right"
           panel="inspector"
@@ -40,13 +42,15 @@ export function InspectorRail({ detail, drawer, onOpen }: Props) {
             onOpen()
           }}
         />
-        {TABS.map(({ tab, name, icon: Icon }) => {
+        {TABS.map(({ tab, icon: Icon }) => {
           const late = tab === 'actions' && overdue > 0
           return (
             <PanelButton
               key={tab}
               side="right"
-              label={late ? `Show ${name} (${String(overdue)} overdue)` : `Show ${name}`}
+              label={
+                late ? t('rail.showActionsOverdue', { count: overdue }) : t(`rail.show.${tab}`)
+              }
               onClick={() => {
                 onOpen(tab)
               }}

@@ -34,7 +34,8 @@ reprocess dialogs, the upload dialog and the document page (facts, content and c
 tabs, rename, reprocess, delete; `CopyButton` everywhere), the indexing settings, the
 service status (its card and the header's popover), the test search and the test chat (the cases
 column, new conversations, the case view: header, phases, turns, message box, send errors,
-read-only notices, delete) are translated; the inspector is still English until its step. The connect
+read-only notices, delete; the inspector's State, Actions and Trace tabs) are translated;
+the Summary tab and the export are still English until their step. The connect
 screen has its own language menu, since the header's shows only once connected. Messages
 are kept as codes and worded when shown, so a switch rewords one already on screen. The
 Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.
