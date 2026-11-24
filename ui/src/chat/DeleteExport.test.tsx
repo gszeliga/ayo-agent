@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 
-import { serveChat, servedCase, type ServedCase } from '@/test/chatApi'
+import { deferred, serveChat, servedCase, type ServedCase } from '@/test/chatApi'
 import { CASES, makeTurn } from '@/test/fixtures/cases'
 import { API, renderApp } from '@/test/render'
 import { server } from '@/test/server'
@@ -316,5 +316,51 @@ describe('in Spanish', () => {
     )
     await user.click(within(dialog).getByRole('button', { name: 'Eliminar caso' }))
     expect(await screen.findByText('El caso ya estaba eliminado')).toBeVisible()
+  })
+})
+
+describe('the export in Spanish', () => {
+  test('the dialog, the turns being fetched and the Markdown preview are Spanish', async () => {
+    const cases = chatCases()
+    const first = cases[0]
+    if (!first) throw new Error('no case')
+    first.turns = Array.from({ length: 45 }, (_, i) => makeTurn(i + 1))
+    first.detail = { ...first.detail, turns: 45 }
+    serve(cases)
+    const held = deferred()
+    // The export's own page (the 25 not loaded) waits, so its status shows; then passes on.
+    server.use(
+      http.get(`${API}/admin/cases/:caseId/turns`, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('limit') === '25') await held.promise
+        return undefined
+      }),
+    )
+    const { user } = renderApp(`/chat/${first.detail.case_id}`, {
+      connected: true,
+      language: 'es',
+    })
+    const log = await screen.findByRole('log', { name: 'Conversación' })
+    await waitFor(() => {
+      expect(within(log).getAllByRole('listitem', { name: /^Turno \d+$/ })).toHaveLength(20)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Exportar' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Exportar el caso' })
+    expect(dialog).toHaveAccessibleDescription(/^Se genera en tu navegador/)
+    expect(within(dialog).getByRole('group', { name: 'Formato' })).toBeVisible()
+    expect(within(dialog).getByRole('status')).toHaveTextContent(
+      'Obteniendo los 25 turnos aún no cargados…',
+    )
+    held.resolve()
+
+    const preview = await within(dialog).findByLabelText('Vista previa')
+    expect(preview).toHaveTextContent('## Resumen estructurado')
+    expect(preview.textContent.match(/### Turno \d+ ·/g)).toHaveLength(45)
+    await user.click(within(dialog).getByRole('button', { name: 'Descargar' }))
+    expect(downloadFile).toHaveBeenCalledWith(
+      expect.stringMatching(/^case-8d2e4b71-\d{8}\.md$/),
+      preview.textContent,
+      'text/markdown;charset=utf-8',
+    )
   })
 })

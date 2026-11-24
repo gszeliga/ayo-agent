@@ -11,12 +11,4 @@ export const PHASES: readonly Phase[] = [
   'followup',
   'closed',
 ]
-
-export const PHASE_LABELS: Record<Phase, string> = {
-  understand: 'Understand',
-  challenge: 'Challenge',
-  analyse: 'Analyse',
-  action: 'Action',
-  followup: 'Follow-up',
-  closed: 'Closed',
-}
+// Their names are in the `chat` catalog by value (`chat.phase.*`).

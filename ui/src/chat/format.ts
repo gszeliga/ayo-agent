@@ -32,11 +32,6 @@ function trim(value: number, language: Language): string {
   return formatDecimal(value, language, { min: 0, max: 1 })
 }
 
-/** The inspector's counts until I7 moves them to i18next plurals. */
-export function plural(count: number, one: string, many: string): string {
-  return `${String(count)} ${count === 1 ? one : many}`
-}
-
 /** "850 ms", "4.5 s", "12 s" ("4,5 s" in Spanish). */
 export function formatDuration(ms: number, language: Language = 'en'): string {
   const t = words(language)

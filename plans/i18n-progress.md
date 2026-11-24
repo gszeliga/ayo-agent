@@ -7,10 +7,13 @@ decisions here win over the plan and the log. Front end only: no API, OpenAPI or
 change, and no billed call anywhere in this milestone.
 
 ## Next (resume here)
-I1-I6 and I7a are done (2026-11-24). **Next: I7b** (the Summary tab: structured summary,
-AI summary, `GenerateSummaryDialog`, `summaryErrors` as codes; `ExportDialog`; the
-Markdown export in the UI language; then `PHASE_LABELS` and `plural()` go; brief agreed
-with I7, decision 27). Write its brief again only if it changes; wait for the user's OK. Use the glossary below; `describeError`,
+I1-I7 are done (2026-11-24): every screen is translated. **Next: I8** (the `locale`
+defaults removed: `relativeTime`, `formatBytes`, `formatCost`, `formatTokens`,
+`formatDuration`, `usageLine`, `describeError`, `outdatedReasonLabel`, `configDiff`,
+`tenantsSummary`, ...; `eslint-plugin-i18next` `no-literal-string` as an error in
+components; axe in Spanish; decision 21's English oddities, the user's call; docs, final
+report and "Open items"; CLAUDE.md marks the milestone done). Write its brief and wait for
+the user's OK. Use the glossary below; `describeError`,
 `relativeTime` and `formatBytes` take the language (`useLanguage().language`); counts use
 i18next plurals (`count`, `_one` / `_other`).
 
@@ -205,6 +208,18 @@ Where the UI stands (surveyed 2026-11-23, at `c9e6b5d`):
     "Recuperación fallida", "N rechazada(s)", "No informado", "Responsable", "Fecha
     límite", "Hecha", "Atrasada".
 
+28. (I7b, 2026-11-24) **Summary problems are codes** (decision 16): `describeSummaryError`
+    returns a `SummaryProblem` (`modelFailed` carries the API's error code), worded by the
+    Summary tab. `structuredSummary`, `caseStatus` and `exportMarkdown` take a required
+    `language` (no `'en'` default: every caller passes one now). The structured summary
+    reuses `state.fact`, `state.groups`, `state.none` and `actions.list`; the export reuses
+    `untitled`, `turn.label`, `phaseChange`, `conversation`, `totals.summary`. The English
+    Markdown is byte-for-byte unchanged (checked against `HEAD` on a rich case: a closed
+    case, every action status, a phase change, an untitled case from another channel).
+    The summary dialog's model goes into `<Trans>` as `<model/>`; the env var fallback
+    keeps its `<code>` tags in the catalog (decision 23). `PHASE_LABELS` and `plural()`
+    are gone. Spanish: "con coste" (billed), "Desactualizado" (stale), "Consumo" (usage).
+
 ## Glossary
 Agreed 2026-11-24 (I2). Spain Spanish, *tú*. The API's field names and URL parameters stay
 English (`tenant`, `?status=indexed`); ids are shown as they are.
@@ -249,8 +264,8 @@ English (`tenant`, `?status=indexed`); ids are shown as they are.
 - [x] **I6b** Test chat: the case view, composer, send errors, delete dialog (decision 26).
 - [x] **I7a** Inspector: frame, rail, State, Actions and Trace tabs, case totals
   (decision 27).
-- [ ] **I7b** Inspector: Summary tab, summary dialog and errors, export dialog, the
-  Markdown export in the UI language.
+- [x] **I7b** Inspector: Summary tab, summary dialog and errors, export dialog, the
+  Markdown export in the UI language (decision 28).
 - [ ] **I8** `locale` defaults removed, lint rule as error, axe in Spanish, docs, final
   report and "Open items"; CLAUDE.md marks the milestone done.
 
@@ -476,4 +491,19 @@ I2 adjusts them if the glossary differs.
   and State; Actions and none; rail and drawer), three in `Trace.test.tsx` (a rich entry;
   chunks, nothing reported and totals; no turns). 654 tests; existing ones unchanged.
   `pnpm check` passes.
+- 2026-11-24, **I7b** (Summary tab and the export; decision 28). `chat` gets the
+  structured summary (title, intro with "Analizar, abierto", sections, "Qué: …", empty
+  texts, the action lines), the AI summary (Generar / Regenerar / Generando…, the
+  skeleton's label, "Desactualizado" and its note, "versión N", the meta line per
+  language, none yet, nothing to summarise), the summary dialog (titles, the billed
+  sentence with the model or the env var fallback, replaces, no key, buttons), the
+  summary errors, the export dialog (title, description, Formato, "Obteniendo los N turnos
+  aún no cargados…", Preparando…, Vista previa, Descargar) and the Markdown export in the
+  UI language. `PHASE_LABELS` and `plural()` removed. Tests: seven Spanish cases (ten tests) in
+  `Summary.test.tsx` (structured summary; dialog, generating and the meta line; the env
+  var fallback; stale and regenerate; four errors; a network error reworded on a switch;
+  no turns), one in `exportCase.test.ts` (both cases' Markdown), one in
+  `DeleteExport.test.tsx` (the dialog with the fetching status held, the preview, the
+  download). 666 tests; existing ones unchanged except `exportCase.test.ts` (the language
+  argument). `pnpm check` passes.
 

@@ -26,16 +26,12 @@ English, Español or System (the default) from the header's language menu, next 
 theme; the choice is kept in this browser (`ayo.lang`). System follows the browser's
 preferred languages (the first one the UI has: `es-AR` is Spanish, `fr` falls back to
 English) and changes with them while the page is open. `<html lang>` follows the language
-shown. Plan, decisions and progress: `../plans/i18n-progress.md`. Being rolled out one area
-at a time: the shell (header, nav, menus, crash and 404 pages, Retry), the connect screen,
-the UI's own error wording (`describeError`: the API out of reach, an answer not in its
-format; `LoadError` on every screen), the documents list with its bulk delete and
-reprocess dialogs, the upload dialog and the document page (facts, content and chunks
-tabs, rename, reprocess, delete; `CopyButton` everywhere), the indexing settings, the
-service status (its card and the header's popover), the test search and the test chat (the cases
-column, new conversations, the case view: header, phases, turns, message box, send errors,
-read-only notices, delete; the inspector's State, Actions and Trace tabs) are translated;
-the Summary tab and the export are still English until their step. The connect
+shown. Plan, decisions and progress: `../plans/i18n-progress.md`. Every screen is
+translated: the shell, the connect screen, the documents list and page, upload, the
+indexing settings and service status, the test search and the test chat with its
+inspector. The test chat's **Markdown export** is written in the UI language at the time
+of export; the JSON export (the API's data), the file name and the UTC times are the same
+in every language. The connect
 screen has its own language menu, since the header's shows only once connected. Messages
 are kept as codes and worded when shown, so a switch rewords one already on screen. The
 Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.
@@ -44,7 +40,8 @@ Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary 
 the UI's own error messages) and the shared formatters (`lib/format.ts`: "hace 5 min",
 "5 oct 2026", "4,2 KB"). **Not translated:** the API's `msg` (shown as received), document
 content, model output, tenant ids, URL parameters, the brand "AYO Admin", the exact-time
-tooltip (`2026-11-05 10:14 UTC`).
+tooltip (`2026-11-05 10:14 UTC`), and the message box's and the search's example
+placeholders (Spanish, the conversation's language).
 
 How it works: [i18next](https://www.i18next.com/) + react-i18next, initialised at import in
 `src/i18n/index.ts` with the catalogs bundled (no fetch, no flash of untranslated text, no

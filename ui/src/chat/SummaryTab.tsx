@@ -1,13 +1,18 @@
 import { Sparkles } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { describeError } from '@/api/errors'
 import type { components } from '@/api/schema'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LazyMarkdown } from '@/document/LazyMarkdown'
+import { i18n } from '@/i18n'
+import { useLanguage } from '@/layout/languageContext'
 import { formatUtc, relativeTime } from '@/lib/format'
+import type { Language } from '@/lib/language'
 import { useCopilotSettings } from '@/settings/queries'
 
 import { GenerateSummaryDialog } from './GenerateSummaryDialog'
@@ -28,7 +33,19 @@ export function SummaryTab({ detail }: { detail: CaseDetail }) {
   )
 }
 
+/** A failed summary in `language` (decision 16: kept as the error, worded when shown). */
+function summaryErrorMessage(error: Error, language: Language): string {
+  const t = i18n.getFixedT(language, 'chat')
+  const problem = describeSummaryError(error)
+  if (problem.code === 'modelFailed') return t('summaryError.modelFailed', { type: problem.type })
+  // Not a network error (that is `unreachable`), so the address is never used.
+  if (problem.code === 'other') return describeError(problem.error, '', language)
+  return t(`summaryError.${problem.code}`)
+}
+
 function AiSummary({ detail }: { detail: CaseDetail }) {
+  const { t } = useTranslation('chat')
+  const { language } = useLanguage()
   // Read now, so the dialog names the model at once; cached for the session (decision 40).
   const copilot = useCopilotSettings()
   const generate = useGenerateSummary(detail.case_id)
@@ -41,7 +58,7 @@ function AiSummary({ detail }: { detail: CaseDetail }) {
     <section aria-labelledby="ai-summary" aria-busy={generating} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="ai-summary" className="text-sm font-semibold">
-          AI summary
+          {t('totals.summary')}
         </h2>
         <Button
           variant="outline"
@@ -52,19 +69,21 @@ function AiSummary({ detail }: { detail: CaseDetail }) {
           }}
         >
           <Sparkles aria-hidden="true" />
-          {generating ? 'Generating…' : summary ? 'Regenerate' : 'Generate AI summary'}
+          {generating
+            ? t('aiSummary.generating')
+            : summary
+              ? t('aiSummary.regenerate')
+              : t('aiSummary.generate')}
         </Button>
       </div>
-      {empty && (
-        <p className="text-muted-foreground text-xs">Nothing to summarise until the first turn.</p>
-      )}
+      {empty && <p className="text-muted-foreground text-xs">{t('aiSummary.nothingYet')}</p>}
       {generate.error && !generating && (
         <Alert variant="destructive" role="alert">
-          <AlertDescription>{describeSummaryError(generate.error)}</AlertDescription>
+          <AlertDescription>{summaryErrorMessage(generate.error, language)}</AlertDescription>
         </Alert>
       )}
       {generating ? (
-        <div aria-label="Generating the summary" className="space-y-2">
+        <div aria-label={t('aiSummary.loading')} className="space-y-2">
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-2/3" />
@@ -74,10 +93,9 @@ function AiSummary({ detail }: { detail: CaseDetail }) {
           {summary.stale && (
             <p role="note" className="bg-warning-muted text-warning rounded-md px-3 py-2 text-xs">
               <Badge variant="warning" className="mr-2">
-                Stale
+                {t('aiSummary.stale')}
               </Badge>
-              Made from version {summary.source_version}; the case is at version {detail.version}{' '}
-              now. Regenerate to include what changed.
+              {t('aiSummary.staleNote', { from: summary.source_version, now: detail.version })}
             </p>
           )}
           <div className="bg-card rounded-md border px-3 py-2 text-sm">
@@ -86,13 +104,14 @@ function AiSummary({ detail }: { detail: CaseDetail }) {
           <p className="text-muted-foreground text-xs" data-testid="summary-meta">
             <code className="font-mono break-all">{summary.model}</code> ·{' '}
             <time dateTime={summary.generated_at} title={formatUtc(summary.generated_at)}>
-              {relativeTime(summary.generated_at)}
+              {relativeTime(summary.generated_at, language)}
             </time>{' '}
-            · version {summary.source_version} · {usageLine(summary.usage)}
+            · {t('aiSummary.version', { n: summary.source_version })} ·{' '}
+            {usageLine(summary.usage, language)}
           </p>
         </div>
       ) : (
-        !empty && <p className="text-muted-foreground text-sm italic">No AI summary yet.</p>
+        !empty && <p className="text-muted-foreground text-sm italic">{t('aiSummary.none')}</p>
       )}
       <GenerateSummaryDialog
         open={asking}

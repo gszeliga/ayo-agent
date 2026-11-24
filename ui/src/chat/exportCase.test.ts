@@ -56,7 +56,7 @@ test('the Markdown export has the header, both summaries and every turn in order
   })
   const turns = [makeTurn(1, { phase: 'challenge', phaseAfter: 'analyse' }), makeTurn(2)]
 
-  const markdown = exportMarkdown(detail, turns, NOW)
+  const markdown = exportMarkdown(detail, turns, NOW, 'en')
 
   expect(markdown).toMatch(/^# Merma del 4 % en el envasado de la línea 2\n/)
   expect(markdown).toContain('_Exported 2026-11-23 10:15 UTC from the AYO test chat._')
@@ -75,7 +75,7 @@ test('the Markdown export has the header, both summaries and every turn in order
 
 test('an untitled case from another channel, without summary or turns', () => {
   const detail = makeCaseDetail(CASES[0], { title: null, web_session_id: null, turns: 0 })
-  const markdown = exportMarkdown(detail, [], NOW)
+  const markdown = exportMarkdown(detail, [], NOW, 'en')
   expect(markdown).toMatch(/^# Untitled case\n/)
   expect(markdown).toContain('- Channel: another channel')
   expect(markdown).toContain('## AI summary\n\n_None_')
@@ -90,4 +90,66 @@ test('the JSON export is the case and its turns as the API gave them', () => {
     case: detail,
     turns,
   })
+})
+
+test('in Spanish the Markdown export is Spanish; ids, content and UTC times as they are', () => {
+  const detail = makeCaseDetail(CASES[0], {
+    turns: 1,
+    actions: [
+      {
+        id: 1,
+        description: 'Medir la presión',
+        owner: 'Marta',
+        due_date: '2026-11-20',
+        status: 'pending',
+        overdue: true,
+      },
+    ],
+    summary: {
+      content: '**Problema:** merma.',
+      model: 'openai/gpt-5-mini',
+      generated_at: '2026-11-12T10:00:00Z',
+      source_version: 2,
+      stale: true,
+      usage: {
+        llm_calls: 1,
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: 1900,
+        cost: 0.0011,
+      },
+    },
+  })
+  const turns = [makeTurn(1, { phase: 'challenge', phaseAfter: 'analyse' })]
+
+  const markdown = exportMarkdown(detail, turns, NOW, 'es')
+
+  expect(markdown).toContain('_Exportado el 2026-11-23 10:15 UTC desde el chat de prueba de AYO._')
+  expect(markdown).toContain(`- Caso: \`${detail.case_id}\``)
+  expect(markdown).toContain('- Organización: cliente-acme')
+  expect(markdown).toContain('- Fase: Analizar, abierto')
+  expect(markdown).toContain(`- Canal: sesión web \`${detail.web_session_id ?? ''}\``)
+  expect(markdown).toContain('- Consumo: ')
+  expect(markdown).toContain('## Resumen estructurado\n\n### Problema\n\n- Qué: ')
+  expect(markdown).toContain('### Hipótesis\n\n_Ninguna todavía_')
+  expect(markdown).toContain(
+    '### Acciones\n\n- Medir la presión (Marta, fecha límite 2026-11-20, pendiente, atrasada)',
+  )
+  expect(markdown).toContain(
+    '## Resumen de IA\n\n_openai/gpt-5-mini · 2026-11-12 10:00 UTC · versión 2 · desactualizado · 1 llamada · 1,9k tokens · 0,0011 $_',
+  )
+  expect(markdown).toContain(
+    '## Conversación\n\n### Turno 1 · Cuestionar → Analizar · 2026-11-12 09:01 UTC\n\n**Usuario:**\n\nMensaje 1 del operario\n\n**Copiloto:**\n\nRespuesta 1 del copiloto',
+  )
+
+  const empty = exportMarkdown(
+    makeCaseDetail(CASES[0], { title: null, web_session_id: null, turns: 0 }),
+    [],
+    NOW,
+    'es',
+  )
+  expect(empty).toMatch(/^# Caso sin título\n/)
+  expect(empty).toContain('- Canal: otro canal')
+  expect(empty).toContain('## Resumen de IA\n\n_Ninguno_')
+  expect(empty).toContain('## Conversación\n\n_Sin turnos_')
 })

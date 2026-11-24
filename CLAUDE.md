@@ -10,10 +10,10 @@ working rules, update this file in that step's commit.
 ## Where things stand
 
 - **Active (2026-11-23): UI languages (English + Spanish).** No spec file; plan, decisions,
-  steps I1-I8 and log in `plans/i18n-progress.md`. **Read it first.** I1-I6 are done
+  steps I1-I8 and log in `plans/i18n-progress.md`. **Read it first.** I1-I7 are done
   (set-up, picker, formatters, shell, glossary, connect screen, documents list, bulk dialogs,
-  upload, document page, settings, search, test chat); I7a (inspector: State, Actions,
-  Trace) is done, I7b (Summary tab and the export) is next. Front end only, no billed calls.
+  upload, document page, settings, search, test chat and inspector); I8 (defaults removed,
+  lint rule, axe in Spanish, final report) is next. Front end only, no billed calls.
 - Done (2026-11-23): test chat and case inspector (`/chat`; C1-C10, T0-T5b and side
   steps). Spec `plans/claude-code-prompt-test-chat.md`; decisions, log, final report and
   "Open items" in `plans/chat-progress.md`. `POST /admin/cases/{case_id}/summary` and every

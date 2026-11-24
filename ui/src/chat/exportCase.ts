@@ -1,7 +1,8 @@
 import type { components } from '@/api/schema'
+import { i18n } from '@/i18n'
 import { formatUtc } from '@/lib/format'
+import type { Language } from '@/lib/language'
 
-import { PHASE_LABELS } from './phases'
 import { caseStatus, structuredSummary } from './structuredSummary'
 import { usageLine } from './trace'
 
@@ -47,57 +48,79 @@ export function exportJson(detail: CaseDetail, turns: readonly CaseTurn[], now: 
   return `${JSON.stringify({ exported_at: now.toISOString(), case: detail, turns }, null, 2)}\n`
 }
 
-/** The case as Markdown: header, structured summary, AI summary, then the conversation. */
-export function exportMarkdown(detail: CaseDetail, turns: readonly CaseTurn[], now: Date): string {
+/**
+ * The case as Markdown: header, structured summary, AI summary, then the conversation. Its
+ * words in `language` (the UI's when exported); ids, content and UTC times as they are.
+ */
+export function exportMarkdown(
+  detail: CaseDetail,
+  turns: readonly CaseTurn[],
+  now: Date,
+  language: Language,
+): string {
+  const t = i18n.getFixedT(language, 'chat')
+  const field = (label: string, value: string) => `- ${label}: ${value}`
+  const channel =
+    detail.web_session_id !== null
+      ? t('exportFile.webSession', { id: `\`${detail.web_session_id}\`` })
+      : t('exportFile.anotherChannel')
   const lines: string[] = [
-    `# ${detail.title ?? 'Untitled case'}`,
+    `# ${detail.title ?? t('untitled')}`,
     '',
-    `_Exported ${formatUtc(now.toISOString())} from the AYO test chat._`,
+    `_${t('exportFile.exported', { time: formatUtc(now.toISOString()) })}_`,
     '',
-    `- Case: \`${detail.case_id}\``,
-    `- Tenant: ${detail.tenant}`,
-    `- Phase: ${caseStatus(detail)}`,
-    `- Opened: ${formatUtc(detail.created_at)}`,
-    `- Updated: ${formatUtc(detail.updated_at)}`,
-    ...(detail.closed_at !== null ? [`- Closed: ${formatUtc(detail.closed_at)}`] : []),
-    `- Channel: ${detail.web_session_id !== null ? `web session \`${detail.web_session_id}\`` : 'another channel'}`,
-    `- Turns: ${String(detail.turns)}`,
-    `- Usage: ${usageLine(detail.usage)}`,
+    field(t('exportFile.case'), `\`${detail.case_id}\``),
+    field(t('exportFile.tenant'), detail.tenant),
+    field(t('exportFile.phase'), caseStatus(detail, language)),
+    field(t('exportFile.opened'), formatUtc(detail.created_at)),
+    field(t('exportFile.updated'), formatUtc(detail.updated_at)),
+    ...(detail.closed_at !== null
+      ? [field(t('exportFile.closed'), formatUtc(detail.closed_at))]
+      : []),
+    field(t('exportFile.channel'), channel),
+    field(t('exportFile.turns'), String(detail.turns)),
+    field(t('exportFile.usage'), usageLine(detail.usage, language)),
     '',
-    '## Structured summary',
+    `## ${t('structured.title')}`,
   ]
-  for (const section of structuredSummary(detail)) {
+  for (const section of structuredSummary(detail, language)) {
     lines.push('', `### ${section.title}`, '')
     if (section.items.length === 0) lines.push(`_${section.empty}_`)
     else lines.push(...section.items.map((item) => `- ${item.replaceAll('\n', ' ')}`))
   }
-  lines.push('', '## AI summary', '')
+  lines.push('', `## ${t('totals.summary')}`, '')
   const summary = detail.summary
   if (summary === null) {
-    lines.push('_None_')
+    lines.push(`_${t('exportFile.noSummary')}_`)
   } else {
-    lines.push(
-      `_${summary.model} · ${formatUtc(summary.generated_at)} · version ${String(summary.source_version)}${summary.stale ? ' · stale' : ''} · ${usageLine(summary.usage)}_`,
-      '',
-      summary.content.trim(),
-    )
+    const meta = [
+      summary.model,
+      formatUtc(summary.generated_at),
+      t('aiSummary.version', { n: summary.source_version }),
+      ...(summary.stale ? [t('exportFile.stale')] : []),
+      usageLine(summary.usage, language),
+    ]
+    lines.push(`_${meta.join(' · ')}_`, '', summary.content.trim())
   }
-  lines.push('', '## Conversation')
-  if (turns.length === 0) lines.push('', '_No turns_')
+  lines.push('', `## ${t('conversation')}`)
+  if (turns.length === 0) lines.push('', `_${t('exportFile.noTurns')}_`)
   for (const turn of turns) {
     const phase =
       turn.phase_before === turn.phase_after
-        ? PHASE_LABELS[turn.phase_after]
-        : `${PHASE_LABELS[turn.phase_before]} → ${PHASE_LABELS[turn.phase_after]}`
+        ? t(`phase.${turn.phase_after}`)
+        : t('phaseChange', {
+            from: t(`phase.${turn.phase_before}`),
+            to: t(`phase.${turn.phase_after}`),
+          })
     lines.push(
       '',
-      `### Turn ${String(turn.turn)} · ${phase} · ${formatUtc(turn.created_at)}`,
+      `### ${t('turn.label', { n: turn.turn })} · ${phase} · ${formatUtc(turn.created_at)}`,
       '',
-      '**User:**',
+      `**${t('exportFile.user')}:**`,
       '',
       turn.user_message.content.trim(),
       '',
-      '**Copilot:**',
+      `**${t('exportFile.copilot')}:**`,
       '',
       turn.reply.content.trim(),
     )

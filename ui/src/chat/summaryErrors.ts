@@ -1,20 +1,22 @@
 import { ApiError } from '@/api/errors'
 
-/** What to say about a failed summary. Nothing is stored then: an earlier one stays. */
-export function describeSummaryError(error: Error): string {
-  if (!(error instanceof ApiError)) return error.message
-  if (error.isNetworkError) {
-    return "Can't reach the API, so the summary may still have been made: refresh the case to see."
-  }
-  if (error.status === 409 && error.type === 'case_empty') {
-    return 'This case has no turns yet: there is nothing to summarise. No call was made.'
-  }
-  if (error.status === 404) return 'This case no longer exists.'
-  if (error.status === 502) {
-    return `The language model failed (${error.type ?? 'llm_error'}), so nothing was stored. You can try again.`
-  }
-  if (error.status === 503) {
-    return 'The API has no language model configured (OPENROUTER_API_KEY). No call was made.'
-  }
-  return error.message
+/**
+ * What went wrong with a summary, as a code worded when shown (`chat.summaryError.*`), so a
+ * language switch rewords an error already on screen. `modelFailed` carries the API's error
+ * code; `other` the error itself (worded by `describeError`). Nothing is stored on a
+ * failure: an earlier summary stays.
+ */
+export type SummaryProblem =
+  | { code: 'unreachable' | 'empty' | 'notFound' | 'noModel' }
+  | { code: 'modelFailed'; type: string }
+  | { code: 'other'; error: Error }
+
+export function describeSummaryError(error: Error): SummaryProblem {
+  if (!(error instanceof ApiError)) return { code: 'other', error }
+  if (error.isNetworkError) return { code: 'unreachable' }
+  if (error.status === 409 && error.type === 'case_empty') return { code: 'empty' }
+  if (error.status === 404) return { code: 'notFound' }
+  if (error.status === 502) return { code: 'modelFailed', type: error.type ?? 'llm_error' }
+  if (error.status === 503) return { code: 'noModel' }
+  return { code: 'other', error }
 }

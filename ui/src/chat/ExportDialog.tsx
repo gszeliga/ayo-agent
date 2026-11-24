@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { unwrap } from '@/api/client'
 import type { components } from '@/api/schema'
@@ -15,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useApiClient } from '@/connection/context'
+import { useLanguage } from '@/layout/languageContext'
 
 import { downloadFile } from './download'
 import {
@@ -24,7 +26,6 @@ import {
   missingRanges,
   type ExportFormat,
 } from './exportCase'
-import { plural } from './format'
 import { caseTurnsKey } from './queries'
 
 type CaseDetail = components['schemas']['CaseDetail']
@@ -42,15 +43,13 @@ interface Props {
 
 /** Export as Markdown or JSON, made in the browser from the API's data: nothing is uploaded. */
 export function ExportDialog({ detail, open, onOpenChange }: Props) {
+  const { t } = useTranslation('chat')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Export the case</DialogTitle>
-          <DialogDescription>
-            Made in your browser from what the API returns, every turn included. Nothing is
-            uploaded.
-          </DialogDescription>
+          <DialogTitle>{t('exportDialog.title')}</DialogTitle>
+          <DialogDescription>{t('exportDialog.description')}</DialogDescription>
         </DialogHeader>
         {/* Mounted only while open: each opening reads the turns afresh. */}
         <ExportBody detail={detail} />
@@ -98,6 +97,8 @@ function useAllTurns(detail: CaseDetail) {
 }
 
 function ExportBody({ detail }: { detail: CaseDetail }) {
+  const { t } = useTranslation('chat')
+  const { language } = useLanguage()
   const queryClient = useQueryClient()
   const [format, setFormat] = useState<ExportFormat>('markdown')
   // One time for the preview and the file.
@@ -110,12 +111,12 @@ function ExportBody({ detail }: { detail: CaseDetail }) {
   const content = turns.data
     ? format === 'json'
       ? exportJson(detail, turns.data, now)
-      : exportMarkdown(detail, turns.data, now)
+      : exportMarkdown(detail, turns.data, now, language)
     : null
 
   return (
     <>
-      <div role="group" aria-label="Format" className="flex gap-2">
+      <div role="group" aria-label={t('exportDialog.format')} className="flex gap-2">
         {(['markdown', 'json'] as const).map((value) => (
           <Button
             key={value}
@@ -140,12 +141,12 @@ function ExportBody({ detail }: { detail: CaseDetail }) {
       ) : content === null ? (
         <p role="status" className="text-muted-foreground text-sm">
           {missing > 0
-            ? `Fetching the ${plural(missing, 'turn', 'turns')} not loaded yet…`
-            : 'Preparing…'}
+            ? t('exportDialog.fetching', { count: missing })
+            : t('exportDialog.preparing')}
         </p>
       ) : (
         <pre
-          aria-label="Preview"
+          aria-label={t('exportDialog.preview')}
           tabIndex={0}
           className="bg-secondary max-h-[50vh] overflow-auto rounded-md p-3 font-mono text-[12px] break-words whitespace-pre-wrap"
         >
@@ -165,7 +166,7 @@ function ExportBody({ detail }: { detail: CaseDetail }) {
           }}
         >
           <Download aria-hidden="true" />
-          Download
+          {t('exportDialog.download')}
         </Button>
       </DialogFooter>
     </>

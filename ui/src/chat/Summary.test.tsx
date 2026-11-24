@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
@@ -343,4 +343,176 @@ test('leaving the tab while it runs keeps it running, and the result shows on re
   expect(await within(inspector).findByRole('button', { name: 'Generating…' })).toBeDisabled()
   gate.resolve()
   expect(await within(inspector).findByText('Problema:')).toBeVisible()
+})
+
+describe('in Spanish', () => {
+  async function openSummaryEs(first: ServedCase) {
+    const rendered = renderApp(`/chat/${first.detail.case_id}`, { connected: true, language: 'es' })
+    const inspector = await screen.findByRole('complementary', { name: 'Inspector' })
+    await rendered.user.click(within(inspector).getByRole('tab', { name: 'Resumen' }))
+    await within(inspector).findByRole('heading', { name: 'Resumen de IA' })
+    return { ...rendered, inspector }
+  }
+
+  test('the structured summary is Spanish', async () => {
+    const { first } = serve({
+      fields: { what: 'Merma del 4 %', where: 'Línea 2', since: null, standard: null },
+      events: [],
+      actions: [
+        {
+          id: 1,
+          description: 'Probar el film de 50 µm',
+          owner: 'Marta',
+          due_date: '2026-11-20',
+          status: 'pending',
+          overdue: true,
+        },
+        {
+          id: 2,
+          description: 'Formar al turno',
+          owner: 'Luis',
+          due_date: '2026-11-25',
+          status: 'done',
+          overdue: false,
+        },
+      ],
+    })
+    const { inspector } = await openSummaryEs(first)
+
+    expect(within(inspector).getByRole('heading', { name: 'Resumen estructurado' })).toBeVisible()
+    expect(
+      within(inspector).getByText(
+        'A partir del registro del caso, sin llamar al modelo. Analizar, abierto.',
+      ),
+    ).toBeVisible()
+    expect(items(inspector, 'Problema')).toEqual(['Qué: Merma del 4 %', 'Dónde: Línea 2'])
+    expect(within(group(inspector, 'Causa validada')).getByText('Aún sin validar')).toBeVisible()
+    expect(within(group(inspector, 'Hipótesis')).getByText('Ninguna todavía')).toBeVisible()
+    expect(within(group(inspector, 'Hipótesis descartadas')).getByText('Ninguna')).toBeVisible()
+    expect(within(group(inspector, 'Evidencias')).getByText('Ninguna todavía')).toBeVisible()
+    expect(items(inspector, 'Acciones')).toEqual([
+      'Probar el film de 50 µm (Marta, fecha límite 2026-11-20, pendiente, atrasada)',
+      'Formar al turno (Luis, fecha límite 2026-11-25, hecha)',
+    ])
+  })
+
+  test('the dialog, generating and the summary are Spanish', async () => {
+    const gate = deferred()
+    const { first, calls } = serve({}, { copilot: { configured: false } })
+    const { user, inspector } = await openSummaryEs(first)
+    expect(within(inspector).getByText('Aún no hay resumen de IA.')).toBeVisible()
+    server.use(
+      http.post(`${API}/admin/cases/:caseId/summary`, async () => {
+        calls.summary += 1
+        await gate.promise
+        const made = summary({ source_version: first.detail.version })
+        first.detail = { ...first.detail, summary: made }
+        return HttpResponse.json(made)
+      }),
+    )
+
+    await user.click(within(inspector).getByRole('button', { name: 'Generar resumen de IA' }))
+    const dialog = await screen.findByRole('alertdialog', { name: '¿Generar un resumen de IA?' })
+    expect(dialog).toHaveTextContent(
+      `Hace una llamada con coste a ${SUMMARY_MODEL} a través de OpenRouter, con el registro del caso y sus últimos mensajes.`,
+    )
+    expect(within(dialog).getByText('con coste').tagName).toBe('STRONG')
+    expect(within(dialog).getByText(SUMMARY_MODEL).tagName).toBe('CODE')
+    expect(dialog).toHaveTextContent('No hay ninguna clave de proveedor de modelos configurada')
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toBeVisible()
+    await user.click(within(dialog).getByRole('button', { name: 'Generar' }))
+
+    expect(await within(inspector).findByLabelText('Generando el resumen')).toBeVisible()
+    expect(within(inspector).getByRole('button', { name: 'Generando…' })).toBeDisabled()
+    gate.resolve()
+    expect(await within(inspector).findByText('Problema:')).toBeVisible()
+    const meta = within(inspector).getByTestId('summary-meta')
+    expect(meta).toHaveTextContent(/· versión \d+ · 1 llamada · 1,9k tokens · 0,0011 \$$/)
+    expect(meta).toHaveTextContent(/^openai\/gpt-5-mini · (ahora mismo|hace)/)
+    expect(within(inspector).getByRole('button', { name: 'Regenerar' })).toBeEnabled()
+  })
+
+  test('the settings not read: the dialog names the variables', async () => {
+    const { first } = serve()
+    server.use(
+      http.get(`${API}/admin/settings`, () =>
+        HttpResponse.json({ detail: [{ type: 'internal', loc: [], msg: 'No.' }] }, { status: 500 }),
+      ),
+    )
+    const { user, inspector } = await openSummaryEs(first)
+    await user.click(within(inspector).getByRole('button', { name: 'Generar resumen de IA' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await waitFor(() => {
+      expect(dialog).toHaveTextContent(
+        'el modelo de resúmenes (SUMMARY_MODEL o, si no, LLM_MODEL: no se han podido leer los ajustes)',
+      )
+    })
+    expect(within(dialog).getByText('SUMMARY_MODEL').tagName).toBe('CODE')
+    expect(within(dialog).getByText('LLM_MODEL').tagName).toBe('CODE')
+  })
+
+  test('a stale summary and regenerating are Spanish', async () => {
+    const { first } = serve({ version: 14, summary: summary({ source_version: 12, stale: true }) })
+    const { user, inspector } = await openSummaryEs(first)
+    const note = within(inspector).getByRole('note')
+    expect(note).toHaveTextContent(
+      'DesactualizadoHecho a partir de la versión 12; el caso está ahora en la versión 14. Regenéralo para incluir lo que ha cambiado.',
+    )
+
+    await user.click(within(inspector).getByRole('button', { name: 'Regenerar' }))
+    const dialog = await screen.findByRole('alertdialog', { name: '¿Regenerar el resumen de IA?' })
+    expect(dialog).toHaveTextContent('Sustituye al resumen actual.')
+    expect(within(dialog).getByRole('button', { name: 'Regenerar' })).toBeVisible()
+  })
+
+  test.each([
+    [409, 'case_empty', 'Este caso aún no tiene turnos: no hay nada que resumir.'],
+    [404, 'case_not_found', 'Este caso ya no existe.'],
+    [502, 'llm_credits', 'El modelo de lenguaje ha fallado (llm_credits)'],
+    [503, 'llm_not_configured', 'ningún modelo de lenguaje configurado (OPENROUTER_API_KEY)'],
+  ])('a %i %s is said in Spanish', async (status, type, message) => {
+    const { first } = serve(
+      { summary: summary({ content: 'Resumen anterior' }) },
+      { answer: () => errorBody(status, type) },
+    )
+    const { user, inspector } = await openSummaryEs(first)
+    await user.click(within(inspector).getByRole('button', { name: 'Regenerar' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Regenerar' }),
+    )
+    expect(await within(inspector).findByRole('alert')).toHaveTextContent(message)
+  })
+
+  test('a network failure is Spanish, and rewords when the browser switches', async () => {
+    const { first } = serve({}, { answer: () => HttpResponse.error() })
+    let browser = ['es-ES']
+    vi.spyOn(navigator, 'languages', 'get').mockImplementation(() => browser)
+    const rendered = renderApp(`/chat/${first.detail.case_id}`, { connected: true })
+    const inspector = await screen.findByRole('complementary', { name: 'Inspector' })
+    await rendered.user.click(within(inspector).getByRole('tab', { name: 'Resumen' }))
+    await rendered.user.click(
+      await within(inspector).findByRole('button', { name: 'Generar resumen de IA' }),
+    )
+    await rendered.user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Generar' }),
+    )
+    expect(await within(inspector).findByRole('alert')).toHaveTextContent(
+      /^No se puede conectar con la API, así que puede que el resumen se haya hecho igualmente/,
+    )
+
+    browser = ['en-GB']
+    act(() => {
+      window.dispatchEvent(new Event('languagechange'))
+    })
+    expect(within(inspector).getByRole('alert')).toHaveTextContent(/may still have been made/)
+  })
+
+  test('a case with no turns says so in Spanish', async () => {
+    const { first } = serve({ turns: 0 })
+    first.turns = []
+    const { inspector } = await openSummaryEs(first)
+    expect(
+      within(inspector).getByText('No hay nada que resumir hasta el primer turno.'),
+    ).toBeVisible()
+  })
 })

@@ -1,3 +1,5 @@
+import { Trans, useTranslation } from 'react-i18next'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,45 +30,44 @@ export function GenerateSummaryDialog({
   copilot,
   onGenerate,
 }: Props) {
+  const { t } = useTranslation('chat')
   const settings = copilot.data
+  const model = settings ? (
+    <code className="text-foreground font-mono break-all">{settings.summary_model}</code>
+  ) : copilot.isPending ? (
+    <span>{t('generateDialog.modelPending')}</span>
+  ) : (
+    <span>
+      <Trans
+        t={t}
+        i18nKey="generateDialog.modelUnknown"
+        components={{ code: <code className="font-mono" /> }}
+      />
+    </span>
+  )
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {replacing ? 'Regenerate the AI summary?' : 'Generate an AI summary?'}
+            {replacing ? t('generateDialog.titleReplace') : t('generateDialog.titleNew')}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2">
               <p>
-                This makes one <strong>billed</strong> call to{' '}
-                {settings ? (
-                  <code className="text-foreground font-mono break-all">
-                    {settings.summary_model}
-                  </code>
-                ) : copilot.isPending ? (
-                  'the summary model'
-                ) : (
-                  <>
-                    the summary model (<code className="font-mono">SUMMARY_MODEL</code>, else{' '}
-                    <code className="font-mono">LLM_MODEL</code>: the settings could not be read)
-                  </>
-                )}{' '}
-                through OpenRouter, with the case record and its latest messages.
+                <Trans t={t} i18nKey="generateDialog.body" components={{ b: <strong />, model }} />
               </p>
-              {replacing && <p>It replaces the current summary.</p>}
+              {replacing && <p>{t('generateDialog.replaces')}</p>}
               {settings && !settings.configured && (
-                <p className="text-warning">
-                  No model provider key is configured: the API will refuse it without a call.
-                </p>
+                <p className="text-warning">{t('generateDialog.noKey')}</p>
               )}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t('generateDialog.cancel')}</AlertDialogCancel>
           <AlertDialogAction onClick={onGenerate}>
-            {replacing ? 'Regenerate' : 'Generate'}
+            {replacing ? t('generateDialog.confirmReplace') : t('generateDialog.confirmNew')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

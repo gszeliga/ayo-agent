@@ -1,7 +1,8 @@
 import type { components } from '@/api/schema'
+import { i18n } from '@/i18n'
+import type { Language } from '@/lib/language'
 
 import { groupEvents } from './events'
-import { PHASE_LABELS } from './phases'
 
 type CaseDetail = components['schemas']['CaseDetail']
 
@@ -12,52 +13,68 @@ export interface SummarySection {
   empty: string
 }
 
+const FACTS = ['what', 'where', 'since', 'standard'] as const
+
 /**
  * The case as a structured summary, from `get_case` only (no model call): the problem's
- * facts, the cause, the hypotheses, the evidence and the actions. Plain text, for the
- * Summary tab and the Markdown export.
+ * facts, the cause, the hypotheses, the evidence and the actions. Plain text in
+ * `language`, for the Summary tab and the Markdown export.
  */
-export function structuredSummary(detail: CaseDetail): SummarySection[] {
+export function structuredSummary(detail: CaseDetail, language: Language): SummarySection[] {
+  const t = i18n.getFixedT(language, 'chat')
   const groups = groupEvents(detail.events)
   const facts = detail.fields
   const content = (events: { content: string }[]) => events.map((event) => event.content)
   return [
     {
-      title: 'Problem',
-      items: [
-        ...(facts.what !== null ? [`What: ${facts.what}`] : []),
-        ...(facts.where !== null ? [`Where: ${facts.where}`] : []),
-        ...(facts.since !== null ? [`Since: ${facts.since}`] : []),
-        ...(facts.standard !== null ? [`Standard: ${facts.standard}`] : []),
-      ],
-      empty: 'Not described yet',
+      title: t('structured.problem'),
+      items: FACTS.flatMap((key) => {
+        const value = facts[key]
+        return value !== null
+          ? [t('structured.fact', { label: t(`state.fact.${key}`), value })]
+          : []
+      }),
+      empty: t('structured.notDescribed'),
     },
     {
-      title: 'Validated cause',
+      title: t('state.groups.validated_cause'),
       items: content(groups.validated_cause),
-      empty: 'Not validated yet',
+      empty: t('structured.notValidated'),
     },
-    { title: 'Hypotheses', items: content(groups.hypothesis), empty: 'None yet' },
     {
-      title: 'Discarded hypotheses',
+      title: t('state.groups.hypothesis'),
+      items: content(groups.hypothesis),
+      empty: t('state.none'),
+    },
+    {
+      title: t('state.groups.hypothesis_discarded'),
       items: content(groups.hypothesis_discarded),
-      empty: 'None',
+      empty: t('structured.none'),
     },
-    { title: 'Evidence', items: content(groups.evidence), empty: 'None yet' },
+    { title: t('state.groups.evidence'), items: content(groups.evidence), empty: t('state.none') },
     {
-      title: 'Actions',
-      items: detail.actions.map(
-        (action) =>
-          `${action.description} (${action.owner}, due ${action.due_date}, ${
-            action.status === 'done' ? 'done' : action.overdue ? 'pending, overdue' : 'pending'
-          })`,
+      title: t('actions.list'),
+      items: detail.actions.map((action) =>
+        t('structured.action', {
+          description: action.description,
+          owner: action.owner,
+          due: action.due_date,
+          status: t(
+            `structured.actionStatus.${
+              action.status === 'done' ? 'done' : action.overdue ? 'overdue' : 'pending'
+            }`,
+          ),
+        }),
       ),
-      empty: 'None yet',
+      empty: t('state.none'),
     },
   ]
 }
 
-/** "Analyse, open" / "Closed". */
-export function caseStatus(detail: CaseDetail): string {
-  return detail.phase === 'closed' ? 'Closed' : `${PHASE_LABELS[detail.phase]}, open`
+/** "Analyse, open" / "Closed" ("Analizar, abierto" / "Cerrado"). */
+export function caseStatus(detail: CaseDetail, language: Language): string {
+  const t = i18n.getFixedT(language, 'chat')
+  return detail.phase === 'closed'
+    ? t('phase.closed')
+    : t('structured.statusOpen', { phase: t(`phase.${detail.phase}`) })
 }

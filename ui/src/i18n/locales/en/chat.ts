@@ -235,6 +235,86 @@ export const chat = {
     notReported: 'Not reported',
     tokensInOut: '{{total}} ({{in}} in, {{out}} out)',
   },
+  // `structuredSummary.ts`: the Summary tab and the Markdown export.
+  structured: {
+    title: 'Structured summary',
+    intro: 'From the case record, no model call. {{status}}.',
+    statusOpen: '{{phase}}, open',
+    problem: 'Problem',
+    // "What: …", the label from `state.fact`.
+    fact: '{{label}}: {{value}}',
+    notDescribed: 'Not described yet',
+    notValidated: 'Not validated yet',
+    none: 'None',
+    action: '{{description}} ({{owner}}, due {{due}}, {{status}})',
+    actionStatus: { done: 'done', pending: 'pending', overdue: 'pending, overdue' },
+  },
+  aiSummary: {
+    generating: 'Generating…',
+    regenerate: 'Regenerate',
+    generate: 'Generate AI summary',
+    nothingYet: 'Nothing to summarise until the first turn.',
+    loading: 'Generating the summary',
+    stale: 'Stale',
+    staleNote:
+      'Made from version {{from}}; the case is at version {{now}} now. Regenerate to include what changed.',
+    version: 'version {{n}}',
+    none: 'No AI summary yet.',
+  },
+  generateDialog: {
+    titleNew: 'Generate an AI summary?',
+    titleReplace: 'Regenerate the AI summary?',
+    // <model/>: the model's id, or one of the two texts below.
+    body: 'This makes one <b>billed</b> call to <model/> through OpenRouter, with the case record and its latest messages.',
+    modelPending: 'the summary model',
+    modelUnknown:
+      'the summary model (<code>SUMMARY_MODEL</code>, else <code>LLM_MODEL</code>: the settings could not be read)',
+    replaces: 'It replaces the current summary.',
+    noKey: 'No model provider key is configured: the API will refuse it without a call.',
+    cancel: 'Cancel',
+    confirmNew: 'Generate',
+    confirmReplace: 'Regenerate',
+  },
+  // `summaryErrors.ts`, by problem; {{type}} is the API's error code.
+  summaryError: {
+    unreachable:
+      "Can't reach the API, so the summary may still have been made: refresh the case to see.",
+    empty: 'This case has no turns yet: there is nothing to summarise. No call was made.',
+    notFound: 'This case no longer exists.',
+    modelFailed: 'The language model failed ({{type}}), so nothing was stored. You can try again.',
+    noModel: 'The API has no language model configured (OPENROUTER_API_KEY). No call was made.',
+  },
+  exportDialog: {
+    title: 'Export the case',
+    description:
+      'Made in your browser from what the API returns, every turn included. Nothing is uploaded.',
+    format: 'Format',
+    fetching_one: 'Fetching the {{count}} turn not loaded yet…',
+    fetching_other: 'Fetching the {{count}} turns not loaded yet…',
+    preparing: 'Preparing…',
+    preview: 'Preview',
+    download: 'Download',
+  },
+  // The Markdown export (`exportCase.ts`), in the UI language when exported.
+  exportFile: {
+    exported: 'Exported {{time}} from the AYO test chat.',
+    case: 'Case',
+    tenant: 'Tenant',
+    phase: 'Phase',
+    opened: 'Opened',
+    updated: 'Updated',
+    closed: 'Closed',
+    channel: 'Channel',
+    webSession: 'web session {{id}}',
+    anotherChannel: 'another channel',
+    turns: 'Turns',
+    usage: 'Usage',
+    noSummary: 'None',
+    stale: 'stale',
+    noTurns: 'No turns',
+    user: 'User',
+    copilot: 'Copilot',
+  },
   newConversation: {
     title: 'New conversation',
     description: 'The case is created by the first message, for this tenant.',
