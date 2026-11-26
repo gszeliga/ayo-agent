@@ -1,4 +1,4 @@
-"""`docling-import-files`: conversion with a fake converter, the output lines, exit codes."""
+"""`docling-import-files --no-upload`: conversion with a fake converter, lines, exit codes."""
 
 import io
 import os
@@ -37,7 +37,7 @@ class FakeConverter:
 def run(*argv: str, converter: FakeConverter | None = None) -> tuple[int, str, str]:
     out, err = io.StringIO(), io.StringIO()
     fake = converter or FakeConverter()
-    code = main(list(argv), make_converter=lambda: fake, stdout=out, stderr=err)
+    code = main([*argv, "--no-upload"], make_converter=lambda: fake, stdout=out, stderr=err)
     return code, out.getvalue(), err.getvalue()
 
 
@@ -84,7 +84,7 @@ def test_no_converter_is_built_when_nothing_needs_converting(tmp_path: Path) -> 
     def unavailable() -> FakeConverter:
         raise ConverterUnavailableError(INSTALL_HINT)
 
-    code = main([str(tmp_path)], make_converter=unavailable, stdout=io.StringIO())
+    code = main([str(tmp_path), "--no-upload"], make_converter=unavailable, stdout=io.StringIO())
 
     assert code == 0
 
@@ -158,7 +158,12 @@ def test_missing_docling_exits_2_with_the_install_hint(tmp_path: Path) -> None:
         raise ConverterUnavailableError(INSTALL_HINT)
 
     err = io.StringIO()
-    code = main([str(tmp_path)], make_converter=unavailable, stdout=io.StringIO(), stderr=err)
+    code = main(
+        [str(tmp_path), "--no-upload"],
+        make_converter=unavailable,
+        stdout=io.StringIO(),
+        stderr=err,
+    )
 
     assert code == 2
     assert "uv sync --group convert" in err.getvalue()

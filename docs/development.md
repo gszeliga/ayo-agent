@@ -40,11 +40,14 @@ path is printed with `-s`).
 
 ```sh
 uv sync --group convert                     # docling (torch, layout models): not in plain `uv sync`
-uv run docling-import-files PATH [--out DIR] [--recursive] [--reconvert] [--dry-run]
+uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run]
+uv run docling-import-files PATH --no-upload  # convert only
 ```
 
-Details in [knowledge-base.md](knowledge-base.md#converting-documents-to-markdown). Its
-tests use a fake converter and never import docling.
+Details in [knowledge-base.md](knowledge-base.md#converting-and-uploading-documents-with-docling).
+Its tests use a fake converter (docling is never imported) and an `httpx2.MockTransport`
+for the API (no request leaves the process). A real run uploads through the API, and the
+server embeds each new or changed document: billed Voyage calls.
 
 ## Conversation transcripts
 

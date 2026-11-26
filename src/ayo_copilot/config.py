@@ -176,6 +176,15 @@ class LLMSettings(BaseSettings):
     llm_app_title: str | None = None
 
 
+class ImportSettings(BaseSettings):
+    """The admin key alone, for `docling-import-files`, which uploads through the API and
+    needs no database or model setting. Optional here: the tool says when it is missing."""
+
+    model_config = SETTINGS_CONFIG
+
+    admin_api_key: SecretStr | None = Field(default=None, min_length=1)
+
+
 # The phases that can retrieve or have their own model: every phase but `closed`.
 ACTIVE_PHASES = tuple(phase for phase in PHASES if phase != "closed")
 

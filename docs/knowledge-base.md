@@ -5,37 +5,51 @@ rename, replace, reprocess, delete, and how they are chunked. Searching them is 
 [search.md](search.md). Every route here needs the `X-API-Key` header (see [Endpoints](../README.md#endpoints));
 `/docs` has every field, status and error `type`.
 
-## Converting documents to Markdown
+## Converting and uploading documents with docling
 
 The knowledge base takes Markdown only. `docling-import-files` converts PDF, DOCX, PPTX,
 XLSX, HTML, CSV, AsciiDoc and images with [docling](https://github.com/docling-project/docling),
-using its defaults (images become `<!-- image -->` placeholders; no pictures are exported).
-docling is an optional dependency group, kept out of the API's install because it brings
-torch and its layout models (a large download; the models load on the first conversion):
+using its defaults (images become `<!-- image -->` placeholders; no pictures are exported),
+then uploads each Markdown file as below. docling is an optional dependency group, kept
+out of the API's install because it brings torch and its layout models (a large download;
+the models load on the first conversion):
 
 ```sh
-uv sync --group convert                                     # once; plain `uv sync` removes it again
-uv run docling-import-files manual.pdf                      # -> manual.md next to it
-uv run docling-import-files docs/ --out md/ --recursive     # a folder tree -> md/, same subfolders
-uv run docling-import-files docs/ --dry-run                 # what it would do; writes nothing
-uv run docling-import-files docs/ --reconvert               # also the ones already converted
+uv sync --group convert                                       # once; plain `uv sync` removes it again
+uv run docling-import-files manual.pdf --tenant acme          # -> manual.md next to it, uploaded
+uv run docling-import-files docs/ --tenant acme --out md/ -r  # a folder tree -> md/, same subfolders
+uv run docling-import-files docs/ --tenant acme --dry-run     # what it would do; writes and sends nothing
+uv run docling-import-files docs/ --no-upload                 # convert only (no tenant, no key needed)
+uv run docling-import-files docs/ --tenant acme --api-url https://kb.example.com   # another API
 ```
+
+It uploads to `--api-url` (default `http://127.0.0.1:8000`) with `ADMIN_API_KEY` from the
+environment or `.env` (never a flag, never printed). The `source_key` is the Markdown file's
+name, so uploading again replaces the document; `--force` reindexes unchanged ones. **Each
+upload of new or changed content is one billed Voyage call on the server**; unchanged
+files come back `up_to_date` without one, so a rerun is cheap.
 
 A folder is scanned flat unless `--recursive`; hidden files and folders and `--out` itself
-are skipped. A Markdown file newer than its source is left alone (`up to date`) unless
-`--reconvert`; other `.md` files found are taken `as is`. Two sources that would write the
-same file (`a.pdf` and `a.docx`) stop the run before anything is written. A file that fails,
-or comes out without text, is reported and the run goes on:
+are skipped. A Markdown file newer than its source is not converted again (`up to date`)
+unless `--reconvert`, but is still uploaded; other `.md` files found are uploaded `as is`.
+The run refuses to start when two sources would write the same file (`a.pdf` and `a.docx`)
+or two Markdown files share a name (`x/a.md` and `y/a.md` would replace each other in the
+knowledge base). A file that fails to convert (or comes out without text) is not uploaded;
+a file the API refuses (`413`, `422`, `502`) is reported; the run goes on. A wrong key,
+a URL without the endpoint or an unreachable API stops the run:
 
 ```text
+uploading to http://127.0.0.1:8000, tenant acme
 converted   docs/manual.pdf -> docs/manual.md
+indexed     docs/manual.md (upload-1890b5dc5335, 12 chunks)
 up to date  docs/pro-014.md
+unchanged   docs/pro-014.md (upload-4be0c2a91d7f, already indexed)
 failed      docs/scan.png (EmptyMarkdownError: no text extracted)
-3 documents: 1 converted, 1 up to date, 1 failed
+3 documents: 1 converted, 1 up to date, 1 failed; uploaded: 1 indexed, 1 unchanged
 ```
 
-Exit status: `0` all done, `1` some file failed, `2` the run could not start. It prints
-paths and error types only, never document content.
+Exit status: `0` all done, `1` some file failed, `2` the run could not start or was
+stopped. It prints paths, statuses and error types only, never document content.
 
 ## Uploading a document
 

@@ -6,7 +6,8 @@ document to Markdown into a target folder or next to it, then upload each with o
 and the decisions below are the agreement.
 
 ## Next (resume here)
-K2 (upload). Brief it first.
+**The milestone is done** (K1-K2, 2026-11-26): see "Open items". Nothing is planned next:
+ask the user.
 
 ## Decisions (agreed 2026-11-26)
 1. **A CLI entry point** `docling-import-files` (the user's name), in
@@ -32,10 +33,26 @@ K2 (upload). Brief it first.
 ## Steps
 - [x] K1 (2026-11-26): convert: plan, converter, CLI (`--out`, `--recursive`, `--reconvert`,
   `--dry-run`), docs. 25 unit tests.
-- [ ] K2: upload: client, error mapping, source-key clash check, summary and exit code,
-  `--tenant`, `--api-url`, `--no-upload`, `--force`; `MockTransport` tests.
+- [x] K2 (2026-11-26): upload: `Uploader` (httpx2), rejected vs aborted, source-key clash
+  check, summary and exit code, `--tenant`, `--api-url`, `--no-upload`, `--force`;
+  21 `MockTransport` tests (46 for the tool).
 
 ## Log
 - 2026-11-26, K1: `docling>=2.153.0` in the `convert` group (locked, not installed here:
   it was not needed for the tests). `DoclingConverter` is untested against real docling;
   the first manual run checks it.
+- 2026-11-26, K2: decisions refined in the brief: no `--api-key` flag (shell history);
+  `ImportSettings` (just `ADMIN_API_KEY`, optional) in `config.py`, like `LLMSettings`.
+  401, 404/405 and transport errors abort (exit 2, the rest counted "not attempted");
+  413/422/502/other statuses are per file. No client retries: a rerun is cheap
+  (`up_to_date`). Read timeout 120 s (the server embeds in the request). Files that were
+  already up to date are uploaded too; their line says `unchanged` when the API answers
+  `up_to_date`. Only the API's origin is printed (no credentials or path).
+
+## Open items
+- `DoclingConverter` has not run against real docling yet (`uv sync --group convert` was
+  not run here: torch, large). First real run: one document, `--no-upload`.
+- No real upload has been made with the tool (billed embeddings). First one: a local API,
+  one small file, with the user's OK.
+- Title: the server's default (first `# ` heading, else the file name); no `--title`.
+- Uploads are sequential; parallel uploads were not needed.

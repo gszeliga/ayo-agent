@@ -14,7 +14,7 @@ Never commit `.env`.
 | `MIGRATIONS_DATABASE_URL` | *(unset: uses `DATABASE_URL`)* | Database URL for Alembic only. With Neon, use the direct endpoint here (the pooled one runs PgBouncer). |
 | `ALLOW_REMOTE_DATABASE` | `false` | `DATABASE_URL` and `MIGRATIONS_DATABASE_URL` must point at `localhost` unless this is `true`. A guard against using a remote database by accident. |
 | `DB_LOG_LEVEL` | `WARNING` | Level of psycopg's logs: `INFO` shows pool events (connection requested, given, returned), `DEBUG` also connection attempts. Hosts and ports are logged, never passwords. |
-| `ADMIN_API_KEY` | *(required)* | Provisional admin key, sent as the `X-API-Key` header. |
+| `ADMIN_API_KEY` | *(required)* | Provisional admin key, sent as the `X-API-Key` header. `docling-import-files` sends it too. |
 | `MAX_UPLOAD_BYTES` | `5242880` (5 MiB) | Larger uploads are rejected with `413`. |
 | `DOCS_ENABLED` | `true` | Serve `/docs`, `/redoc` and `/openapi.json`. They are public when on: restrict access in front of the app (proxy or private network) if needed. |
 | `CORS_ALLOWED_ORIGINS` | *(empty: CORS off)* | Comma-separated browser origins allowed to call the API, such as `http://localhost:5173,https://admin.example.com`. Each is `http(s)://host[:port]`, without path or trailing slash; `*` is refused. See [Browser clients (CORS)](#browser-clients-cors). |
