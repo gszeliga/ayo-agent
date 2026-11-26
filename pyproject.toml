@@ -24,12 +24,16 @@ dependencies = [
 ayo-copilot = "ayo_copilot:main"
 ayo-llm-check = "ayo_copilot.llm.check.cli:entrypoint"
 ayo-transcript = "ayo_copilot.conversation.transcript_cli:entrypoint"
+docling-import-files = "ayo_copilot.docling_import.cli:entrypoint"
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
+convert = [
+    "docling>=2.153.0",
+]
 dev = [
     "openapi-schema-validator>=0.9.0",
     "openapi-spec-validator>=0.9.0",

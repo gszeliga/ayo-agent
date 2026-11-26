@@ -9,8 +9,10 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Nothing is active.** Ask the user what comes next (candidates: the "Open items" of the
-  milestones below, or the parked E11, S3-S5 and D1).
+- **Active (2026-11-26): docling import** (`docling-import-files`: convert documents to
+  Markdown, then upload them). No spec file; brief, decisions and log in
+  `plans/kb-import-progress.md`. K1 (convert) done; next K2 (upload). Uploads make billed
+  Voyage calls on the server: never run against a real server without the user's OK.
 - Done (2026-11-24): UI languages, English + Spanish (I1-I8). No spec file; plan,
   decisions, glossary, log, final report and "Open items" in `plans/i18n-progress.md`.
   Front end only.
@@ -99,6 +101,8 @@ uv run ayo-copilot                        # run the API on 127.0.0.1:8000
 uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--check: verify only)
 uv run ayo-llm-check models --model ID     # OpenRouter listing: tools, context, prices, ZDR (free)
 uv run ayo-transcript SESSION_ID          # a session's transcript -> eval/conversations/ (reads only)
+uv sync --group convert                   # docling, optional (torch): plain `uv sync` removes it
+uv run docling-import-files PATH [--out DIR] [-r] [--reconvert] [--dry-run]   # documents -> Markdown
 uv run python scripts/seed_demo_cases.py  # demo cases (no model call); --host for the dev branch, --reset [--yes]
 uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)
@@ -168,6 +172,8 @@ src/ayo_copilot/
   conversation/channels.py IncomingMessage, ChannelAdapter, WebAdapter, handle_message (resolve case + turn)
   conversation/transcript.py     render_transcript (view + traces -> Markdown), write_transcript
   conversation/transcript_cli.py ayo-transcript (read-only; eval/conversations/, git-ignored)
+  docling_import/      docling-import-files: plan.py (scan, Markdown names, up to date, clashes),
+                       converter.py (Converter protocol, DoclingConverter, write_markdown), cli.py
   llm/openrouter.py    OpenRouterProvider (httpx2): serializers, error mapping, parse_completion,
                        retries (Retry-After, budget), one log line per call with generation ids
 migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW cosine)

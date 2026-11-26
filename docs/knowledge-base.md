@@ -5,6 +5,38 @@ rename, replace, reprocess, delete, and how they are chunked. Searching them is 
 [search.md](search.md). Every route here needs the `X-API-Key` header (see [Endpoints](../README.md#endpoints));
 `/docs` has every field, status and error `type`.
 
+## Converting documents to Markdown
+
+The knowledge base takes Markdown only. `docling-import-files` converts PDF, DOCX, PPTX,
+XLSX, HTML, CSV, AsciiDoc and images with [docling](https://github.com/docling-project/docling),
+using its defaults (images become `<!-- image -->` placeholders; no pictures are exported).
+docling is an optional dependency group, kept out of the API's install because it brings
+torch and its layout models (a large download; the models load on the first conversion):
+
+```sh
+uv sync --group convert                                     # once; plain `uv sync` removes it again
+uv run docling-import-files manual.pdf                      # -> manual.md next to it
+uv run docling-import-files docs/ --out md/ --recursive     # a folder tree -> md/, same subfolders
+uv run docling-import-files docs/ --dry-run                 # what it would do; writes nothing
+uv run docling-import-files docs/ --reconvert               # also the ones already converted
+```
+
+A folder is scanned flat unless `--recursive`; hidden files and folders and `--out` itself
+are skipped. A Markdown file newer than its source is left alone (`up to date`) unless
+`--reconvert`; other `.md` files found are taken `as is`. Two sources that would write the
+same file (`a.pdf` and `a.docx`) stop the run before anything is written. A file that fails,
+or comes out without text, is reported and the run goes on:
+
+```text
+converted   docs/manual.pdf -> docs/manual.md
+up to date  docs/pro-014.md
+failed      docs/scan.png (EmptyMarkdownError: no text extracted)
+3 documents: 1 converted, 1 up to date, 1 failed
+```
+
+Exit status: `0` all done, `1` some file failed, `2` the run could not start. It prints
+paths and error types only, never document content.
+
 ## Uploading a document
 
 ```sh

@@ -36,6 +36,16 @@ failure (the engine handles it); how well the model follows the phases is for a 
 read in its transcript, written to `eval/conversations/` even when the test fails (the
 path is printed with `-s`).
 
+## Converting documents
+
+```sh
+uv sync --group convert                     # docling (torch, layout models): not in plain `uv sync`
+uv run docling-import-files PATH [--out DIR] [--recursive] [--reconvert] [--dry-run]
+```
+
+Details in [knowledge-base.md](knowledge-base.md#converting-documents-to-markdown). Its
+tests use a fake converter and never import docling.
+
 ## Conversation transcripts
 
 ```sh
