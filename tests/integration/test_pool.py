@@ -57,6 +57,27 @@ def test_every_pooled_connection_is_configured(migrated_database_url: str) -> No
         pool.close()
 
 
+def test_a_connection_closed_by_the_server_is_replaced(
+    postgres_server_url: str, migrated_database_url: str
+) -> None:
+    # What Neon does to an idle connection: the server ends it while it sits in the pool.
+    pool = open_pool(migrated_database_url, min_size=1, max_size=1)
+    try:
+        with pool.connection() as conn:
+            (pid,) = conn.execute("select pg_backend_pid()").fetchone()
+        with psycopg.connect(postgres_server_url, autocommit=True) as admin:
+            admin.execute("select pg_terminate_backend(%s)", (pid,))
+
+        with pool.connection() as conn:
+            (new_pid,) = conn.execute("select pg_backend_pid()").fetchone()
+            (value,) = conn.execute("select '[1,2]'::vector").fetchone()
+    finally:
+        pool.close()
+
+    assert new_pid != pid
+    assert value == Vector([1.0, 2.0])
+
+
 def test_open_pool_fails_fast_without_the_vector_extension(scratch_database_url: str) -> None:
     with pytest.raises(PoolTimeout):
         open_pool(scratch_database_url, timeout=2)

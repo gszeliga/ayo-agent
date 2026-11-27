@@ -20,7 +20,8 @@ step, decision 40) is done (2026-11-23). T5a (the Summary tab) and T5b
 (delete, export, the final report) are done (2026-11-23): **the milestone is done**; see
 "Final report" below. Side steps after it (2026-11-27): T6 (the fake embedder's vectors
 labelled as such, decision 42) and T7 (`seed_demo_cases.py --embedder voyage`) are done;
-reseeding the dev branch with Voyage (the user: on Neon) waits for the user's OK.
+the dev branch was reseeded with Voyage on 2026-11-27 (the user's OK; search ranks the demo
+documents by meaning now, confirmed by the user).
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -202,6 +203,13 @@ What the UI steps start from:
     not the embedder object (a per-embedder label would touch the protocol and every
     `current_configs` caller; not now). Option agreed: this (T6), then
     `--embedder voyage` on the seed script (T7, billed, opt-in).
+43. **The pool checks connections before handing them out** (agreed 2026-11-27, the user:
+    a docling upload against the Neon dev branch failed with 500, `SSL connection has been
+    closed unexpectedly`, in `get_embed_signature`, after `discarding closed connection`).
+    Neon closes idle connections; the pool had no `check`, so it handed one out dead.
+    `open_pool` now passes `check=ConnectionPool.check_connection` (one round-trip per
+    checkout) and `max_idle=240` s (below Neon's suspend). No retry of failed statements
+    (unsafe inside a transaction); a connection that dies mid-request still fails it.
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -309,12 +317,11 @@ state). The summary prompt has never run against a real model.
 - **Side panels made consistent** (decision 41, after the report): done 2026-11-23.
 - **A manual pass in a browser** over the whole chat, on the demo cases (see the final
   report): nothing of the UI was checked outside tests.
-- **Reseed the dev branch with Voyage** (T7 done): with the user's OK, `--reset --yes` and
-  `--host <dev host> --embedder voyage` (about 13 chunks, ~3k tokens, well under a tenth of
-  a cent). Until then its demo documents keep the wrong `voyage-4` label.
-- **The seeded demo case on the dev branch** still has `retrieval_error: "timeout"` (the
-  script now writes `embedding_failed`); reseeding needs `--reset --yes` there, with the
-  user's OK.
+- **Dev branch reseeded with Voyage** (2026-11-27, the user's OK): `--reset --yes` (5 demo
+  cases, 24 turns, 2 documents), then `--embedder voyage` (3 calls). Demo chunks' mean
+  similarity to their siblings 0.74 (was -0.015); the user confirmed the search. Done.
+- **The seeded demo case's `retrieval_error`** (was `"timeout"` on the dev branch): the
+  2026-11-27 reseed wrote `embedding_failed`. Done.
 - **The summary prompt (`prompts/summary.md`) is a draft** for the user (and AYO) to
   review; no real model has run it yet. A manual try is billed: ask first.
 - Migrations 0003 and 0004 are on the Neon dev branch (applied by the user, reported
@@ -803,3 +810,12 @@ state). The summary prompt has never run against a real model.
   (command and cost), README and CLAUDE.md command lines. No tests (the script has none by
   design); ruff and `--help` checked. Not run yet: the user wants the reseed done on the
   Neon dev branch, with their OK, rather than on a local database.
+- **T8 (2026-11-27), side step: the pool replaces connections the server closed**
+  (decision 43). `db/pool.py`: `check=ConnectionPool.check_connection`,
+  `max_idle=MAX_IDLE_SECONDS` (240). `docs/operations.md` (Neon section) says why and what
+  the warning means. Test (`tests/integration/test_pool.py`): terminate the pooled
+  connection's backend with `pg_terminate_backend`, the next checkout gets a new backend
+  with pgvector configured; without the check it fails with `AdminShutdown`, the local
+  form of the reported error (checked). The unit check that `open_pool` sets `check`
+  from the brief was dropped: the integration test covers the behaviour. Full suite and
+  ruff green. Not checked against Neon (the upload that failed can be retried; billed).

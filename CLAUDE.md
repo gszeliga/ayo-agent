@@ -12,7 +12,9 @@ working rules, update this file in that step's commit.
 - **Side steps of the test chat (2026-11-27):** T6 (the fake embedder's vectors are
   labelled `fake/document/<dims>`, so search skips them; decision 42 in
   `plans/chat-progress.md`) and T7 (`seed_demo_cases.py --embedder voyage`, billed, opt-in)
-  are done. Reseeding the dev branch with it needs the user's OK. Otherwise nothing is active: ask
+  are done; the dev branch was reseeded with Voyage (2026-11-27). T8 (the pool checks each
+  connection before handing it out, so Neon closing idle ones no longer fails a request;
+  decision 43) is done. Otherwise nothing is active: ask
   the user (candidates: the "Open items" below, or the parked E11, S3-S5 and D1).
 - Done (2026-11-27): the UI from another device on the network (H1: the Vite dev and
   preview servers proxy the API's paths, one origin, no CORS; the API stays on
@@ -154,7 +156,7 @@ src/ayo_copilot/
   openapi.py           render_openapi() for the committed contract docs/openapi.json
   config.py            DatabaseSettings (Alembic), BuildSettings (app build: docs, CORS),
                        LLMSettings (ayo-llm-check), ConversationSettings < Settings
-  db/pool.py           open_pool (register_vector per connection), set_db_log_level
+  db/pool.py           open_pool (register_vector per connection, check on checkout), set_db_log_level
   db/repository.py     hand-written SQL: upsert_document, replace_chunks, search_chunks, ...
   db/conversations.py  hand-written SQL for cases, events, actions, links, traces, summaries (TraceRecord, StoredTrace, SummaryRecord)
   db/schema.py         SCHEMA_REVISIONS (every Alembic revision; the head is expected) + the startup log line

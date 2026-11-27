@@ -6,6 +6,10 @@ from psycopg_pool import ConnectionPool
 
 POOL_NAME = "ayo"
 
+# Neon closes idle connections (its pooler's idle timeout, compute auto-suspend after about
+# five minutes). Closing ours first keeps the pool from holding many dead ones.
+MAX_IDLE_SECONDS = 240.0
+
 
 def set_db_log_level(level: str) -> None:
     """Set the level of psycopg's own logs; `psycopg.pool` inherits it.
@@ -29,6 +33,9 @@ def open_pool(
 
     Waits until `min_size` connections are ready, so a wrong URL or a database without
     the `vector` extension fails here instead of on the first request.
+
+    Each connection is checked (one round-trip) before it is handed out: one the server
+    closed while it sat in the pool is replaced instead of failing the request.
     """
     pool = ConnectionPool(
         database_url,
@@ -36,6 +43,8 @@ def open_pool(
         max_size=max_size,
         name=POOL_NAME,
         configure=_configure,
+        check=ConnectionPool.check_connection,
+        max_idle=MAX_IDLE_SECONDS,
         open=False,
     )
     try:

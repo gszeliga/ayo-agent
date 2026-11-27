@@ -19,6 +19,13 @@ because the pooled one runs PgBouncer. Environment variables win over `.env`, so
 command can still use the local database:
 `DATABASE_URL=postgresql://ayo:ayo@localhost:5433/ayo ALLOW_REMOTE_DATABASE=false uv run ...`
 
+Neon closes idle connections (the pooler's idle timeout, the compute suspending after a
+few idle minutes). The app's pool checks each connection before handing it out and
+replaces a closed one, and closes its own after 4 idle minutes, so a request after a quiet
+spell does not fail with `SSL connection has been closed unexpectedly`. The check costs one
+round-trip per request; `DB_LOG_LEVEL=WARNING` still shows `discarding closed connection`
+when it replaces one.
+
 ## A psql shell
 
 ```sh
