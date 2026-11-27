@@ -1,6 +1,5 @@
 import {
   FileText,
-  LogOut,
   MessagesSquare,
   Search,
   ShieldAlert,
@@ -12,16 +11,13 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
-import { Button } from '@/components/ui/button'
-import { useConnection } from '@/connection/context'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/paths'
 
+import { ConnectionMenu } from './ConnectionMenu'
 import { dismissBanner, isBannerDismissed } from './banner'
 import { ErrorBoundary } from './ErrorBoundary'
-import { LanguageToggle } from './LanguageToggle'
 import { StatusIndicator } from './StatusIndicator'
-import { ThemeToggle } from './ThemeToggle'
 
 /** The knowledge base's pages, after the test chat and a divider (plans/nav-progress.md). */
 const KNOWLEDGE_NAV = [
@@ -53,10 +49,8 @@ function NavTab({ to, Icon, label }: { to: string; Icon: LucideIcon; label: stri
 
 export function AppShell() {
   const { t } = useTranslation()
-  const { connection, disconnect } = useConnection()
   const { pathname } = useLocation()
   const [bannerVisible, setBannerVisible] = useState(() => !isBannerDismissed())
-  const host = connection ? new URL(connection.baseUrl).host : ''
   // The test chat uses the whole window: three columns, each scrolling on its own.
   const fullWidth = pathname === ROUTES.chat || pathname.startsWith(`${ROUTES.chat}/`)
 
@@ -83,7 +77,7 @@ export function AppShell() {
             </button>
           </div>
         )}
-        {/* One row, the full window width: brand, the tabs, the utilities (decision 1 in
+        {/* One row, the full window width: brand, the tabs, the status and the connection menu (decision 1 in
             plans/nav-progress.md). Narrow, the tabs show only their icons and scroll. */}
         <div className="flex h-14 items-stretch gap-x-4 px-4">
           <div className="flex flex-none items-center gap-3">
@@ -93,10 +87,9 @@ export function AppShell() {
             >
               AYO
             </div>
-            <div className="hidden leading-tight sm:block">
+            <div className="hidden sm:block">
               {/* eslint-disable-next-line i18next/no-literal-string -- the brand (decision 5) */}
               <div className="font-semibold">AYO Admin</div>
-              <div className="text-muted-foreground font-mono text-[12px]">{host}</div>
             </div>
           </div>
           <nav
@@ -113,17 +106,7 @@ export function AppShell() {
           </nav>
           <div className="flex flex-none items-center gap-1">
             <StatusIndicator />
-            <ThemeToggle />
-            <LanguageToggle />
-            <Button
-              variant="outline"
-              onClick={() => {
-                disconnect()
-              }}
-            >
-              <LogOut aria-hidden="true" />
-              {t('shell.disconnect')}
-            </Button>
+            <ConnectionMenu />
           </div>
         </div>
       </header>

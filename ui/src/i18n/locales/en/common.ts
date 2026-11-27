@@ -10,6 +10,10 @@ export const common = {
     search: 'Search',
     indexingSettings: 'Indexing settings',
     disconnect: 'Disconnect',
+    // The header's last button; its visible text is the host.
+    connectionMenu: 'Connection and preferences: {{host}}',
+    // <host/> is the API's host, in monospace (a component, so it is never parsed).
+    connectedTo: 'Connected to <host/>',
   },
   status: {
     trigger: 'Service status: database {{database}}, embeddings {{embeddings}}',
@@ -26,9 +30,6 @@ export const common = {
   },
   theme: {
     label: 'Theme',
-    trigger: 'Theme: {{choice}}',
-    // In the trigger's name: "Theme: dark".
-    current: { light: 'light', dark: 'dark', system: 'system' },
     choice: { light: 'Light', dark: 'Dark', system: 'System' },
   },
   language: {

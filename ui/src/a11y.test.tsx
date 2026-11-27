@@ -9,7 +9,7 @@ import { CASES } from '@/test/fixtures/cases'
 import { DOCUMENTS, TENANTS } from '@/test/fixtures/documents'
 import { PROCEDURE_MD } from '@/test/fixtures/markdown'
 import { makeSearchResponse, QUESTION } from '@/test/fixtures/search'
-import { API, renderApp } from '@/test/render'
+import { API, openConnectionMenu, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
 const DOC = DOCUMENTS[0]!
@@ -67,6 +67,16 @@ describe.each(LANGUAGES)('in %s', (language: Language) => {
     await screen.findByRole('dialog', { name: c.upload.uploadTitle })
 
     expect(await a11yViolations()).toEqual([])
+  })
+
+  test('connection menu open', async () => {
+    const { user } = render('/documents')
+    await screen.findByRole('table', { name: c.documents.table.label })
+    // The menu itself: a portal outside the landmarks, as every Radix menu (axe's "region"
+    // best practice is for page content).
+    const menu = await openConnectionMenu(user)
+
+    expect(await a11yViolations(menu)).toEqual([])
   })
 
   test('delete dialog', async () => {

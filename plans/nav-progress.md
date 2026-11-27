@@ -7,7 +7,8 @@ make the experience smoother and clearer", 2026-11-27), the design canvas of alt
 are the agreement. Front end only: no API change and no billed call.
 
 ## Next (resume here)
-N1 and N2 are done. Next: N3 (the connection menu), brief first.
+**The milestone is done** (N1-N3, 2026-11-27): see "Final report" and "Open items" at the
+end. Nothing is planned next: ask the user.
 
 ## The problem (2026-11-27)
 - Test chat was an outlined accent pill: it read as an action, not a place.
@@ -45,4 +46,32 @@ N1 and N2 are done. Next: N3 (the connection menu), brief first.
   `status.summary.*` added, `status.database` / `status.embeddings` (no longer used)
   removed. New `layout/StatusIndicator.test.tsx` (each state, the popover, Spanish).
   Docs: `ui/README.md`, service status.
-- [ ] **N3**: the connection menu.
+- [x] **N3** (2026-11-27): the connection menu. New `layout/ConnectionMenu.tsx` (outline
+  button: server icon, the host, a chevron; "Connected to <host>" via `<Trans>`, Theme,
+  Language, Disconnect as a destructive item). `ThemeToggle.tsx` -> `ThemeChoices.tsx` (the
+  radio group only: the button had no other user); `LanguageChoices` pulled out of
+  `LanguageToggle.tsx`, which the connect page keeps. The host leaves the brand (decision 3
+  ends). Copy: `shell.connectionMenu`, `shell.connectedTo`; `theme.trigger` and
+  `theme.current` removed. Tests: new `ConnectionMenu.test.tsx`; the theme and language
+  tests open the menu; `openConnectionMenu(user)` in `test/render.tsx`; App, Documents and
+  Connect tests follow. `a11y.test.tsx` checks the open menu itself (decision 4).
+  Docs: `ui/README.md` (Navigation, Themes, Languages, layout).
+
+## Decisions (agreed during the steps)
+4. **axe checks the open menu on its own** (`a11yViolations(menu)`): Radix portals the menu
+   outside every landmark, so axe's "region" best practice flags the whole page with it
+   open; the menu's own markup is what this test is for.
+
+## Final report (2026-11-27)
+Option D is in: one header row with the brand, four tabs (icon + name, the current one
+underlined; icons only below `md`), one status pill and a connection menu holding the
+host, theme, language and Disconnect. Three commits (N1-N3); front end only; `pnpm check`
+green (701 tests, axe on every screen in both languages, the open menu included).
+Not checked in a browser by Claude: the look, dark mode and narrow widths are the user's
+to check (`pnpm dev`).
+
+## Open items
+- A side menu (option B on the canvas) if the number of pages grows past what one row holds.
+- Keyboard shortcuts for the tabs, if people ask for them.
+- The connect page still has its own language button only (no theme): fine while the
+  theme follows the system by default.

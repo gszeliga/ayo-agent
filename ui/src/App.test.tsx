@@ -9,7 +9,7 @@ import { useApiClient } from '@/connection/context'
 import { RequireConnection } from '@/connection/RequireConnection'
 import { loadConnection } from '@/connection/storage'
 import { ConnectPage } from '@/pages/ConnectPage'
-import { API, renderApp } from '@/test/render'
+import { API, openConnectionMenu, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
 const KEY_REJECTED = 'Your key was rejected. Connect again with a valid key.'
@@ -33,7 +33,9 @@ test('connected, the shell shows the host, the nav and the page', () => {
   renderApp('/', { connected: true })
 
   expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument()
-  expect(screen.getByText('api.test')).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Connection and preferences: api.test' }),
+  ).toBeInTheDocument()
   const nav = screen.getByRole('navigation', { name: 'Main' })
   expect(nav).toHaveTextContent('DocumentsSearchIndexing settings')
   expect(screen.getByRole('link', { name: 'Documents' })).toHaveAttribute('aria-current', 'page')
@@ -42,7 +44,8 @@ test('connected, the shell shows the host, the nav and the page', () => {
 test('disconnect forgets the key and returns to the connect screen', async () => {
   const { user } = renderApp('/settings', { connected: true })
 
-  await user.click(screen.getByRole('button', { name: 'Disconnect' }))
+  await openConnectionMenu(user)
+  await user.click(screen.getByRole('menuitem', { name: 'Disconnect' }))
 
   expect(screen.getByRole('heading', { name: 'Connect to the AYO API' })).toBeInTheDocument()
   expect(loadConnection()).toBeNull()

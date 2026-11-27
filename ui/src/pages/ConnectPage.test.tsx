@@ -203,6 +203,8 @@ test('a language chosen on the connect screen is kept once connected', async () 
   await user.type(screen.getByLabelText('Clave de administración'), KEY)
   await user.click(screen.getByRole('button', { name: 'Conectar' }))
 
-  expect(await screen.findByRole('button', { name: 'Desconectar' })).toBeInTheDocument()
+  expect(
+    await screen.findByRole('button', { name: /^Conexión y preferencias:/ }),
+  ).toBeInTheDocument()
   expect(screen.getByRole('navigation', { name: 'Principal' })).toHaveTextContent('Búsqueda')
 })

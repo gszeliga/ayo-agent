@@ -1,7 +1,7 @@
-import { act, screen } from '@testing-library/react'
+import { act, within } from '@testing-library/react'
 
 import { THEME_KEY } from '@/lib/theme'
-import { renderApp } from '@/test/render'
+import { openConnectionMenu, renderApp } from '@/test/render'
 
 const isDark = () => document.documentElement.classList.contains('dark')
 
@@ -33,20 +33,21 @@ afterEach(() => {
   document.documentElement.classList.remove('dark')
 })
 
-test('the toggle applies and stores the choice', async () => {
+test('the connection menu applies and stores the choice', async () => {
   systemTheme(false)
   const { user } = renderApp('/settings', { connected: true })
   expect(isDark()).toBe(false)
 
-  await user.click(screen.getByRole('button', { name: 'Theme: system' }))
-  await user.click(await screen.findByRole('menuitemradio', { name: 'Dark' }))
+  let menu = await openConnectionMenu(user)
+  await user.click(within(menu).getByRole('menuitemradio', { name: 'Dark' }))
 
   expect(isDark()).toBe(true)
   expect(window.localStorage.getItem(THEME_KEY)).toBe('dark')
-  expect(screen.getByRole('button', { name: 'Theme: dark' })).toBeInTheDocument()
 
-  await user.click(screen.getByRole('button', { name: 'Theme: dark' }))
-  await user.click(await screen.findByRole('menuitemradio', { name: 'System' }))
+  menu = await openConnectionMenu(user)
+  const theme = within(menu).getByRole('group', { name: 'Theme' })
+  expect(within(theme).getByRole('menuitemradio', { name: 'Dark' })).toBeChecked()
+  await user.click(within(theme).getByRole('menuitemradio', { name: 'System' }))
   expect(isDark()).toBe(false)
   expect(window.localStorage.getItem(THEME_KEY)).toBeNull()
 })

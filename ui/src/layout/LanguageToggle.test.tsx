@@ -1,7 +1,7 @@
 import { act, screen, within } from '@testing-library/react'
 
 import { LANGUAGE_KEY } from '@/lib/language'
-import { renderApp } from '@/test/render'
+import { openConnectionMenu, renderApp } from '@/test/render'
 
 /** The browser's preferred languages; `set` fires `languagechange` like the browser would. */
 function browserLanguages(initial: string[]) {
@@ -23,28 +23,32 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-test('Español turns the shell Spanish, sets lang and is kept', async () => {
+test('Español in the connection menu turns the shell Spanish, sets lang and is kept', async () => {
   browserLanguages(['en-GB'])
   const { user } = renderApp('/settings', { connected: true })
   expect(document.documentElement.lang).toBe('en')
 
-  await user.click(screen.getByRole('button', { name: 'Language: system' }))
-  await user.click(await screen.findByRole('menuitemradio', { name: 'Español' }))
+  await openConnectionMenu(user)
+  await user.click(screen.getByRole('menuitemradio', { name: 'Español' }))
 
   expect(within(nav()).getByRole('link', { name: 'Documentos' })).toBeInTheDocument()
   expect(within(nav()).getByRole('link', { name: 'Búsqueda' })).toBeInTheDocument()
   expect(within(nav()).getByRole('link', { name: 'Ajustes de indexación' })).toBeInTheDocument()
   expect(within(nav()).getByRole('link', { name: /Chat de prueba/ })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Desconectar' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Tema: sistema' })).toBeInTheDocument()
   expect(document.documentElement.lang).toBe('es')
   expect(window.localStorage.getItem(LANGUAGE_KEY)).toBe('es')
 
-  await user.click(screen.getByRole('button', { name: 'Idioma: Español' }))
-  const menu = await screen.findByRole('menu')
+  const menu = await openConnectionMenu(user)
+  expect(within(menu).getByRole('menuitem', { name: 'Desconectar' })).toBeInTheDocument()
+  expect(within(menu).getByRole('group', { name: 'Tema' })).toBeInTheDocument()
+  const language = within(menu).getByRole('group', { name: 'Idioma' })
   // The names stay in their own language; System is in the UI's.
-  expect(within(menu).getByRole('menuitemradio', { name: 'English' })).toHaveAttribute('lang', 'en')
-  await user.click(within(menu).getByRole('menuitemradio', { name: 'Sistema' }))
+  expect(within(language).getByRole('menuitemradio', { name: 'English' })).toHaveAttribute(
+    'lang',
+    'en',
+  )
+  expect(within(language).getByRole('menuitemradio', { name: 'Español' })).toBeChecked()
+  await user.click(within(language).getByRole('menuitemradio', { name: 'Sistema' }))
 
   expect(within(nav()).getByRole('link', { name: 'Documents' })).toBeInTheDocument()
   expect(window.localStorage.getItem(LANGUAGE_KEY)).toBeNull()

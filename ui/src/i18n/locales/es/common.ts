@@ -12,6 +12,8 @@ export const common: Catalog['common'] = {
     search: 'Búsqueda',
     indexingSettings: 'Ajustes de indexación',
     disconnect: 'Desconectar',
+    connectionMenu: 'Conexión y preferencias: {{host}}',
+    connectedTo: 'Conectado a <host/>',
   },
   status: {
     trigger: 'Estado del servicio: base de datos {{database}}, embeddings {{embeddings}}',
@@ -27,8 +29,6 @@ export const common: Catalog['common'] = {
   },
   theme: {
     label: 'Tema',
-    trigger: 'Tema: {{choice}}',
-    current: { light: 'claro', dark: 'oscuro', system: 'sistema' },
     choice: { light: 'Claro', dark: 'Oscuro', system: 'Sistema' },
   },
   language: {

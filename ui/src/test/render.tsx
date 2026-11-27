@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router'
@@ -75,4 +75,14 @@ export function renderApp(
     </MemoryRouter>,
   )
   return { user, queryClient, ...result }
+}
+
+/** Opens the header's connection menu (theme, language, Disconnect), in either language. */
+export async function openConnectionMenu(
+  user: ReturnType<typeof userEvent.setup>,
+): Promise<HTMLElement> {
+  await user.click(
+    screen.getByRole('button', { name: /^(Connection and preferences|Conexión y preferencias):/ }),
+  )
+  return screen.findByRole('menu')
 }

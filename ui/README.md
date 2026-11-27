@@ -12,16 +12,19 @@ clickable prototype it follows is linked there (U1).
 
 ## Navigation
 
-One header row: the brand and host, the tabs, then the utilities. The tabs are Test chat,
+One header row: the brand, the tabs, the status pill and the connection menu. The tabs are Test chat,
 then, after a divider, the knowledge base's Documents, Search and Indexing settings (a
 group named "Knowledge base" for screen readers). Each has an icon; the current one is
 underlined (a document's page marks Documents, a case marks Test chat). Below the `md`
 breakpoint the tabs show only their icons, their names kept for screen readers, and the
-row scrolls sideways instead of wrapping. Plan and decisions: `../plans/nav-progress.md`.
+row scrolls sideways instead of wrapping. The connection menu (`layout/ConnectionMenu.tsx`)
+shows the host it is connected to; it holds Theme and Language as radio groups and
+Disconnect. Its name is "Connection and preferences: <host>". Plan and decisions:
+`../plans/nav-progress.md`.
 
 ## Themes and errors
 
-Light, Dark or System (the default) from the header; the choice is kept in this browser.
+Light, Dark or System (the default) from the header's connection menu; the choice is kept in this browser.
 `public/theme-boot.js`, a blocking script in `index.html`, applies it before the first
 paint; keep it in step with `src/lib/theme.ts` (its test runs the file). An error boundary
 around the pages shows "Something went wrong" instead of a blank page, and asks for a
@@ -31,7 +34,7 @@ with `useDocumentTitle`. `src/a11y.test.tsx` runs axe-core on the main screens.
 
 ## Languages
 
-English, Español or System (the default) from the header's language menu, next to the
+English, Español or System (the default) from the header's connection menu, under the
 theme; the choice is kept in this browser (`ayo.lang`). System follows the browser's
 preferred languages (the first one the UI has: `es-AR` is Spanish, `fr` falls back to
 English) and changes with them while the page is open. `<html lang>` follows the language
@@ -41,7 +44,7 @@ indexing settings and service status, the test search and the test chat with its
 inspector. The test chat's **Markdown export** is written in the UI language at the time
 of export; the JSON export (the API's data), the file name and the UTC times are the same
 in every language. The connect
-screen has its own language menu, since the header's shows only once connected. Messages
+screen has its own language button, since the header's menu shows only once connected. Messages
 are kept as codes and worded when shown, so a switch rewords one already on screen. The
 Spanish terms (chunk kept as is, tenant -> organización, ...) are the glossary in the plan.
 
@@ -479,9 +482,11 @@ src/
   api/                schema.d.ts (generated; schema.test.ts checks it at compile time),
                       client.ts (createApiClient, unwrap), errors.ts (ApiError)
   connection/         storage, base URL rules, provider + useConnection/useApiClient, guard
-  layout/             AppShell (header, nav, Disconnect, internal-use banner), ErrorBoundary,
-                      ThemeProvider + ThemeToggle, LanguageProvider (+ languageContext) +
-                      LanguageToggle, StatusIndicator (status dots, popover)
+  layout/             AppShell (header, tabs, internal-use banner), ErrorBoundary,
+                      ConnectionMenu (host, theme, language, Disconnect), ThemeProvider +
+                      ThemeChoices, LanguageProvider (+ languageContext) + LanguageChoices /
+                      LanguageToggle (the connect page's), StatusIndicator (pill, popover)
+                      + healthSummary
   i18n/               i18next set-up (index.ts, imported first by main.tsx), resources,
                       Catalog type, typed keys (i18next.d.ts), locales/{en,es}/ (catalogs)
   documents/          the list: DocumentsPage, listParams (URL <-> state), queries,

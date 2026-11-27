@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw'
 
 import type { components } from '@/api/schema'
 import { DOCUMENTS, makeDocument, TENANTS } from '@/test/fixtures/documents'
-import { API, renderApp } from '@/test/render'
+import { API, openConnectionMenu, renderApp } from '@/test/render'
 import { server } from '@/test/server'
 
 type Document = components['schemas']['Document']
@@ -379,7 +379,8 @@ test('reconnecting never shows rows cached before', async () => {
   await waitFor(() => {
     expect(rows()).toHaveLength(3)
   })
-  await user.click(screen.getByRole('button', { name: 'Disconnect' }))
+  await openConnectionMenu(user)
+  await user.click(screen.getByRole('menuitem', { name: 'Disconnect' }))
 
   // The next connection's API answers slowly: the old rows must not show meanwhile.
   server.use(
