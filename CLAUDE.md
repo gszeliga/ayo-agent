@@ -11,6 +11,9 @@ working rules, update this file in that step's commit.
 
 - **Nothing is active.** Ask the user what comes next (candidates: the "Open items" of the
   milestones below, or the parked E11, S3-S5 and D1).
+- Done (2026-11-27): the UI from another device on the network (H1: the Vite dev and
+  preview servers proxy the API's paths, one origin, no CORS; the API stays on
+  `127.0.0.1`). Decisions and log in `plans/lan-progress.md`. Front end only.
 - Done (2026-11-27): header navigation (N1-N3, option D: one row of tabs, a status pill, a
   connection menu with theme, language and Disconnect). No spec file; decisions, log, final
   report and "Open items" in `plans/nav-progress.md`. Front end only.
@@ -111,7 +114,8 @@ uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--dry-run] [--no-u
 uv run python scripts/seed_demo_cases.py  # demo cases (no model call); --host for the dev branch, --reset [--yes]
 uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)
-pnpm install && pnpm dev                  # http://localhost:5173 (API needs CORS_ALLOWED_ORIGINS=http://localhost:5173)
+pnpm install && pnpm dev                  # http://localhost:5173, API paths proxied to 127.0.0.1:8000 (no CORS)
+pnpm dev --host                           # the same on your network (a phone): plain HTTP, trusted networks only
 pnpm check                                # gen:api:check + lint + format:check + typecheck + test
 pnpm gen:api                              # regenerate ui/src/api/schema.d.ts from docs/openapi.json
 ```
@@ -196,6 +200,7 @@ tests/{unit,api,integration,live}/, tests/fixtures/ (Spanish Markdown)
 ui/                    admin UI: React + Vite + TS, Tailwind v4 + shadcn/ui; layout in ui/README.md
   src/i18n/            i18next set-up and the catalogs, locales/{en,es}/<area>.ts (typed keys)
   src/api/schema.d.ts  generated from docs/openapi.json (never edit)
+  src/apiPaths.ts      the API's path prefixes: the Vite proxy (vite.config.ts) and the route-clash test
 ```
 
 ## Conventions

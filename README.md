@@ -100,8 +100,10 @@ uv run python scripts/seed_demo_cases.py  # demo cases for the test chat (no mod
 ## Admin UI
 
 The browser UI lives in `ui/` (React + Vite + TypeScript): `cd ui && pnpm install && pnpm dev`,
-with the API started with `CORS_ALLOWED_ORIGINS=http://localhost:5173`. See
-[ui/README.md](ui/README.md).
+with the API running (`uv run ayo-copilot`); the dev server proxies the API's paths, so no
+CORS setting is needed. `pnpm dev --host` opens it to your network (a phone, say) while the
+API stays on `127.0.0.1`: see [ui/README.md](ui/README.md#from-another-device), plain HTTP,
+trusted networks only.
 
 **Test chat** (`/chat`): talk to the copilot as a web client would and inspect each case
 beside the conversation: its facts, annotations and actions, every turn's trace (tool

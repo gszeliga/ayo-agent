@@ -17,7 +17,7 @@ Never commit `.env`.
 | `ADMIN_API_KEY` | *(required)* | Provisional admin key, sent as the `X-API-Key` header. `docling-import-files` sends it too. |
 | `MAX_UPLOAD_BYTES` | `5242880` (5 MiB) | Larger uploads are rejected with `413`. |
 | `DOCS_ENABLED` | `true` | Serve `/docs`, `/redoc` and `/openapi.json`. They are public when on: restrict access in front of the app (proxy or private network) if needed. |
-| `CORS_ALLOWED_ORIGINS` | *(empty: CORS off)* | Comma-separated browser origins allowed to call the API, such as `http://localhost:5173,https://admin.example.com`. Each is `http(s)://host[:port]`, without path or trailing slash; `*` is refused. See [Browser clients (CORS)](#browser-clients-cors). |
+| `CORS_ALLOWED_ORIGINS` | *(empty: CORS off)* | Comma-separated browser origins allowed to call the API, such as `https://admin.example.com,http://192.168.1.50:5173`. Each is `http(s)://host[:port]`, without path or trailing slash; `*` is refused. See [Browser clients (CORS)](#browser-clients-cors). |
 
 ## Chunking and embeddings
 
@@ -91,7 +91,9 @@ The prompt files are not settings: see
 ## Browser clients (CORS)
 
 A UI served from another origin needs `CORS_ALLOWED_ORIGINS`, for example
-`CORS_ALLOWED_ORIGINS=http://localhost:5173`. Listed origins may use `GET`, `POST`,
+`CORS_ALLOWED_ORIGINS=https://admin.example.com`. The admin UI's `pnpm dev` and
+`pnpm preview` don't: they proxy the API's paths, so the UI and the API share one origin
+([ui/README.md](../ui/README.md#setup)). Listed origins may use `GET`, `POST`,
 `PATCH` and `DELETE` with the `X-API-Key` and `Content-Type` headers; no cookies or other
 credentials. Any other origin gets no CORS headers, so the browser keeps the answers from
 it. The setting is read when the app is built, so changing it needs a restart.

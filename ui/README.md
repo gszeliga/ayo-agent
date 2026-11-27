@@ -96,17 +96,39 @@ Needs Node 24+ and pnpm (the version is pinned in `package.json`, `packageManage
 ```sh
 cd ui
 pnpm install
-pnpm dev            # http://localhost:5173 (fixed port: the API's CORS allows this origin)
+pnpm dev            # http://localhost:5173, the API's paths proxied to 127.0.0.1:8000
 ```
 
-The API must allow the origin: start it with `CORS_ALLOWED_ORIGINS=http://localhost:5173`.
+The dev server (and `pnpm preview`, on port 4173) forwards the API's paths (`/admin`,
+`/copilot`, `/health`, `/docs`, `/redoc`, `/openapi.json`; the prefixes are read from
+`../docs/openapi.json`, `src/apiPaths.ts`) to the API on `http://127.0.0.1:8000`, so the UI
+and the API share one origin, as behind Caddy in production: no CORS setting is needed.
 For example, with the local database and the fake embedder, from the repo root:
 
 ```sh
-EMBEDDING_PROVIDER=fake CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+EMBEDDING_PROVIDER=fake \
   DATABASE_URL=postgresql://ayo:ayo@localhost:5433/ayo ALLOW_REMOTE_DATABASE=false \
   uv run ayo-copilot
 ```
+
+### From another device
+
+To use the UI from a phone or another computer on the same network, expose the UI's
+server, not the API (it stays on `127.0.0.1`):
+
+```sh
+pnpm dev --host                     # prints the Network URL, such as http://192.168.1.50:5173
+pnpm build && pnpm preview --host   # leaner: serves the built bundle on port 4173
+```
+
+Open that URL on the device and enter the admin key; the address already defaults to the
+page's origin. If a firewall is on, open the port to your network only, for example
+`sudo ufw allow from 192.168.1.0/24 to any port 5173 proto tcp`.
+
+- **Plain HTTP**: the admin key crosses the network unencrypted. Only on a network you
+  trust (your own Wi-Fi or a VPN), never a public one.
+- `pnpm dev --host` serves the source files too; `pnpm preview --host` only the build.
+- Whoever has the key can make billed calls (chat messages, AI summaries, uploads).
 
 ## Connecting
 
@@ -123,8 +145,8 @@ to `CORS_ALLOWED_ORIGINS`; otherwise the API is unreachable (`src/connection/rea
 
 The address defaults to `VITE_API_BASE_URL` when it is set at build time, else to the
 page's own origin, which is right when a proxy serves the UI and the API together
-(production, see `../plans/ui-progress.md` decision 5). `.env.development` sets it to
-`http://127.0.0.1:8000` for `pnpm dev`. For a build against an API on another host:
+(production, see `../plans/ui-progress.md` decision 5, and `pnpm dev` through its proxy).
+For a build against an API on another host:
 `VITE_API_BASE_URL=https://api.example.com pnpm build`.
 
 ## Documents list
