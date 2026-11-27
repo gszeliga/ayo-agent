@@ -133,6 +133,7 @@ def test_converts_then_uploads_each_document(tmp_path: Path) -> None:
     }
     assert out.splitlines() == [
         f"uploading to {API}, tenant acme",
+        f"converting  (1/1) {tmp_path / 'a.pdf'} …",
         f"converted   {tmp_path / 'a.pdf'} -> {tmp_path / 'a.md'}",
         f"indexed     {tmp_path / 'a.md'} (upload-1890b5dc5335, 5 chunks)",
         f"as is       {tmp_path / 'notas.md'}",

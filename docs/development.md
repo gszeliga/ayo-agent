@@ -40,7 +40,7 @@ path is printed with `-s`).
 
 ```sh
 uv sync --group convert                     # docling (torch, layout models): not in plain `uv sync`
-uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run]
+uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run] [-v]
 uv run docling-import-files PATH --no-upload  # convert only
 ```
 

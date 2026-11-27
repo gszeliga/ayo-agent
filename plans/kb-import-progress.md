@@ -6,8 +6,9 @@ document to Markdown into a target folder or next to it, then upload each with o
 and the decisions below are the agreement.
 
 ## Next (resume here)
-**The milestone is done** (K1-K2, 2026-11-26): see "Open items". Nothing is planned next:
-ask the user.
+Follow-up steps (2026-11-27, after the first real run): K3 is done; next is **K4**
+(convert `.ppt`/`.doc`/`.xls` through OnlyOffice's `x2t` or LibreOffice; decision 9).
+Brief it, wait for approval.
 
 ## Decisions (agreed 2026-11-26)
 1. **A CLI entry point** `docling-import-files` (the user's name), in
@@ -30,12 +31,28 @@ ask the user.
    (capped at 200 chars); never document content. Exit 0 / 1 (some file failed) / 2 (could
    not start). A file with no text extracted counts as failed.
 
+## Decisions (agreed 2026-11-27)
+8. **Progress (K3):** a `converting (n/N) <source> …` line before each conversion (N counts
+   only the files to convert), every line flushed (`print(flush=True)`), `--verbose`/`-v`
+   sets the root logger to INFO (docling's logs). Scanned files of other types are listed
+   `skipped (unsupported: .ext)` first (also in a dry run) and counted in the summary;
+   `plan_import` returns a `Plan` (items + skipped). No per-page progress bar (no clean
+   hook in docling).
+9. **Old Office formats (K4, planned):** `--office-converter PATH`, else OnlyOffice's
+   `x2t` (`/opt/onlyoffice/desktopeditors/converter/x2t`), else `soffice`/`libreoffice` on
+   PATH; convert to the new format in a temporary folder (timeout 300 s, exit 0 + non-empty
+   output, the converter's messages never printed), Markdown named after the original;
+   `X.ppt` beside `X.pptx` -> the old one is skipped. Without a converter: skipped + hint.
+
 ## Steps
 - [x] K1 (2026-11-26): convert: plan, converter, CLI (`--out`, `--recursive`, `--reconvert`,
   `--dry-run`), docs. 25 unit tests.
 - [x] K2 (2026-11-26): upload: `Uploader` (httpx2), rejected vs aborted, source-key clash
   check, summary and exit code, `--tenant`, `--api-url`, `--no-upload`, `--force`;
   21 `MockTransport` tests (46 for the tool).
+- [x] K3 (2026-11-27): progress: `converting (n/N)` lines, flushed output, `-v`, skipped
+  files listed and counted (`Plan`). 10 new tests (56 for the tool).
+- [ ] K4: old Office formats through `x2t` / LibreOffice (decision 9).
 
 ## Log
 - 2026-11-26, K1: `docling>=2.153.0` in the `convert` group (locked, not installed here:
@@ -49,9 +66,16 @@ ask the user.
   already up to date are uploaded too; their line says `unchanged` when the API answers
   `up_to_date`. Only the API's origin is printed (no credentials or path).
 
+- 2026-11-27, K3: the first real run (50 documents under `knowledge-docs/`, by the user)
+  showed nothing after docling's "Loading weights" for minutes: a line was printed only
+  when a file was done, and docling's own logs are INFO (hidden). That run also showed
+  the 2 `.ppt` files being left out silently. OnlyOffice's `x2t <in.ppt> <out.pptx>`
+  (OnlyOffice Desktop Editors 10.0) converted one of them in 0.7 s, text intact: the basis
+  of decision 9.
+
 ## Open items
-- `DoclingConverter` has not run against real docling yet (`uv sync --group convert` was
-  not run here: torch, large). First real run: one document, `--no-upload`.
+- `DoclingConverter` ran for real for the first time on 2026-11-27 (the user's run); its
+  outcome is not recorded here yet.
 - No real upload has been made with the tool (billed embeddings). First one: a local API,
   one small file, with the user's OK.
 - Title: the server's default (first `# ` heading, else the file name); no `--title`.

@@ -14,16 +14,17 @@ working rules, update this file in that step's commit.
   `plans/chat-progress.md`) and T7 (`seed_demo_cases.py --embedder voyage`, billed, opt-in)
   are done; the dev branch was reseeded with Voyage (2026-11-27). T8 (the pool checks each
   connection before handing it out, so Neon closing idle ones no longer fails a request;
-  decision 43) is done. Otherwise nothing is active: ask
-  the user (candidates: the "Open items" below, or the parked E11, S3-S5 and D1).
+  decision 43) is done.
 - Done (2026-11-27): the UI from another device on the network (H1: the Vite dev and
   preview servers proxy the API's paths, one origin, no CORS; the API stays on
   `127.0.0.1`). Decisions and log in `plans/lan-progress.md`. Front end only.
 - Done (2026-11-27): header navigation (N1-N3, option D: one row of tabs, a status pill, a
   connection menu with theme, language and Disconnect). No spec file; decisions, log, final
   report and "Open items" in `plans/nav-progress.md`. Front end only.
-- Done (2026-11-26): docling import (`docling-import-files`: documents -> Markdown ->
-  upload; K1-K2). No spec file; decisions, log and "Open items" in
+- **Active (2026-11-27): docling import follow-ups.** K3 (progress lines, `-v`, skipped
+  files listed) is done; K4 (old Office formats through OnlyOffice `x2t` or LibreOffice,
+  decision 9) is next. Done (2026-11-26): docling import (`docling-import-files`:
+  documents -> Markdown -> upload; K1-K2). No spec file; decisions, log and "Open items" in
   `plans/kb-import-progress.md`. Uploads make billed Voyage calls on the server: never run
   it against a real server without the user's OK.
 - Done (2026-11-24): UI languages, English + Spanish (I1-I8). No spec file; plan,
@@ -116,7 +117,7 @@ uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--chec
 uv run ayo-llm-check models --model ID     # OpenRouter listing: tools, context, prices, ZDR (free)
 uv run ayo-transcript SESSION_ID          # a session's transcript -> eval/conversations/ (reads only)
 uv sync --group convert                   # docling, optional (torch): plain `uv sync` removes it
-uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--dry-run] [--no-upload]   # docling -> Markdown -> upload (BILLED embeddings; ask first)
+uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--dry-run] [--no-upload] [-v]   # docling -> Markdown -> upload (BILLED embeddings; ask first)
 uv run python scripts/seed_demo_cases.py  # demo cases (no model call); --host for the dev branch, --reset [--yes], --embedder voyage (BILLED; ask first)
 uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)

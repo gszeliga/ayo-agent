@@ -1,11 +1,12 @@
 """What a run does with each file: scan a file or a folder, name the Markdown, skip the done.
 
-Pure file-system logic, no docling: `plan_import` returns one `Item` per document, or raises
-`PlanError` before anything is written (unsupported file, missing path, two sources that
-would write the same Markdown file).
+Pure file-system logic, no docling: `plan_import` returns a `Plan` (one `Item` per document,
+and the scanned files it leaves out), or raises `PlanError` before anything is written
+(unsupported file given by name, missing path, two sources that would write the same
+Markdown file).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -48,6 +49,14 @@ class Item:
     action: Action
 
 
+@dataclass(frozen=True)
+class Plan:
+    """A run's documents, sorted by source, and the scanned files no step can read."""
+
+    items: list[Item]
+    skipped: list[Path] = field(default_factory=list)
+
+
 class PlanError(Exception):
     """The run cannot start; the message names the files, never their content."""
 
@@ -58,12 +67,13 @@ def plan_import(
     out_dir: Path | None = None,
     recursive: bool = False,
     reconvert: bool = False,
-) -> list[Item]:
-    """The items for `path` (a file or a folder), sorted by source path.
+) -> Plan:
+    """The plan for `path` (a file or a folder): items and skipped files, sorted by path.
 
     The Markdown goes next to its source, or under `out_dir`, keeping the source's folder
     relative to the scanned one. A Markdown file that is the output of a scanned source is
-    that source's output, not a document of its own.
+    that source's output, not a document of its own. A scanned file of any other type is
+    skipped (hidden files and folders are not scanned at all).
     """
     if not path.exists():
         raise PlanError(f"no such file or folder: {path}")
@@ -98,7 +108,8 @@ def plan_import(
         for f in files
         if f.suffix.lower() == MARKDOWN_SUFFIX and f.resolve() not in outputs
     ]
-    return sorted(items, key=lambda item: item.source)
+    skipped = [f for f in files if f.suffix.lower() not in CONVERTIBLE_SUFFIXES | {MARKDOWN_SUFFIX}]
+    return Plan(sorted(items, key=lambda item: item.source), sorted(skipped))
 
 
 def _scan(folder: Path, *, recursive: bool, skip: Path | None) -> list[Path]:

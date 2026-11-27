@@ -1,4 +1,4 @@
-"""`docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run] ...`.
+"""`docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run] [-v] ...`.
 
 Converts a document, or the documents in a folder, to Markdown with docling, then uploads
 each Markdown file to `POST /admin/documents`. The Markdown goes next to each source, or
@@ -10,9 +10,12 @@ The key is `ADMIN_API_KEY` (environment, then `.env`), never a flag and never pr
 `source_key` is the Markdown file's name: two files with the same name in one run would
 replace each other on the server, so the run refuses to start.
 
-One line per file, then a summary; a failed file does not stop the run, a failure every
+One line per skipped file (a type no step reads), a `converting (n/N)` line when a
+conversion starts, one line per file when it is done, then a summary; every line is flushed,
+so progress shows through a pipe too. A failed file does not stop the run, a failure every
 file would share does (wrong key, wrong URL, API unreachable). Prints paths, actions,
-statuses and error types only, never document content. Exit status: 0 all done, 1 some
+statuses and error types only, never document content. `--verbose` also shows docling's
+info logs (pipelines, timings). Exit status: 0 all done, 1 some
 file failed, 2 the run could not start or was stopped.
 """
 
@@ -21,6 +24,7 @@ import logging
 import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
+from functools import partial
 from pathlib import Path
 from typing import TextIO
 
@@ -49,6 +53,8 @@ MAX_ERROR_CHARS = 200
 CONVERT_KEYS = ("converted", "up to date", "as is", "failed")
 UPLOAD_KEYS = ("indexed", "unchanged", "failed", "not attempted")
 
+_say = partial(print, flush=True)
+
 
 class EmptyMarkdownError(Exception):
     """docling returned no text (a scanned image without OCR text, an empty file)."""
@@ -74,43 +80,50 @@ def main(
     upload = not args.no_upload
     if upload and args.tenant is None:
         parser.error("--tenant is required to upload (or pass --no-upload)")
+    if args.verbose:
+        logging.getLogger().setLevel(logging.INFO)
 
     try:
-        items = plan_import(
+        plan = plan_import(
             args.path, out_dir=args.out, recursive=args.recursive, reconvert=args.reconvert
         )
+        items = plan.items
         keys = _source_keys(items) if upload else {}
     except PlanError as error:
-        print(f"{PROG}: {error}", file=err)
+        _say(f"{PROG}: {error}", file=err)
         return 2
+    for path in plan.skipped:
+        _say(f"{'skipped':<11} {path} ({_unsupported(path)})", file=out)
     if not items:
-        print(f"{PROG}: no documents found in {args.path}", file=err)
+        _say(f"{PROG}: no documents found in {args.path}", file=err)
         return 2
 
     if args.dry_run:
         for item in items:
-            print(_describe(item, dry_run=True), file=out)
+            _say(_describe(item, dry_run=True), file=out)
             if upload:
-                print(f"{'would upload':<11} {item.markdown} as {keys[item]}", file=out)
+                _say(f"{'would upload':<11} {item.markdown} as {keys[item]}", file=out)
         return 0
 
     uploader: Uploader | None = None
     if upload:
         api_key = load_api_key()
         if api_key is None:
-            print(f"{PROG}: ADMIN_API_KEY is not set (environment or .env)", file=err)
+            _say(f"{PROG}: ADMIN_API_KEY is not set (environment or .env)", file=err)
             return 2
         uploader = make_uploader(args.api_url, api_key)
-        print(f"uploading to {api_origin(args.api_url)}, tenant {args.tenant}", file=out)
+        _say(f"uploading to {api_origin(args.api_url)}, tenant {args.tenant}", file=out)
 
     converter: Converter | None = None
     if any(item.action is Action.CONVERT for item in items):
         try:
             converter = make_converter()
         except ConverterUnavailableError as error:
-            print(f"{PROG}: {error}", file=err)
+            _say(f"{PROG}: {error}", file=err)
             return 2
 
+    to_convert = sum(item.action is Action.CONVERT for item in items)
+    started = 0
     converted: Counter[str] = Counter()
     uploaded: Counter[str] = Counter()
     aborted = False
@@ -118,16 +131,18 @@ def main(
         for index, item in enumerate(items):
             if item.action is Action.CONVERT:
                 assert converter is not None
+                started += 1
+                _say(f"{'converting':<11} ({started}/{to_convert}) {item.source} …", file=out)
                 try:
                     _convert(converter, item)
                 except Exception as error:
                     converted["failed"] += 1
-                    print(f"failed      {item.source} ({_safe_error(error)})", file=out)
+                    _say(f"failed      {item.source} ({_safe_error(error)})", file=out)
                     continue
                 converted["converted"] += 1
             else:
                 converted[_label(item.action)] += 1
-            print(_describe(item, dry_run=False), file=out)
+            _say(_describe(item, dry_run=False), file=out)
 
             if uploader is None:
                 continue
@@ -137,17 +152,17 @@ def main(
                 )
             except UploadRejectedError as error:
                 uploaded["failed"] += 1
-                print(f"upload failed {item.markdown} ({_cap(str(error))})", file=out)
+                _say(f"upload failed {item.markdown} ({_cap(str(error))})", file=out)
                 continue
             except UploadAbortedError as error:
                 uploaded["failed"] += 1
                 uploaded["not attempted"] += len(items) - index - 1
-                print(f"upload failed {item.markdown} ({_cap(str(error))})", file=out)
-                print(f"{PROG}: stopped: {_cap(str(error))}", file=err)
+                _say(f"upload failed {item.markdown} ({_cap(str(error))})", file=out)
+                _say(f"{PROG}: stopped: {_cap(str(error))}", file=err)
                 aborted = True
                 break
             uploaded["indexed" if result.status == "indexed" else "unchanged"] += 1
-            print(_describe_upload(item, result), file=out)
+            _say(_describe_upload(item, result), file=out)
     finally:
         if uploader is not None:
             uploader.close()
@@ -156,7 +171,9 @@ def main(
     summary = f"{len(items)} {noun}: {_counts(converted, CONVERT_KEYS)}"
     if upload:
         summary += f"; uploaded: {_counts(uploaded, UPLOAD_KEYS)}"
-    print(summary, file=out)
+    if plan.skipped:
+        summary += f"; {len(plan.skipped)} skipped"
+    _say(summary, file=out)
     if aborted:
         return 2
     return 1 if converted["failed"] or uploaded["failed"] else 0
@@ -191,6 +208,10 @@ def _convert(converter: Converter, item: Item) -> None:
     if not text.strip():
         raise EmptyMarkdownError("no text extracted")
     write_markdown(item.markdown, text)
+
+
+def _unsupported(path: Path) -> str:
+    return f"unsupported: {path.suffix.lower()}" if path.suffix else "unsupported: no extension"
 
 
 def _label(action: Action) -> str:
@@ -275,5 +296,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-upload", action="store_true", help="convert only")
     parser.add_argument(
         "--dry-run", action="store_true", help="show what would be done; write or send nothing"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="also show docling's info logs"
     )
     return parser

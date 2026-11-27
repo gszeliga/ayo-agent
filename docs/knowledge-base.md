@@ -21,6 +21,7 @@ uv run docling-import-files docs/ --tenant acme --out md/ -r  # a folder tree ->
 uv run docling-import-files docs/ --tenant acme --dry-run     # what it would do; writes and sends nothing
 uv run docling-import-files docs/ --no-upload                 # convert only (no tenant, no key needed)
 uv run docling-import-files docs/ --tenant acme --api-url https://kb.example.com   # another API
+uv run docling-import-files docs/ --tenant acme -v            # also docling's own info logs
 ```
 
 It uploads to `--api-url` (default `http://127.0.0.1:8000`) with `ADMIN_API_KEY` from the
@@ -30,22 +31,32 @@ upload of new or changed content is one billed Voyage call on the server**; unch
 files come back `up_to_date` without one, so a rerun is cheap.
 
 A folder is scanned flat unless `--recursive`; hidden files and folders and `--out` itself
-are skipped. A Markdown file newer than its source is not converted again (`up to date`)
+are not scanned. A file of a type the tool cannot read (`.ppt`, `.zip`, ...) is listed as
+`skipped` at the start, also in a dry run, and counted in the summary. A Markdown file newer than its source is not converted again (`up to date`)
 unless `--reconvert`, but is still uploaded; other `.md` files found are uploaded `as is`.
 The run refuses to start when two sources would write the same file (`a.pdf` and `a.docx`)
 or two Markdown files share a name (`x/a.md` and `y/a.md` would replace each other in the
 knowledge base). A file that fails to convert (or comes out without text) is not uploaded;
 a file the API refuses (`413`, `422`, `502`) is reported; the run goes on. A wrong key,
-a URL without the endpoint or an unreachable API stops the run:
+a URL without the endpoint or an unreachable API stops the run.
+
+docling takes from seconds to minutes per document on a CPU (layout, tables and OCR for
+every page), so each conversion prints a `converting (n/N)` line when it starts; every line
+is flushed, so progress also shows through `| tee`. `--verbose` (`-v`) adds docling's info
+logs. Its OCR may warn `RapidOCR returned empty result` for pages or pictures without text:
+harmless.
 
 ```text
+skipped     docs/old-deck.ppt (unsupported: .ppt)
 uploading to http://127.0.0.1:8000, tenant acme
+converting  (1/2) docs/manual.pdf …
 converted   docs/manual.pdf -> docs/manual.md
 indexed     docs/manual.md (upload-1890b5dc5335, 12 chunks)
 up to date  docs/pro-014.md
 unchanged   docs/pro-014.md (upload-4be0c2a91d7f, already indexed)
+converting  (2/2) docs/scan.png …
 failed      docs/scan.png (EmptyMarkdownError: no text extracted)
-3 documents: 1 converted, 1 up to date, 1 failed; uploaded: 1 indexed, 1 unchanged
+3 documents: 1 converted, 1 up to date, 1 failed; uploaded: 1 indexed, 1 unchanged; 1 skipped
 ```
 
 Exit status: `0` all done, `1` some file failed, `2` the run could not start or was

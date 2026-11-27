@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ayo_copilot.docling_import.plan import Action, Item, PlanError, plan_import
+from ayo_copilot.docling_import.plan import Action, Item, Plan, PlanError, plan_import
 
 
 def touch(path: Path, *, mtime: float | None = None) -> Path:
@@ -19,7 +19,7 @@ def touch(path: Path, *, mtime: float | None = None) -> Path:
 def test_a_single_file_goes_next_to_its_source(tmp_path: Path) -> None:
     pdf = touch(tmp_path / "PRO-014 Control de sellado.pdf")
 
-    assert plan_import(pdf) == [
+    assert plan_import(pdf).items == [
         Item(pdf, tmp_path / "PRO-014 Control de sellado.md", Action.CONVERT)
     ]
 
@@ -28,7 +28,7 @@ def test_a_single_file_goes_into_out_dir(tmp_path: Path) -> None:
     docx = touch(tmp_path / "docs" / "manual-extrusora.docx")
     out = tmp_path / "md"
 
-    assert plan_import(docx, out_dir=out) == [
+    assert plan_import(docx, out_dir=out).items == [
         Item(docx, out / "manual-extrusora.md", Action.CONVERT)
     ]
 
@@ -36,7 +36,7 @@ def test_a_single_file_goes_into_out_dir(tmp_path: Path) -> None:
 def test_a_single_markdown_file_is_taken_as_is(tmp_path: Path) -> None:
     md = touch(tmp_path / "notas.md")
 
-    assert plan_import(md) == [Item(md, md, Action.AS_IS)]
+    assert plan_import(md).items == [Item(md, md, Action.AS_IS)]
 
 
 def test_an_unsupported_file_is_refused(tmp_path: Path) -> None:
@@ -52,14 +52,17 @@ def test_a_missing_path_is_refused(tmp_path: Path) -> None:
 def test_a_folder_is_scanned_flat_by_default(tmp_path: Path) -> None:
     pdf = touch(tmp_path / "a.pdf")
     md = touch(tmp_path / "b.md")
-    touch(tmp_path / "c.zip")
+    zip_file = touch(tmp_path / "c.zip")
     touch(tmp_path / ".oculto.pdf")
     touch(tmp_path / "sub" / "d.pdf")
 
-    assert plan_import(tmp_path) == [
+    plan = plan_import(tmp_path)
+
+    assert plan.items == [
         Item(pdf, tmp_path / "a.md", Action.CONVERT),
         Item(md, md, Action.AS_IS),
     ]
+    assert plan.skipped == [zip_file]
 
 
 def test_recursive_scans_subfolders_but_not_hidden_ones(tmp_path: Path) -> None:
@@ -67,7 +70,7 @@ def test_recursive_scans_subfolders_but_not_hidden_ones(tmp_path: Path) -> None:
     deep = touch(tmp_path / "sub" / "deeper" / "d.PPTX")
     touch(tmp_path / ".git" / "e.pdf")
 
-    assert plan_import(tmp_path, recursive=True) == [
+    assert plan_import(tmp_path, recursive=True).items == [
         Item(top, tmp_path / "a.md", Action.CONVERT),
         Item(deep, tmp_path / "sub" / "deeper" / "d.md", Action.CONVERT),
     ]
@@ -79,7 +82,7 @@ def test_out_dir_keeps_subfolders_and_is_not_scanned(tmp_path: Path) -> None:
     out = src / "md"
     touch(out / "old.pdf")
 
-    assert plan_import(src, out_dir=out, recursive=True) == [
+    assert plan_import(src, out_dir=out, recursive=True).items == [
         Item(deep, out / "sub" / "d.md", Action.CONVERT)
     ]
 
@@ -88,15 +91,15 @@ def test_a_markdown_newer_than_its_source_is_up_to_date(tmp_path: Path) -> None:
     pdf = touch(tmp_path / "a.pdf", mtime=1_000)
     md = touch(tmp_path / "a.md", mtime=2_000)
 
-    assert plan_import(tmp_path) == [Item(pdf, md, Action.UP_TO_DATE)]
-    assert plan_import(tmp_path, reconvert=True) == [Item(pdf, md, Action.CONVERT)]
+    assert plan_import(tmp_path).items == [Item(pdf, md, Action.UP_TO_DATE)]
+    assert plan_import(tmp_path, reconvert=True).items == [Item(pdf, md, Action.CONVERT)]
 
 
 def test_a_markdown_older_than_its_source_is_converted_again(tmp_path: Path) -> None:
     pdf = touch(tmp_path / "a.pdf", mtime=2_000)
     md = touch(tmp_path / "a.md", mtime=1_000)
 
-    assert plan_import(tmp_path) == [Item(pdf, md, Action.CONVERT)]
+    assert plan_import(tmp_path).items == [Item(pdf, md, Action.CONVERT)]
 
 
 def test_two_sources_writing_the_same_markdown_are_refused(tmp_path: Path) -> None:
@@ -113,9 +116,27 @@ def test_out_dir_clash_across_folders_only_when_paths_match(tmp_path: Path) -> N
     touch(tmp_path / "x" / "a.pdf")
     touch(tmp_path / "y" / "a.pdf")
 
-    items = plan_import(tmp_path, out_dir=tmp_path / "md", recursive=True)
+    items = plan_import(tmp_path, out_dir=tmp_path / "md", recursive=True).items
 
     assert [item.markdown for item in items] == [
         tmp_path / "md" / "x" / "a.md",
         tmp_path / "md" / "y" / "a.md",
     ]
+
+
+def test_unsupported_files_are_skipped_sorted_and_hidden_ones_never_listed(
+    tmp_path: Path,
+) -> None:
+    pdf = touch(tmp_path / "a.pdf")
+    ppt = touch(tmp_path / "sub" / "PDCA ESP 2012.PPT")
+    bare = touch(tmp_path / "LEEME")
+    touch(tmp_path / ".a.md.1234.tmp")
+    touch(tmp_path / ".cache" / "x.bin")
+
+    assert plan_import(tmp_path, recursive=True) == Plan(
+        [Item(pdf, tmp_path / "a.md", Action.CONVERT)], [bare, ppt]
+    )
+
+
+def test_a_single_file_has_nothing_skipped(tmp_path: Path) -> None:
+    assert plan_import(touch(tmp_path / "a.pdf")).skipped == []

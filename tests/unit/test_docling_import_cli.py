@@ -1,8 +1,10 @@
 """`docling-import-files --no-upload`: conversion with a fake converter, lines, exit codes."""
 
 import io
+import logging
 import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -143,12 +145,125 @@ def test_a_clash_exits_2_before_converting(tmp_path: Path) -> None:
     assert fake.calls == []
 
 
-def test_a_folder_without_documents_exits_2(tmp_path: Path) -> None:
+def test_a_folder_without_documents_exits_2_and_lists_what_it_skipped(tmp_path: Path) -> None:
     touch(tmp_path / "x.zip")
 
     code, out, err = run(str(tmp_path))
 
-    assert code == 2 and out == "" and "no documents found" in err
+    assert code == 2 and "no documents found" in err
+    assert out == f"skipped     {tmp_path / 'x.zip'} (unsupported: .zip)\n"
+
+
+def test_each_conversion_announces_itself_before_it_starts(tmp_path: Path) -> None:
+    touch(tmp_path / "a.pdf")
+    touch(tmp_path / "b.pdf", mtime=1_000)
+    touch(tmp_path / "b.md", mtime=2_000)
+    touch(tmp_path / "c.docx")
+    touch(tmp_path / "notas.md")
+
+    code, out, _ = run(str(tmp_path))
+
+    assert code == 0
+    assert out.splitlines() == [
+        f"converting  (1/2) {tmp_path / 'a.pdf'} …",
+        f"converted   {tmp_path / 'a.pdf'} -> {tmp_path / 'a.md'}",
+        f"up to date  {tmp_path / 'b.md'}",
+        f"converting  (2/2) {tmp_path / 'c.docx'} …",
+        f"converted   {tmp_path / 'c.docx'} -> {tmp_path / 'c.md'}",
+        f"as is       {tmp_path / 'notas.md'}",
+        "4 documents: 2 converted, 1 up to date, 1 as is",
+    ]
+
+
+def test_a_failed_conversion_also_announced_itself(tmp_path: Path) -> None:
+    touch(tmp_path / "a.pdf")
+
+    _, out, _ = run(str(tmp_path), converter=FakeConverter(failing={"a.pdf"}))
+
+    assert out.splitlines()[:2] == [
+        f"converting  (1/1) {tmp_path / 'a.pdf'} …",
+        f"failed      {tmp_path / 'a.pdf'} (ValueError: cannot parse page 3)",
+    ]
+
+
+def test_skipped_files_come_first_and_are_counted(tmp_path: Path) -> None:
+    touch(tmp_path / "a.pdf")
+    touch(tmp_path / "PDCA.ppt")
+    touch(tmp_path / "LEEME")
+
+    code, out, _ = run(str(tmp_path))
+
+    lines = out.splitlines()
+    assert code == 0
+    assert lines[:2] == [
+        f"skipped     {tmp_path / 'LEEME'} (unsupported: no extension)",
+        f"skipped     {tmp_path / 'PDCA.ppt'} (unsupported: .ppt)",
+    ]
+    assert lines[-1] == "1 document: 1 converted; 2 skipped"
+
+
+def test_dry_run_lists_skipped_files(tmp_path: Path) -> None:
+    touch(tmp_path / "a.pdf")
+    touch(tmp_path / "PDCA.PPT")
+
+    code, out, _ = run(str(tmp_path), "--dry-run")
+
+    assert code == 0
+    assert out.splitlines() == [
+        f"skipped     {tmp_path / 'PDCA.PPT'} (unsupported: .ppt)",
+        f"would convert {tmp_path / 'a.pdf'} -> {tmp_path / 'a.md'}",
+    ]
+
+
+@pytest.fixture
+def root_logger_level() -> Iterator[None]:
+    root = logging.getLogger()
+    level = root.level
+    yield
+    root.setLevel(level)
+
+
+@pytest.mark.usefixtures("root_logger_level")
+@pytest.mark.parametrize(("flag", "expected"), [("-v", logging.INFO), ("--verbose", logging.INFO)])
+def test_verbose_shows_info_logs(tmp_path: Path, flag: str, expected: int) -> None:
+    touch(tmp_path / "notas.md")
+    logging.getLogger().setLevel(logging.WARNING)
+
+    run(str(tmp_path), flag)
+
+    assert logging.getLogger().level == expected
+
+
+@pytest.mark.usefixtures("root_logger_level")
+def test_without_verbose_the_log_level_is_left_alone(tmp_path: Path) -> None:
+    touch(tmp_path / "notas.md")
+    logging.getLogger().setLevel(logging.WARNING)
+
+    run(str(tmp_path))
+
+    assert logging.getLogger().level == logging.WARNING
+
+
+class FlushRecorder(io.StringIO):
+    """Records what had been flushed when each line was written."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.flushes = 0
+
+    def flush(self) -> None:
+        self.flushes += 1
+        super().flush()
+
+
+def test_every_line_is_flushed(tmp_path: Path) -> None:
+    touch(tmp_path / "a.pdf")
+    touch(tmp_path / "x.zip")
+    out = FlushRecorder()
+
+    main([str(tmp_path), "--no-upload"], make_converter=FakeConverter, stdout=out)
+
+    assert out.flushes == len(out.getvalue().splitlines()) == 4
 
 
 def test_missing_docling_exits_2_with_the_install_hint(tmp_path: Path) -> None:
