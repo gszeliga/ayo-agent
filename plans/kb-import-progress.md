@@ -6,7 +6,7 @@ document to Markdown into a target folder or next to it, then upload each with o
 and the decisions below are the agreement.
 
 ## Next (resume here)
-**The follow-ups are done** (K3-K4, 2026-11-27): see "Open items". Nothing is planned
+**The follow-ups are done** (K3-K5, 2026-11-27): see "Open items". Nothing is planned
 next: ask the user.
 
 ## Decisions (agreed 2026-11-26)
@@ -46,6 +46,10 @@ next: ask the user.
    A single old file given by name without a converter is a `PlanError` (exit 2). The
    office line (`old Office files through x2t (PATH)`) prints only when an old file is to
    be converted. `knowledge-docs/` (the user's local customer documents) is git-ignored.
+10. **File mode (K5):** `write_markdown` chmods its temporary file before the rename: the
+    replaced file's mode if there is one, else `0o666 & ~umask` (read with `os.umask`,
+    set and restored: fine in a single-threaded CLI). Files written before K5 keep 0600
+    until reconverted; the tool does not touch files it does not write.
 
 ## Steps
 - [x] K1 (2026-11-26): convert: plan, converter, CLI (`--out`, `--recursive`, `--reconvert`,
@@ -58,6 +62,8 @@ next: ask the user.
 - [x] K4 (2026-11-27): old Office formats: `office.py` (`X2tConverter`, `SofficeConverter`,
   `find_office_converter`, `UpgradingConverter`), skip reasons in the plan,
   `--office-converter`. 28 new tests (84 for the tool).
+- [x] K5 (2026-11-27): Markdown files get the umask mode (or keep the replaced file's)
+  instead of `mkstemp`'s 0600. 3 new tests (87 for the tool).
 
 ## Log
 - 2026-11-26, K1: `docling>=2.153.0` in the `convert` group (locked, not installed here:
@@ -80,10 +86,9 @@ next: ask the user.
 - 2026-11-27, K4: real check (no upload): `PDCA ESP 2012.ppt` -> x2t -> docling ->
   Markdown in 10 s (971 words), temporary folder removed. Tests inject the converter
   lookup: this machine has x2t, and the CLI tests must not depend on it.
+- 2026-11-27, K5: the 0600 mode came from `mkstemp` (since K1), seen in the K4 real check.
 
 ## Open items
-- Markdown files are written with mode 0600 (`write_markdown` uses `mkstemp`; since K1).
-  Harmless for the upload; a `chmod` to the umask default would be a small fix.
 - docling's own Python warnings (`holder.bbox = ...`, RapidOCR) go to stderr; not ours to
   silence.
 - `DoclingConverter` ran for real for the first time on 2026-11-27 (the user's run); its

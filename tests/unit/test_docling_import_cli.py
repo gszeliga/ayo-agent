@@ -3,6 +3,7 @@
 import io
 import logging
 import os
+import stat
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -330,6 +331,40 @@ def test_write_markdown_is_utf8_with_a_final_newline(tmp_path: Path) -> None:
 
     assert target.read_bytes() == "# Título\n\nlínea\n".encode()
     assert [p.name for p in target.parent.iterdir()] == ["a.md"]
+
+
+@pytest.fixture
+def umask() -> Iterator[Callable[[int], int]]:
+    original = os.umask(0o022)
+    os.umask(original)
+    yield os.umask
+    os.umask(original)
+
+
+@pytest.mark.parametrize(("mask", "expected"), [(0o022, 0o644), (0o027, 0o640)])
+def test_write_markdown_gives_a_new_file_the_umask_mode(
+    tmp_path: Path, umask: Callable[[int], int], mask: int, expected: int
+) -> None:
+    umask(mask)
+    target = tmp_path / "a.md"
+
+    write_markdown(target, "# Título")
+
+    assert stat.S_IMODE(target.stat().st_mode) == expected
+
+
+def test_write_markdown_keeps_the_mode_of_the_file_it_replaces(
+    tmp_path: Path, umask: Callable[[int], int]
+) -> None:
+    umask(0o022)
+    target = tmp_path / "a.md"
+    target.write_text("old", encoding="utf-8")
+    target.chmod(0o640)
+
+    write_markdown(target, "new")
+
+    assert target.read_text(encoding="utf-8") == "new\n"
+    assert stat.S_IMODE(target.stat().st_mode) == 0o640
 
 
 def test_write_markdown_keeps_the_old_file_when_writing_fails(
