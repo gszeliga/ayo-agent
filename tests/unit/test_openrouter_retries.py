@@ -22,7 +22,8 @@ from ayo_copilot.llm import (
     ToolSpec,
 )
 from ayo_copilot.llm.fake import tool_call
-from ayo_copilot.llm.openrouter import MAX_BACKOFF_SECONDS, OpenRouterProvider, parse_retry_after
+from ayo_copilot.llm.openrouter import MAX_BACKOFF_SECONDS, OpenRouterProvider
+from ayo_copilot.retry_after import parse_retry_after
 
 API_KEY = "sk-or-v1-secret-test-key"
 BASE_URL = "https://openrouter.test/api/v1"

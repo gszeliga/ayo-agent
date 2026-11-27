@@ -11,7 +11,6 @@ import random
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
-from email.utils import parsedate_to_datetime
 from typing import Any, Literal
 
 import httpx2
@@ -37,6 +36,7 @@ from ayo_copilot.llm.types import (
     ToolSpec,
     Usage,
 )
+from ayo_copilot.retry_after import parse_retry_after
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 COMPLETIONS_PATH = "/chat/completions"
@@ -354,24 +354,6 @@ def _malformed(what: str, generation_id: str | None = None) -> LLMResponseError:
         reason="malformed",
         generation_id=generation_id,
     )
-
-
-def parse_retry_after(value: str | None, *, now: float) -> float | None:
-    """Seconds to wait from a `Retry-After` header: a number of seconds or an HTTP date.
-    None when absent or unreadable; a date in the past means no wait."""
-    if not value:
-        return None
-    value = value.strip()
-    try:
-        seconds = float(value)
-    except ValueError:
-        try:
-            seconds = parsedate_to_datetime(value).timestamp() - now
-        except (TypeError, ValueError, IndexError):
-            return None
-    if seconds != seconds:  # NaN
-        return None
-    return max(0.0, seconds)
 
 
 # --- Parsing ----------------------------------------------------------------

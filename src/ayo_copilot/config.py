@@ -299,7 +299,9 @@ class Settings(ConversationSettings, LLMSettings, DatabaseSettings, BuildSetting
     voyage_base_url: str = "https://api.voyageai.com/v1"
     embedding_batch_size: int = Field(default=128, gt=0, le=VOYAGE_MAX_BATCH_SIZE)
     embedding_timeout_seconds: float = Field(default=30.0, gt=0)
-    embedding_max_retries: int = Field(default=3, ge=0)
+    # Enough, with the backoff capped at 30 s, to outlast a per-minute rate limit.
+    embedding_max_retries: int = Field(default=6, ge=0)
+    embedding_retry_budget_seconds: float = Field(default=60.0, gt=0)
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Self:

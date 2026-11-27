@@ -23,7 +23,8 @@ working rules, update this file in that step's commit.
   connection menu with theme, language and Disconnect). No spec file; decisions, log, final
   report and "Open items" in `plans/nav-progress.md`. Front end only.
 - Done (2026-11-27): docling import follow-ups K3 (progress lines, `-v`, skipped files
-  listed) and K4 (old Office formats through OnlyOffice `x2t` or LibreOffice). Done
+  listed), K4 (old Office formats through OnlyOffice `x2t` or LibreOffice) and K6 (Voyage
+  429s: `Retry-After`, capped backoff, a retry budget; decision 11). Done
   (2026-11-26): docling import (`docling-import-files`: documents -> Markdown -> upload;
   K1-K2). No spec file; decisions, log and "Open items" in
   `plans/kb-import-progress.md`. Uploads make billed Voyage calls on the server: never run
@@ -145,6 +146,7 @@ src/ayo_copilot/
   access_log.py        DropQueryString: uvicorn's access log without query strings
   app.py               create_app(settings=None, *, docs_enabled=None), API description/tags,
                        CORS middleware, lifespan: prompts, pool, embedder, LLM provider, DB_LOG_LEVEL, dimension check
+  retry_after.py       parse_retry_after (shared by the OpenRouter and Voyage clients)
   errors.py            ApiError + handlers: every error is {"detail": [{type, loc, msg}]}; LLM_FAILURES
   schemas.py           IngestResponse, Document, Chunk, DocumentUpdate, Page[T] -> *Page, Search*, errors
   dependencies.py      get_settings / get_pool / get_embedder / get_embedding_monitor / get_llm_provider / get_prompts (request.state), get_today
@@ -164,7 +166,8 @@ src/ayo_copilot/
   db/schema.py         SCHEMA_REVISIONS (every Alembic revision; the head is expected) + the startup log line
   ingestion/chunking.py    normalize_markdown, chunk_markdown (header + recursive splitters, small-chunk policy)
   ingestion/signatures.py  content/chunk/embed signatures, make_doc_id, CHUNKER_VERSION
-  ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2), FakeEmbedder
+  ingestion/embedding.py   Embedder protocol (embed_documents, embed_query), VoyageEmbedder (httpx2;
+                           retries: Retry-After, capped backoff, budget), FakeEmbedder
   ingestion/storage.py     tenant and source_key validation (name is historical)
   ingestion/service.py     the pipeline: ingest_document, reprocess_document and their stages
   llm/types.py         ToolSpec, ToolCall, Message, Usage, LLMResponse (self-validating; content not in repr)

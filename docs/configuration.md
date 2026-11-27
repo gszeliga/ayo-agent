@@ -36,7 +36,8 @@ Changing these makes documents `outdated`: see
 | `VOYAGE_BASE_URL` | `https://api.voyageai.com/v1` | Voyage API base URL. |
 | `EMBEDDING_BATCH_SIZE` | `128` | Texts per embedding request (Voyage allows at most 1000). |
 | `EMBEDDING_TIMEOUT_SECONDS` | `30` | Timeout per embedding request. |
-| `EMBEDDING_MAX_RETRIES` | `3` | Retries on `429`, `5xx`, timeouts and connection errors, with exponential backoff and jitter. Other errors fail at once. |
+| `EMBEDDING_MAX_RETRIES` | `6` | Retries on `429`, `5xx`, timeouts and connection errors: after `Retry-After` when Voyage sends it, else with exponential backoff and jitter (up to 1, 2, 4, ... s, at most 30 s per wait). Other errors fail at once. Each retry logs one warning (status or error type, attempt, delay). |
+| `EMBEDDING_RETRY_BUDGET_SECONDS` | `60` | No retry whose wait would end more than this long after the first attempt of a request (one batch). Voyage's rate limits are per minute, so the default outlasts one window. A query (search, a copilot turn) uses at most 10 s. |
 
 ## Language model
 

@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 from collections.abc import Callable
 
@@ -6,6 +7,8 @@ import httpx2
 import pytest
 
 from ayo_copilot.ingestion.embedding import (
+    MAX_BACKOFF_SECONDS,
+    QUERY_RETRY_BUDGET_SECONDS,
     Embedder,
     EmbeddingError,
     FakeEmbedder,
@@ -39,6 +42,8 @@ def make_voyage(
     max_retries: int = 3,
     dimensions: int = 4,
     sleeps: list[float] | None = None,
+    clock: "FakeClock | None" = None,
+    retry_budget_seconds: float = 60.0,
 ) -> VoyageEmbedder:
     client = httpx2.Client(
         transport=httpx2.MockTransport(handler), base_url="https://voyage.test/v1"
@@ -50,8 +55,47 @@ def make_voyage(
         batch_size=batch_size,
         max_retries=max_retries,
         client=client,
-        sleep=(sleeps.append if sleeps is not None else lambda _: None),
+        retry_budget_seconds=retry_budget_seconds,
+        sleep=clock.sleep if clock else (sleeps.append if sleeps is not None else lambda _: None),
+        clock=clock.monotonic if clock else lambda: 0.0,
+        wall_clock=clock.time if clock else lambda: WALL_START,
     )
+
+
+WALL_START = 1_700_000_000.0
+
+
+class FakeClock:
+    """Time that moves only when the embedder sleeps; records every wait."""
+
+    def __init__(self) -> None:
+        self.elapsed = 0.0
+        self.sleeps: list[float] = []
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.elapsed += seconds
+
+    def monotonic(self) -> float:
+        return self.elapsed
+
+    def time(self) -> float:
+        return WALL_START + self.elapsed
+
+
+def rate_limited(retry_after: str | None = None) -> httpx2.Response:
+    headers = {"Retry-After": retry_after} if retry_after is not None else {}
+    return httpx2.Response(429, headers=headers, json={"detail": SECRET_TEXT})
+
+
+def scripted(*failures: httpx2.Response) -> Handler:
+    """Answers the failures in order, then vectors."""
+    remaining = iter(failures)
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return next(remaining, None) or vectors_response(request)
+
+    return handler
 
 
 # --- FakeEmbedder -------------------------------------------------------------
@@ -344,6 +388,122 @@ def test_transport_error_leaks_nothing() -> None:
     assert excinfo.value.__suppress_context__
 
 
+def test_waits_for_retry_after_in_seconds() -> None:
+    clock = FakeClock()
+
+    vectors = make_voyage(scripted(rate_limited("7")), clock=clock).embed_documents(["a"])
+
+    assert vectors == [[0.0] * 4]
+    assert clock.sleeps == [7.0]
+
+
+def test_waits_for_retry_after_as_an_http_date() -> None:
+    clock = FakeClock()
+    # WALL_START is 2023-11-14 22:13:20 UTC: 12 seconds later.
+    handler = scripted(rate_limited("Tue, 14 Nov 2023 22:13:32 GMT"))
+
+    make_voyage(handler, clock=clock).embed_documents(["a"])
+
+    assert clock.sleeps == [12.0]
+
+
+def test_unreadable_retry_after_falls_back_to_backoff() -> None:
+    clock = FakeClock()
+
+    make_voyage(scripted(rate_limited("soon")), clock=clock).embed_documents(["a"])
+
+    assert len(clock.sleeps) == 1
+    assert 0 < clock.sleeps[0] <= 1
+
+
+def test_backoff_is_capped() -> None:
+    clock = FakeClock()
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(503)
+
+    with pytest.raises(EmbeddingError):
+        make_voyage(
+            handler, max_retries=8, clock=clock, retry_budget_seconds=1000.0
+        ).embed_documents(["a"])
+
+    assert len(clock.sleeps) == 8
+    assert max(clock.sleeps) <= MAX_BACKOFF_SECONDS
+
+
+def test_gives_up_when_the_next_wait_would_end_past_the_budget() -> None:
+    clock = FakeClock()
+    calls = 0
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
+        return rate_limited("40")
+
+    with pytest.raises(EmbeddingError, match=r"^Embedding provider returned HTTP 429, after 2 "):
+        make_voyage(handler, max_retries=6, clock=clock).embed_documents(["a"])
+
+    # 40 s fits in the 60 s budget; a second 40 s wait would end at 80 s.
+    assert (calls, clock.sleeps) == (2, [40.0])
+
+
+def test_a_retry_after_longer_than_the_budget_fails_at_once() -> None:
+    clock = FakeClock()
+
+    with pytest.raises(EmbeddingError, match=r"^Embedding provider returned HTTP 429$"):
+        make_voyage(scripted(rate_limited("120")), clock=clock).embed_documents(["a"])
+
+    assert clock.sleeps == []
+
+
+def test_queries_have_a_shorter_budget_than_documents() -> None:
+    wait = str(QUERY_RETRY_BUDGET_SECONDS + 5)
+    clock = FakeClock()
+
+    with pytest.raises(EmbeddingError, match="HTTP 429"):
+        make_voyage(scripted(rate_limited(wait)), clock=clock).embed_query("a")
+    assert clock.sleeps == []
+
+    make_voyage(scripted(rate_limited(wait)), clock=clock).embed_documents(["a"])
+    assert clock.sleeps == [float(wait)]
+
+
+def test_each_retry_logs_one_warning_without_key_or_content(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    handler = scripted(rate_limited("3"), httpx2.Response(503))
+
+    with caplog.at_level(logging.DEBUG, logger="ayo_copilot.ingestion.embedding"):
+        make_voyage(handler, clock=FakeClock()).embed_documents([SECRET_TEXT])
+
+    records = [r for r in caplog.records if r.name == "ayo_copilot.ingestion.embedding"]
+    assert [r.levelno for r in records] == [logging.WARNING] * 2
+    first, second = (r.getMessage() for r in records)
+    assert (
+        first == "Embedding request failed (returned HTTP 429); retry 1 of 3 in 3.0 s (Retry-After)"
+    )
+    assert second.startswith("Embedding request failed (returned HTTP 503); retry 2 of 3 in ")
+    for message in (first, second):
+        assert SECRET_TEXT not in message and API_KEY not in message
+
+
+def test_transport_errors_log_only_the_exception_type(caplog: pytest.LogCaptureFixture) -> None:
+    errors = iter([httpx2.ConnectError(f"refused {SECRET_TEXT}")])
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        error = next(errors, None)
+        if error is not None:
+            raise error
+        return vectors_response(request)
+
+    with caplog.at_level(logging.WARNING, logger="ayo_copilot.ingestion.embedding"):
+        make_voyage(handler, clock=FakeClock()).embed_documents(["a"])
+
+    (record,) = [r for r in caplog.records if r.name == "ayo_copilot.ingestion.embedding"]
+    assert record.getMessage().startswith("Embedding request failed (unreachable (ConnectError))")
+    assert SECRET_TEXT not in record.getMessage()
+
+
 # --- build_embedder ------------------------------------------------------------
 
 
@@ -361,6 +521,8 @@ def test_build_voyage_embedder_uses_settings() -> None:
             embedding_dimensions=512,
             embedding_batch_size=64,
             embedding_timeout_seconds=12.5,
+            embedding_max_retries=4,
+            embedding_retry_budget_seconds=45.0,
             voyage_base_url="https://voyage.test/v1",
         )
     )
@@ -370,6 +532,7 @@ def test_build_voyage_embedder_uses_settings() -> None:
     assert embedder.dimensions == 512
     assert embedder.batch_size == 64
     assert embedder.timeout_seconds == 12.5
+    assert (embedder.max_retries, embedder.retry_budget_seconds) == (4, 45.0)
     embedder.close()
 
 

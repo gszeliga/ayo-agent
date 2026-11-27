@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import math
 import random
 import struct
@@ -9,11 +10,18 @@ from typing import Protocol, runtime_checkable
 import httpx2
 
 from ayo_copilot.config import Settings
+from ayo_copilot.retry_after import parse_retry_after
 
 # Voyage answers these with "retry after a brief wait"; other 4xx need a fixed request.
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+# Backoff without Retry-After: full jitter, up to 1, 2, 4, ... seconds, never above this.
+MAX_BACKOFF_SECONDS = 30.0
+# A query waits for someone (search, a copilot turn): it gives up sooner than an upload.
+QUERY_RETRY_BUDGET_SECONDS = 10.0
 # What `probe` embeds: one short word, so a health check costs about one token.
 PROBE_TEXT = "ping"
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingError(Exception):
@@ -80,18 +88,26 @@ class VoyageEmbedder:
         batch_size: int,
         max_retries: int,
         timeout_seconds: float = 30.0,
+        retry_budget_seconds: float = 60.0,
         base_url: str = "https://api.voyageai.com/v1",
         client: httpx2.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], float] = time.time,
     ) -> None:
+        """`clock` measures the retry budget, `sleep` waits between attempts, `wall_clock`
+        (Unix time) reads `Retry-After` dates; all injectable for tests."""
         self.model = model
         self.dimensions = dimensions
         self.batch_size = batch_size
         self.max_retries = max_retries
         self.timeout_seconds = timeout_seconds
+        self.retry_budget_seconds = retry_budget_seconds
         self._headers = {"Authorization": f"Bearer {api_key}"}
         self._client = client or httpx2.Client(base_url=base_url, timeout=timeout_seconds)
         self._sleep = sleep
+        self._clock = clock
+        self._wall_clock = wall_clock
 
     def close(self) -> None:
         self._client.close()
@@ -104,9 +120,14 @@ class VoyageEmbedder:
 
     def embed_query(self, text: str) -> list[float]:
         """Sent with `input_type: "query"`: Voyage prepends its own retrieval prompt, so there
-        is no prefix to configure here. Same retries and errors as `embed_documents`."""
+        is no prefix to configure here. Same retries and errors as `embed_documents`, within
+        a shorter budget (`QUERY_RETRY_BUDGET_SECONDS`)."""
         payload = self._payload([text], input_type="query")
-        response = self._post_with_retries(payload, max_retries=self.max_retries)
+        response = self._post_with_retries(
+            payload,
+            max_retries=self.max_retries,
+            budget_seconds=min(self.retry_budget_seconds, QUERY_RETRY_BUDGET_SECONDS),
+        )
         (vector,) = self._parse(response, expected=1)
         return vector
 
@@ -114,11 +135,17 @@ class VoyageEmbedder:
         """Whether the provider embeds right now: one request for one short word, with its
         own timeout and no retries. Raises EmbeddingError, as `embed_documents` does."""
         payload = self._payload([PROBE_TEXT])
-        response = self._post_with_retries(payload, max_retries=0, timeout=timeout_seconds)
+        response = self._post_with_retries(
+            payload, max_retries=0, budget_seconds=0.0, timeout=timeout_seconds
+        )
         self._parse(response, expected=1)
 
     def _embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
-        response = self._post_with_retries(self._payload(texts), max_retries=self.max_retries)
+        response = self._post_with_retries(
+            self._payload(texts),
+            max_retries=self.max_retries,
+            budget_seconds=self.retry_budget_seconds,
+        )
         return self._parse(response, expected=len(texts))
 
     def _payload(self, texts: Sequence[str], *, input_type: str = "document") -> dict[str, object]:
@@ -137,31 +164,58 @@ class VoyageEmbedder:
         payload: dict[str, object],
         *,
         max_retries: int,
+        budget_seconds: float,
         timeout: float | None = None,
     ) -> httpx2.Response:
-        """`timeout` None means the client's (in httpx2, None itself would mean none)."""
+        """Retries 429, 5xx and transport errors: after `Retry-After` when the answer has
+        one, else with backoff; never past `max_retries` or a wait ending past the budget.
+        `timeout` None means the client's (in httpx2, None itself would mean none)."""
         request_timeout = httpx2.USE_CLIENT_DEFAULT if timeout is None else timeout
+        started = self._clock()
         for attempt in range(max_retries + 1):
-            is_last = attempt == max_retries
+            retry_after: float | None = None
             try:
                 response = self._client.post(
                     "/embeddings", json=payload, headers=self._headers, timeout=request_timeout
                 )
             except httpx2.TransportError as exc:
                 # The exception text is dropped: it can quote the request.
-                if is_last:
-                    raise EmbeddingError(
-                        f"Embedding provider unreachable ({type(exc).__name__})"
-                    ) from None
+                failure, retryable = f"unreachable ({type(exc).__name__})", True
             else:
                 if response.status_code == 200:
                     return response
                 # The response body is dropped: a 4xx `detail` can echo the input.
-                if is_last or response.status_code not in RETRYABLE_STATUS:
-                    raise EmbeddingError(f"Embedding provider returned HTTP {response.status_code}")
-            # Exponential backoff with full jitter: up to 1, 2, 4, ... seconds.
-            self._sleep(random.uniform(0.1, 2.0**attempt))
+                failure = f"returned HTTP {response.status_code}"
+                retryable = response.status_code in RETRYABLE_STATUS
+                retry_after = parse_retry_after(
+                    response.headers.get("retry-after"), now=self._wall_clock()
+                )
+            delay = self._retry_delay(attempt, retry_after) if retryable else None
+            if (
+                delay is None
+                or attempt == max_retries
+                or self._clock() - started + delay >= budget_seconds
+            ):
+                attempts = f", after {attempt + 1} attempts" if attempt else ""
+                raise EmbeddingError(f"Embedding provider {failure}{attempts}") from None
+            # Metadata only: the failure is a status or an exception type.
+            logger.warning(
+                "Embedding request failed (%s); retry %d of %d in %.1f s%s",
+                failure,
+                attempt + 1,
+                max_retries,
+                delay,
+                " (Retry-After)" if retry_after is not None else "",
+            )
+            self._sleep(delay)
         raise AssertionError("unreachable")
+
+    @staticmethod
+    def _retry_delay(attempt: int, retry_after: float | None) -> float:
+        if retry_after is not None:
+            return retry_after
+        # Full jitter: up to 1, 2, 4, ... seconds, capped.
+        return random.uniform(0.1, min(MAX_BACKOFF_SECONDS, 2.0**attempt))
 
     def _parse(self, response: httpx2.Response, *, expected: int) -> list[list[float]]:
         try:
@@ -188,5 +242,6 @@ def build_embedder(settings: Settings) -> Embedder:
         batch_size=settings.embedding_batch_size,
         max_retries=settings.embedding_max_retries,
         timeout_seconds=settings.embedding_timeout_seconds,
+        retry_budget_seconds=settings.embedding_retry_budget_seconds,
         base_url=settings.voyage_base_url,
     )

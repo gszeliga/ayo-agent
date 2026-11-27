@@ -6,7 +6,7 @@ document to Markdown into a target folder or next to it, then upload each with o
 and the decisions below are the agreement.
 
 ## Next (resume here)
-**The follow-ups are done** (K3-K5, 2026-11-27): see "Open items". Nothing is planned
+**The follow-ups are done** (K3-K6, 2026-11-27): see "Open items". Nothing is planned
 next: ask the user.
 
 ## Decisions (agreed 2026-11-26)
@@ -50,6 +50,16 @@ next: ask the user.
     replaced file's mode if there is one, else `0o666 & ~umask` (read with `os.umask`,
     set and restored: fine in a single-threaded CLI). Files written before K5 keep 0600
     until reconverted; the tool does not touch files it does not write.
+11. **Voyage 429s (K6, server side):** the user's import hit `429 Too Many Requests`; the
+    embedder's retries (3, waits up to 1, 2, 4 s: about 7 s) ended inside Voyage's
+    per-minute window. `VoyageEmbedder` now waits for `Retry-After` when sent (seconds or
+    an HTTP date; `parse_retry_after` moved from `llm/openrouter.py` to `retry_after.py`),
+    else full-jitter backoff capped at 30 s per wait; `EMBEDDING_MAX_RETRIES` default
+    3 -> 6, new `EMBEDDING_RETRY_BUDGET_SECONDS` (60, per request/batch: no wait that
+    would end past it). `embed_query` uses at most `QUERY_RETRY_BUDGET_SECONDS` (10 s, a
+    constant): search and copilot turns fail fast. One WARNING per retry (status or
+    exception type, attempt, delay); after a retry the error says `, after N attempts`.
+    Client-side pacing in `docling-import-files` (`--delay`) left for later.
 
 ## Steps
 - [x] K1 (2026-11-26): convert: plan, converter, CLI (`--out`, `--recursive`, `--reconvert`,
@@ -64,6 +74,8 @@ next: ask the user.
   `--office-converter`. 28 new tests (84 for the tool).
 - [x] K5 (2026-11-27): Markdown files get the umask mode (or keep the replaced file's)
   instead of `mkstemp`'s 0600. 3 new tests (87 for the tool).
+- [x] K6 (2026-11-27): Voyage retries outlast a rate-limit window: `Retry-After`, 30 s cap,
+  60 s budget, 10 s for queries, a warning per retry. 9 new embedder tests.
 
 ## Log
 - 2026-11-26, K1: `docling>=2.153.0` in the `convert` group (locked, not installed here:
@@ -87,6 +99,9 @@ next: ask the user.
   Markdown in 10 s (971 words), temporary folder removed. Tests inject the converter
   lookup: this machine has x2t, and the CLI tests must not depend on it.
 - 2026-11-27, K5: the 0600 mode came from `mkstemp` (since K1), seen in the K4 real check.
+- 2026-11-27, K6: whether Voyage sends `Retry-After` on 429 is not checked (no billed call
+  made); both paths are tested. `.env` sets no `EMBEDDING_*` retry value, so the new
+  defaults apply after a restart. Not tried against Voyage.
 
 ## Open items
 - docling's own Python warnings (`holder.bbox = ...`, RapidOCR) go to stderr; not ours to
@@ -97,3 +112,8 @@ next: ask the user.
   one small file, with the user's OK.
 - Title: the server's default (first `# ` heading, else the file name); no `--title`.
 - Uploads are sequential; parallel uploads were not needed.
+- K6: the budget is per embedding request (one batch of 128 chunks). A document with
+  several batches that are all rate limited can make the server take longer than the
+  uploader's 120 s read timeout; the file then fails and a rerun picks it up. If 429s
+  persist (e.g. Voyage's low limits without a payment method), add a `--delay` between
+  uploads.
