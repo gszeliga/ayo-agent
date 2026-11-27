@@ -84,7 +84,9 @@ untitled first turn. They are written through the engine's own path (`resolve_ca
 
 Everything lives in the `demo-acme`, `demo-norte` and `demo-sur` tenants: the cases
 (`created_by = demo-seed`) and two fixture documents in `demo-acme`, embedded with the
-fake embedder (their vectors mean nothing, so searching them finds nothing useful). It
+fake embedder and labelled `fake/document/1024`. Their vectors mean nothing, so a search
+under Voyage skips them (`skipped.embedder_mismatch`) and the documents list shows them as
+`outdated` (`embedder_changed`); reprocessing one re-embeds it with Voyage (billed). It
 refuses to run twice (reset first). `--reset` deletes the demo cases and every document in
 those tenants, nothing else. A host other than localhost is refused unless passed exactly as
 `--host` (and the app's `ALLOW_REMOTE_DATABASE` guard still applies); only the host is

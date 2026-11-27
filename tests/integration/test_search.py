@@ -221,6 +221,28 @@ def test_include_outdated_returns_them_flagged(db_pool: ConnectionPool) -> None:
     assert outcome.embedder_mismatch == 0
 
 
+def test_fake_vectors_are_skipped_by_a_search_under_the_real_provider(
+    db_pool: ConnectionPool,
+) -> None:
+    # The seed script's demo documents: fake vectors, the same model setting.
+    voyage = SETTINGS.model_copy(update={"embedding_provider": "voyage"})
+    _, real_embedder = current_configs(voyage)
+    real = store(
+        db_pool, [axis_vector((1, 1.0))], source_key="real.md", embedder_config=real_embedder
+    )
+    fake = store(db_pool, [axis_vector((0, 1.0))], source_key="fake.md")
+
+    embedder = ScriptedEmbedder({QUERY: QUERY_VECTOR})
+    outcome = search(db_pool, embedder, voyage, query=QUERY, top_k=5)
+    flagged = search(db_pool, embedder, voyage, query=QUERY, top_k=5, include_outdated=True)
+
+    assert ([r.hit.doc_id for r in outcome.results], outcome.embedder_mismatch) == ([real], 1)
+    assert [(r.hit.doc_id, r.hit.embedder_outdated) for r in flagged.results] == [
+        (fake, True),
+        (real, False),
+    ]
+
+
 def test_a_chunker_change_alone_is_searched_normally(db_pool: ConnectionPool) -> None:
     doc_id = store(db_pool, [axis_vector((0, 1.0))], chunker_config="chunker-viejo")
     store(db_pool, [axis_vector((0, 1.0))], source_key="nulo.md", chunker_config=None)

@@ -9,8 +9,11 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Nothing is active.** Ask the user what comes next (candidates: the "Open items" of the
-  milestones below, or the parked E11, S3-S5 and D1).
+- **Side steps of the test chat (2026-11-27):** T6 done (the fake embedder's vectors are
+  labelled `fake/document/<dims>`, so search skips them; decision 42 in
+  `plans/chat-progress.md`); **T7 next** (`seed_demo_cases.py --embedder voyage`, billed and
+  opt-in; reseeding the dev branch needs the user's OK). Otherwise nothing is active: ask
+  the user (candidates: the "Open items" below, or the parked E11, S3-S5 and D1).
 - Done (2026-11-27): the UI from another device on the network (H1: the Vite dev and
   preview servers proxy the API's paths, one origin, no CORS; the API stays on
   `127.0.0.1`). Decisions and log in `plans/lan-progress.md`. Front end only.

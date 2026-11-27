@@ -123,7 +123,9 @@ def current_configs(settings: Settings) -> tuple[str, str]:
         min_size=settings.min_chunk_size,
     )
     embedder_config = signatures.embedder_descriptor(
-        model=settings.embedding_model, dimensions=settings.embedding_dimensions
+        provider=settings.embedding_provider,
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dimensions,
     )
     return chunker_config, embedder_config
 

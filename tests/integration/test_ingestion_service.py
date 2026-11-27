@@ -132,7 +132,7 @@ def test_upload_stores_counts_size_and_configs(db_pool: ConnectionPool, embedder
     assert chunk_count == stored_chunk_rows == result.chunk_count
     assert size_bytes == len(CONTENT) > len(CONTENT.decode())  # bytes, not characters
     assert chunker_config == configured_chunker(make_settings())
-    assert embedder_config == "voyage-4/document/1024"
+    assert embedder_config == "fake/document/1024"  # make_settings embeds with the fake
 
 
 def test_reindexing_updates_counts_size_and_configs(db_pool: ConnectionPool, embedder) -> None:
@@ -195,7 +195,12 @@ def test_modified_content_replaces_the_old_chunks(db_pool: ConnectionPool, embed
 
 
 @pytest.mark.parametrize(
-    "changed", [{"chunk_size": 300}, {"embedding_model": "voyage-4-lite"}, {"min_chunk_size": 50}]
+    "changed",
+    [
+        {"chunk_size": 300},
+        {"embedding_provider": "voyage", "voyage_api_key": "v"},
+        {"min_chunk_size": 50},
+    ],
 )
 def test_a_configuration_change_reprocesses(
     db_pool: ConnectionPool, embedder, changed: dict

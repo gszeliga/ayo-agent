@@ -153,7 +153,9 @@ meanwhile (nothing was written); `502` means Voyage failed (nothing was written 
 
 Changing `CHUNK_SIZE`, `CHUNK_OVERLAP`, `MIN_CHUNK_SIZE`, `EMBEDDING_MODEL` or
 `EMBEDDING_DIMENSIONS` changes the document signatures, so the next upload of each
-document reprocesses it.
+document reprocesses it. So does switching `EMBEDDING_PROVIDER`: the fake embedder's
+vectors are labelled `fake/document/<dimensions>` (`embedder_config`), whatever the model,
+so they never pass for a real model's.
 
 ## Deleting a document
 

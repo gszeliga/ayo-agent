@@ -98,7 +98,9 @@ def test_compute_signatures_matches_the_signature_functions() -> None:
         size=SETTINGS.chunk_size, overlap=SETTINGS.chunk_overlap, min_size=SETTINGS.min_chunk_size
     )
     embedder = signatures.embedder_descriptor(
-        model=SETTINGS.embedding_model, dimensions=SETTINGS.embedding_dimensions
+        provider=SETTINGS.embedding_provider,
+        model=SETTINGS.embedding_model,
+        dimensions=SETTINGS.embedding_dimensions,
     )
     chunk_signature = signatures.chunk_signature(content_hash, chunker)
     assert (sigs.content_hash, sigs.chunker_config, sigs.embedder_config) == (
@@ -112,11 +114,12 @@ def test_compute_signatures_matches_the_signature_functions() -> None:
 
 def test_compute_signatures_changes_with_the_settings() -> None:
     markdown = "# Título\n\nTexto.\n"
-    other = Settings(
-        _env_file=None, admin_api_key="k", embedding_provider="fake", embedding_model="voyage-x"
-    )
+    # The model only counts for a real provider: the fake's vectors ignore it.
+    voyage = {"admin_api_key": "k", "embedding_provider": "voyage", "voyage_api_key": "v"}
+    one = Settings(_env_file=None, **voyage)
+    other = Settings(_env_file=None, **voyage, embedding_model="voyage-x")
 
-    before, after = compute_signatures(markdown, SETTINGS), compute_signatures(markdown, other)
+    before, after = compute_signatures(markdown, one), compute_signatures(markdown, other)
 
     assert before.chunk_signature == after.chunk_signature
     assert before.embedder_config != after.embedder_config
@@ -148,6 +151,19 @@ def test_a_settings_change_makes_stored_configs_outdated() -> None:
     assert document_status(CURRENT_CHUNKER, CURRENT_EMBEDDER, changed) == (
         "outdated",
         "chunker_changed",
+    )
+
+
+def test_fake_vectors_are_outdated_under_the_real_provider() -> None:
+    # Fake vectors under the same model setting: still another vector space.
+    voyage = Settings(
+        _env_file=None, admin_api_key="k", embedding_provider="voyage", voyage_api_key="v"
+    )
+
+    assert current_configs(SETTINGS)[1] == "fake/document/1024"
+    assert document_status(CURRENT_CHUNKER, CURRENT_EMBEDDER, voyage) == (
+        "outdated",
+        "embedder_changed",
     )
 
 

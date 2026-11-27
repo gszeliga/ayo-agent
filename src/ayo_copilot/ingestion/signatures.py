@@ -23,8 +23,13 @@ def chunker_descriptor(*, size: int, overlap: int, min_size: int) -> str:
     )
 
 
-def embedder_descriptor(*, model: str, dimensions: int) -> str:
-    return f"{model}/document/{dimensions}"
+def embedder_descriptor(*, provider: str, model: str, dimensions: int) -> str:
+    """The vector space a document's vectors live in. The fake embedder's hash-derived
+    vectors share no space with a real model's, so they are labelled `fake` whatever the
+    model setting: a search or status check under the real provider then sees them as
+    embedded with another config instead of mixing them in."""
+    name = "fake" if provider == "fake" else model
+    return f"{name}/document/{dimensions}"
 
 
 def chunk_signature(content_hash: str, chunker: str) -> str:

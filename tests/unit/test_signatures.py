@@ -44,12 +44,23 @@ def test_chunker_descriptor_reflects_configuration() -> None:
 
 
 def test_embedder_descriptor_reflects_configuration() -> None:
-    assert embedder_descriptor(model="voyage-4", dimensions=1024) == "voyage-4/document/1024"
+    assert (
+        embedder_descriptor(provider="voyage", model="voyage-4", dimensions=1024)
+        == "voyage-4/document/1024"
+    )
+
+
+def test_fake_embedder_descriptor_ignores_the_model() -> None:
+    # Hash-derived vectors are no model's: never labelled as one, or a real search mixes them in.
+    assert (
+        embedder_descriptor(provider="fake", model="voyage-4", dimensions=1024)
+        == "fake/document/1024"
+    )
 
 
 def test_changing_chunk_size_changes_chunk_and_embed_signatures_only() -> None:
     chash = content_hash(TEXT)
-    embedder = embedder_descriptor(model="voyage-4", dimensions=1024)
+    embedder = embedder_descriptor(provider="voyage", model="voyage-4", dimensions=1024)
     before = chunk_signature(chash, chunker_descriptor(size=800, overlap=80, min_size=50))
     after = chunk_signature(chash, chunker_descriptor(size=500, overlap=80, min_size=50))
 
@@ -62,15 +73,19 @@ def test_changing_model_changes_embed_signature_only() -> None:
         content_hash(TEXT), chunker_descriptor(size=800, overlap=80, min_size=50)
     )
 
-    v4 = embed_signature(chunk_sig, embedder_descriptor(model="voyage-4", dimensions=1024))
-    lite = embed_signature(chunk_sig, embedder_descriptor(model="voyage-4-lite", dimensions=1024))
+    v4 = embed_signature(
+        chunk_sig, embedder_descriptor(provider="voyage", model="voyage-4", dimensions=1024)
+    )
+    lite = embed_signature(
+        chunk_sig, embedder_descriptor(provider="voyage", model="voyage-4-lite", dimensions=1024)
+    )
 
     assert v4 != lite
 
 
 def test_changing_content_changes_every_signature() -> None:
     chunker = chunker_descriptor(size=800, overlap=80, min_size=50)
-    embedder = embedder_descriptor(model="voyage-4", dimensions=1024)
+    embedder = embedder_descriptor(provider="voyage", model="voyage-4", dimensions=1024)
     a = chunk_signature(content_hash(TEXT), chunker)
     b = chunk_signature(content_hash(TEXT + "x"), chunker)
 

@@ -18,7 +18,9 @@ resizable (T4a fix, decision 38). T4b (the Trace tab) is done
 (2026-11-23). T5 is split (decision 39); the summary model in `GET /admin/settings` (side
 step, decision 40) is done (2026-11-23). T5a (the Summary tab) and T5b
 (delete, export, the final report) are done (2026-11-23): **the milestone is done**; see
-"Final report" below. Nothing is in progress.
+"Final report" below. Side steps after it (2026-11-27): T6 (the fake embedder's vectors
+labelled as such, decision 42) is done; T7 (`seed_demo_cases.py --embedder voyage`) is
+agreed and next, after review. Nothing else is in progress.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -188,6 +190,18 @@ What the UI steps start from:
     its page edge led by "Show cases" / "Show inspector"; the inspector rail has a button
     per tab and the API's overdue dot; narrow screens always show the inspector rail, which
     opens the drawer. The case header's "Inspector" button is gone.
+42. **Fake vectors carry their own label** (agreed 2026-11-27, the user: "control del
+    sellado" ranked the `gszeliga` README above the demo PRO-014 in an all-tenants search).
+    The seed script embedded the demo documents with `FakeEmbedder` but stored the
+    configured label `voyage-4/document/1024`, so search compared random vectors with real
+    ones (on the dev branch, the demo chunks' mean similarity to their own siblings was
+    -0.015, the README's 0.57). `embedder_descriptor` now takes the provider: `fake` gives
+    `fake/document/<dimensions>` whatever the model; Voyage labels are unchanged (no
+    reprocess of real documents). The seed script ingests with `embedding_provider="fake"`
+    settings, so its label matches its vectors. The label still comes from the settings,
+    not the embedder object (a per-embedder label would touch the protocol and every
+    `current_configs` caller; not now). Option agreed: this (T6), then
+    `--embedder voyage` on the seed script (T7, billed, opt-in).
 
 ## Order of work (one commit per step, brief first, stop after each)
 - [x] **C1** `case_id` in `POST /copilot/messages` and `GET /copilot/sessions/{session_id}`;
@@ -295,6 +309,10 @@ state). The summary prompt has never run against a real model.
 - **Side panels made consistent** (decision 41, after the report): done 2026-11-23.
 - **A manual pass in a browser** over the whole chat, on the demo cases (see the final
   report): nothing of the UI was checked outside tests.
+- **T7: `seed_demo_cases.py --embedder voyage`** (decision 42, agreed 2026-11-27): the
+  default stays fake (no cost); then, with the user's OK, `--reset --yes` and reseed on the
+  dev branch with Voyage (about 13 chunks, ~3k tokens, well under a tenth of a cent). Until
+  then the dev branch's demo documents keep the wrong `voyage-4` label.
 - **The seeded demo case on the dev branch** still has `retrieval_error: "timeout"` (the
   script now writes `embedding_failed`); reseeding needs `--reset --yes` there, with the
   user's OK.
@@ -758,3 +776,21 @@ state). The summary prompt has never run against a real model.
   had four timeouts under load (bulk delete and this delete test; both pass alone and on
   the previous commit); the next two full runs were clean. `pnpm check` green (492 tests).
   Not checked in a real browser.
+- **T6 (2026-11-27), side step: the fake embedder's vectors labelled as such** (decision
+  42). `signatures.embedder_descriptor(provider=, model=, dimensions=)`: `fake` ->
+  `fake/document/<dimensions>`, any other provider `<model>/document/<dimensions>` as
+  before; `current_configs` passes `settings.embedding_provider`. `seed_demo_cases.py`
+  ingests its fixtures with a `model_copy` of the settings set to `fake` (docstring says
+  why). Docs: `knowledge-base.md` (switching `EMBEDDING_PROVIDER` reprocesses; the fake
+  label), `search.md` (fake documents are skipped), `development.md` (the seeded
+  documents: skipped by search, `outdated` in the list, reprocessing them is billed). No
+  API or UI change (the UI's `configDiff` parses `fake/document/1024` like any label).
+  Tests: the fake label ignores the model (`test_signatures.py`); fake-labelled documents
+  are `outdated`/`embedder_changed` under Voyage settings (`test_service.py`); a search
+  under Voyage settings skips a fake-labelled document and counts it, `include_outdated`
+  returns it flagged (`test_search.py`). Two tests changed what they vary, since a model
+  change no longer matters under the fake provider: `compute_signatures` changes with the
+  model under Voyage settings; the reprocess-on-config-change case now switches the
+  provider. `tests/api/test_upload.py` searched a fake upload with the Voyage label; now
+  the fake one. Full suite and ruff green. The seed script itself was not run (no local
+  database up; it has no tests by design). The dev branch was only read (vector comparisons in SQL), no Voyage call.

@@ -157,7 +157,7 @@ def test_an_uploaded_section_can_be_found_by_similarity(
     [query] = FakeEmbedder(dimensions=1024).embed_documents([target])
 
     with db_pool.connection() as conn:
-        config = embedder_descriptor(model="voyage-4", dimensions=1024)
+        config = embedder_descriptor(provider="fake", model="voyage-4", dimensions=1024)
         best, *_ = search_chunks(
             conn, embedding=query, embedder_config=config, tenants=["acme"], limit=3
         )

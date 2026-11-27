@@ -41,7 +41,7 @@ Send `null`, not `[]`, for no filter: an empty list is a `422`. Unknown tenants 
 not errors; they just add no results.
 
 Vectors of different embedding models are not comparable, so documents embedded with
-another model (or an unknown one) are skipped and counted in `skipped.embedder_mismatch`:
-reprocess them. A change of the chunking settings alone skips nothing. If the embedding
+another model (or an unknown one, or the fake embedder: `fake/document/<dimensions>`) are
+skipped and counted in `skipped.embedder_mismatch`: reprocess them. A change of the chunking settings alone skips nothing. If the embedding
 provider fails, the answer is `502 embedding_failed` and nothing is searched. Neither the
 query nor the results are logged: only tenants, counts and durations.

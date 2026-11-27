@@ -7,7 +7,8 @@
 Writes through the engine's own path (`resolve_case`, `load_snapshot`, `commit_turn`), so
 rows have the shape a real turn writes; traces carry made-up metrics. Everything lives in
 the `demo-*` tenants: the cases (marked `created_by = demo-seed`) and two fixture documents
-embedded with the fake embedder (their vectors are meaningless: search them for nothing).
+embedded with the fake embedder (their vectors are meaningless: search them for nothing),
+labelled as such, so a search under a real embedder skips them instead of ranking them.
 Timestamps are moved back afterwards so the list reads like days of work.
 
 Uses DATABASE_URL (`.env` or the shell). Local hosts are allowed; any other host only when
@@ -341,6 +342,9 @@ def check_host(url: str, allowed: str | None) -> str:
 def ingest_fixtures(settings: Settings, pool: ConnectionPool) -> dict[str, str]:
     """The two fixture documents in demo-acme, plus one deleted afterwards: key -> doc_id."""
     embedder = FakeEmbedder(dimensions=settings.embedding_dimensions)
+    # Label the vectors with the embedder that made them, not the configured one: a search
+    # under Voyage then skips them (`embedder_mismatch`) instead of ranking random vectors.
+    settings = settings.model_copy(update={"embedding_provider": "fake"})
     docs = {
         "sellado": ("pro-014-control-sellado.md", "PRO-014 Control del sellado"),
         "metodo": ("metodo-cinco-porques.md", "Método de los cinco porqués"),
