@@ -70,6 +70,7 @@ overwritten.
 ```sh
 uv run python scripts/seed_demo_cases.py               # local database (DATABASE_URL)
 uv run python scripts/seed_demo_cases.py --host HOST   # a remote one: the Neon dev branch only
+uv run python scripts/seed_demo_cases.py --embedder voyage  # searchable documents (BILLED)
 uv run python scripts/seed_demo_cases.py --reset       # says what it would delete
 uv run python scripts/seed_demo_cases.py --reset --yes # deletes it
 ```
@@ -86,7 +87,10 @@ Everything lives in the `demo-acme`, `demo-norte` and `demo-sur` tenants: the ca
 (`created_by = demo-seed`) and two fixture documents in `demo-acme`, embedded with the
 fake embedder and labelled `fake/document/1024`. Their vectors mean nothing, so a search
 under Voyage skips them (`skipped.embedder_mismatch`) and the documents list shows them as
-`outdated` (`embedder_changed`); reprocessing one re-embeds it with Voyage (billed). It
+`outdated` (`embedder_changed`); reprocessing one re-embeds it with Voyage (billed).
+`--embedder voyage` embeds them with Voyage instead, so search finds them: three billed
+calls (the two documents and the one deleted afterwards, about 13 chunks and a few
+thousand tokens, well under a tenth of a cent); it needs `VOYAGE_API_KEY`. It
 refuses to run twice (reset first). `--reset` deletes the demo cases and every document in
 those tenants, nothing else. A host other than localhost is refused unless passed exactly as
 `--host` (and the app's `ALLOW_REMOTE_DATABASE` guard still applies); only the host is

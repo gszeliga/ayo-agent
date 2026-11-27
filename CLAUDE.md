@@ -9,10 +9,10 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Side steps of the test chat (2026-11-27):** T6 done (the fake embedder's vectors are
+- **Side steps of the test chat (2026-11-27):** T6 (the fake embedder's vectors are
   labelled `fake/document/<dims>`, so search skips them; decision 42 in
-  `plans/chat-progress.md`); **T7 next** (`seed_demo_cases.py --embedder voyage`, billed and
-  opt-in; reseeding the dev branch needs the user's OK). Otherwise nothing is active: ask
+  `plans/chat-progress.md`) and T7 (`seed_demo_cases.py --embedder voyage`, billed, opt-in)
+  are done. Reseeding the dev branch with it needs the user's OK. Otherwise nothing is active: ask
   the user (candidates: the "Open items" below, or the parked E11, S3-S5 and D1).
 - Done (2026-11-27): the UI from another device on the network (H1: the Vite dev and
   preview servers proxy the API's paths, one origin, no CORS; the API stays on
@@ -31,7 +31,8 @@ working rules, update this file in that step's commit.
   steps). Spec `plans/claude-code-prompt-test-chat.md`; decisions, log, final report and
   "Open items" in `plans/chat-progress.md`. `POST /admin/cases/{case_id}/summary` and every
   chat message make real, billed model calls: never call them against a configured
-  provider without the user's OK. Demo data: `scripts/seed_demo_cases.py` (no cost).
+  provider without the user's OK. Demo data: `scripts/seed_demo_cases.py` (no cost unless
+  `--embedder voyage`).
 - **Paused (2026-11-16): conversation engine core.** Spec
   `plans/claude-code-prompt-conversation-engine.md`; decisions (which override the spec where
   they differ), steps E1-E11 and log in `plans/engine-progress.md`. **Read both first.**
@@ -114,7 +115,7 @@ uv run ayo-llm-check models --model ID     # OpenRouter listing: tools, context,
 uv run ayo-transcript SESSION_ID          # a session's transcript -> eval/conversations/ (reads only)
 uv sync --group convert                   # docling, optional (torch): plain `uv sync` removes it
 uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--dry-run] [--no-upload]   # docling -> Markdown -> upload (BILLED embeddings; ask first)
-uv run python scripts/seed_demo_cases.py  # demo cases (no model call); --host for the dev branch, --reset [--yes]
+uv run python scripts/seed_demo_cases.py  # demo cases (no model call); --host for the dev branch, --reset [--yes], --embedder voyage (BILLED; ask first)
 uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)
 pnpm install && pnpm dev                  # http://localhost:5173, API paths proxied to 127.0.0.1:8000 (no CORS)
@@ -194,7 +195,7 @@ migrations/            Alembic; 0001 = documents + chunks (vector(1024), HNSW co
                        0003 = problems, problem_events, actions, conversation_links, turn_traces
                        0004 = case_summaries (one AI summary per case)
 scripts/               dev_db.sh, db_shell.sh (psql; no tests, a personal tool), export_openapi.py,
-                       seed_demo_cases.py (demo cases for the test chat; no tests, no cost)
+                       seed_demo_cases.py (demo cases for the test chat; no tests; fake or Voyage embeddings)
 docs/                  topic docs: knowledge-base, search, copilot, configuration, operations,
                        development (.md); openapi.json (generated, committed), decisions/
 eval/llm/              ayo-llm-check reports (git-ignored) and example-report.json (scripted)

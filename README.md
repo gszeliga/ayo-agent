@@ -94,7 +94,7 @@ uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--chec
 uv run ayo-llm-check models --model ID    # a model's tool support and prices (free)
 uv run ayo-transcript SESSION_ID          # a copilot session as Markdown in eval/conversations/
 uv run docling-import-files PATH --tenant T   # documents -> Markdown (docling) -> upload; BILLED embeddings
-uv run python scripts/seed_demo_cases.py  # demo cases for the test chat (no model call); --reset
+uv run python scripts/seed_demo_cases.py  # demo cases for the test chat (no model call); --reset; --embedder voyage (billed)
 ```
 
 ## Admin UI

@@ -1,7 +1,9 @@
-"""Seed demo cases for trying the test chat and its inspector: no model call, no cost.
+"""Seed demo cases for trying the test chat and its inspector: no model call; no cost unless
+`--embedder voyage`.
 
     uv run python scripts/seed_demo_cases.py                      # local database
     uv run python scripts/seed_demo_cases.py --host HOST          # a remote one (dev branch!)
+    uv run python scripts/seed_demo_cases.py --embedder voyage    # searchable documents (BILLED)
     uv run python scripts/seed_demo_cases.py --reset [--yes]      # remove what it wrote
 
 Writes through the engine's own path (`resolve_case`, `load_snapshot`, `commit_turn`), so
@@ -9,6 +11,8 @@ rows have the shape a real turn writes; traces carry made-up metrics. Everything
 the `demo-*` tenants: the cases (marked `created_by = demo-seed`) and two fixture documents
 embedded with the fake embedder (their vectors are meaningless: search them for nothing),
 labelled as such, so a search under a real embedder skips them instead of ranking them.
+`--embedder voyage` embeds them with Voyage instead, so search finds them: one billed call
+per fixture (three, about 13 chunks, a few thousand tokens); it needs VOYAGE_API_KEY.
 Timestamps are moved back afterwards so the list reads like days of work.
 
 Uses DATABASE_URL (`.env` or the shell). Local hosts are allowed; any other host only when
@@ -38,7 +42,7 @@ from ayo_copilot.conversation.store import (
 from ayo_copilot.db import conversations as db
 from ayo_copilot.db.pool import open_pool
 from ayo_copilot.documents import delete_document
-from ayo_copilot.ingestion.embedding import FakeEmbedder
+from ayo_copilot.ingestion.embedding import Embedder, FakeEmbedder, build_embedder
 from ayo_copilot.ingestion.service import ingest_document
 
 MARKER = "demo-seed"
@@ -339,12 +343,21 @@ def check_host(url: str, allowed: str | None) -> str:
     )
 
 
-def ingest_fixtures(settings: Settings, pool: ConnectionPool) -> dict[str, str]:
-    """The two fixture documents in demo-acme, plus one deleted afterwards: key -> doc_id."""
-    embedder = FakeEmbedder(dimensions=settings.embedding_dimensions)
-    # Label the vectors with the embedder that made them, not the configured one: a search
-    # under Voyage then skips them (`embedder_mismatch`) instead of ranking random vectors.
-    settings = settings.model_copy(update={"embedding_provider": "fake"})
+def fixture_embedder(settings: Settings, provider: str) -> tuple[Settings, Embedder]:
+    """The embedder for the fixtures, and settings that label its vectors: the label must
+    name the embedder that made them, not the configured one, or a search under Voyage
+    ranks random vectors (fake) against real ones."""
+    settings = settings.model_copy(update={"embedding_provider": provider})
+    if provider == "fake":
+        return settings, FakeEmbedder(dimensions=settings.embedding_dimensions)
+    if settings.voyage_api_key is None:
+        sys.exit("--embedder voyage needs VOYAGE_API_KEY (.env or the shell).")
+    return settings, build_embedder(settings)
+
+
+def ingest_fixtures(settings: Settings, pool: ConnectionPool, embedder: Embedder) -> dict[str, str]:
+    """The two fixture documents in demo-acme, plus one deleted afterwards: key -> doc_id.
+    `settings` label the vectors (see `fixture_embedder`)."""
     docs = {
         "sellado": ("pro-014-control-sellado.md", "PRO-014 Control del sellado"),
         "metodo": ("metodo-cinco-porques.md", "Método de los cinco porqués"),
@@ -540,6 +553,12 @@ def main() -> None:
     parser.add_argument("--host", help="allow this remote database host (the Neon dev branch)")
     parser.add_argument("--reset", action="store_true", help="remove the demo data")
     parser.add_argument("--yes", action="store_true", help="with --reset: really delete")
+    parser.add_argument(
+        "--embedder",
+        choices=("fake", "voyage"),
+        default="fake",
+        help="embed the fixture documents with this (default fake; voyage is BILLED)",
+    )
     args = parser.parse_args()
 
     settings = Settings()
@@ -556,7 +575,18 @@ def main() -> None:
             sys.exit(
                 f"Demo data already here ({cases} cases, {len(docs)} documents): --reset first."
             )
-        doc_ids = ingest_fixtures(settings, pool)
+        fixture_settings, embedder = fixture_embedder(settings, args.embedder)
+        if args.embedder == "voyage":
+            print(
+                f"Embedding 3 fixture documents with Voyage ({settings.embedding_model}):"
+                " billed, a few thousand tokens."
+            )
+        try:
+            doc_ids = ingest_fixtures(fixture_settings, pool, embedder)
+        finally:
+            close = getattr(embedder, "close", None)
+            if close is not None:
+                close()
         chunks = chunk_ids(pool, doc_ids)
         # The "deleted" document goes now: its chunks stay in the traces, as after a delete.
         delete_document(pool, doc_ids["deleted"])

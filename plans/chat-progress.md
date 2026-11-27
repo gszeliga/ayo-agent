@@ -19,8 +19,8 @@ resizable (T4a fix, decision 38). T4b (the Trace tab) is done
 step, decision 40) is done (2026-11-23). T5a (the Summary tab) and T5b
 (delete, export, the final report) are done (2026-11-23): **the milestone is done**; see
 "Final report" below. Side steps after it (2026-11-27): T6 (the fake embedder's vectors
-labelled as such, decision 42) is done; T7 (`seed_demo_cases.py --embedder voyage`) is
-agreed and next, after review. Nothing else is in progress.
+labelled as such, decision 42) and T7 (`seed_demo_cases.py --embedder voyage`) are done;
+reseeding the dev branch with Voyage (the user: on Neon) waits for the user's OK.
 
 What the UI steps start from:
 - The approved prototype (T0 below: link, version and what it settles) and the spec's UI
@@ -309,10 +309,9 @@ state). The summary prompt has never run against a real model.
 - **Side panels made consistent** (decision 41, after the report): done 2026-11-23.
 - **A manual pass in a browser** over the whole chat, on the demo cases (see the final
   report): nothing of the UI was checked outside tests.
-- **T7: `seed_demo_cases.py --embedder voyage`** (decision 42, agreed 2026-11-27): the
-  default stays fake (no cost); then, with the user's OK, `--reset --yes` and reseed on the
-  dev branch with Voyage (about 13 chunks, ~3k tokens, well under a tenth of a cent). Until
-  then the dev branch's demo documents keep the wrong `voyage-4` label.
+- **Reseed the dev branch with Voyage** (T7 done): with the user's OK, `--reset --yes` and
+  `--host <dev host> --embedder voyage` (about 13 chunks, ~3k tokens, well under a tenth of
+  a cent). Until then its demo documents keep the wrong `voyage-4` label.
 - **The seeded demo case on the dev branch** still has `retrieval_error: "timeout"` (the
   script now writes `embedding_failed`); reseeding needs `--reset --yes` there, with the
   user's OK.
@@ -794,3 +793,13 @@ state). The summary prompt has never run against a real model.
   provider. `tests/api/test_upload.py` searched a fake upload with the Voyage label; now
   the fake one. Full suite and ruff green. The seed script itself was not run (no local
   database up; it has no tests by design). The dev branch was only read (vector comparisons in SQL), no Voyage call.
+- **T7 (2026-11-27), side step: `seed_demo_cases.py --embedder fake|voyage`** (decision
+  42). Default `fake` (no cost, as before). `fixture_embedder` returns the embedder and a
+  settings copy whose `embedding_provider` labels its vectors; `voyage` goes through
+  `build_embedder` and exits with a message without `VOYAGE_API_KEY` (a `model_copy`
+  skips the settings validator, hence the explicit check); it prints that the call is
+  billed before embedding, and the embedder is closed afterwards. The docstring and its
+  first line (the `--help` description) say when it costs. Docs: `development.md`
+  (command and cost), README and CLAUDE.md command lines. No tests (the script has none by
+  design); ruff and `--help` checked. Not run yet: the user wants the reseed done on the
+  Neon dev branch, with their OK, rather than on a local database.
