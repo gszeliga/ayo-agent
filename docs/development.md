@@ -42,6 +42,7 @@ path is printed with `-s`).
 uv sync --group convert                     # docling (torch, layout models): not in plain `uv sync`
 uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run] [-v]
                                             [--office-converter PATH]   # .ppt/.doc/.xls: x2t or soffice
+                                            [--delay SECONDS]   # between embedded uploads (rate limits)
 uv run docling-import-files PATH --no-upload  # convert only
 ```
 

@@ -1,4 +1,4 @@
-"""`docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run] [-v] ...`.
+"""`docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--delay S] [-v] ...`.
 
 Converts a document, or the documents in a folder, to Markdown with docling (old Office
 files, `.ppt` `.doc` `.xls`, through an office converter first: office.py), then uploads
@@ -6,6 +6,9 @@ each Markdown file to `POST /admin/documents`. The Markdown goes next to each so
 under `--out` (keeping subfolders). A Markdown file newer than its source is not converted
 again unless `--reconvert`, but is still uploaded (the API answers `up_to_date` when nothing
 changed); `.md` files found in the scan are uploaded as they are. `--no-upload` converts only.
+`--delay` keeps that many seconds between the end of an upload the server embedded (or that
+failed) and the next upload, counting the time spent converting: Voyage's limits are per
+minute. An `unchanged` answer embedded nothing, so the next upload does not wait for it.
 
 The key is `ADMIN_API_KEY` (environment, then `.env`), never a flag and never printed. The
 `source_key` is the Markdown file's name: two files with the same name in one run would
@@ -23,6 +26,7 @@ file failed, 2 the run could not start or was stopped.
 import argparse
 import logging
 import sys
+import time
 from collections import Counter
 from collections.abc import Callable, Sequence
 from functools import partial
@@ -90,6 +94,8 @@ def main(
     find_office: Callable[[Path | None], OfficeConverter | None] = find_office_converter,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
 ) -> int:
     out, err = stdout or sys.stdout, stderr or sys.stderr
     parser = _parser()
@@ -164,6 +170,8 @@ def main(
     converted: Counter[str] = Counter()
     uploaded: Counter[str] = Counter()
     aborted = False
+    # When the last upload that used the embedding provider ended: `--delay` counts from it.
+    last_embedded: float | None = None
     try:
         for index, item in enumerate(items):
             if item.action is Action.CONVERT:
@@ -183,11 +191,17 @@ def main(
 
             if uploader is None:
                 continue
+            if last_embedded is not None:
+                wait = args.delay - (clock() - last_embedded)
+                if wait > 0:
+                    _say(f"{'waiting':<11} {wait:.1f} s", file=out)
+                    sleep(wait)
             try:
                 result = uploader.upload(
                     item.markdown, tenant=args.tenant, source_key=keys[item], force=args.force
                 )
             except UploadRejectedError as error:
+                last_embedded = clock()
                 uploaded["failed"] += 1
                 _say(f"upload failed {item.markdown} ({_cap(str(error))})", file=out)
                 continue
@@ -198,6 +212,8 @@ def main(
                 _say(f"{PROG}: stopped: {_cap(str(error))}", file=err)
                 aborted = True
                 break
+            if result.status == "indexed":
+                last_embedded = clock()
             uploaded["indexed" if result.status == "indexed" else "unchanged"] += 1
             _say(_describe_upload(item, result), file=out)
     finally:
@@ -297,6 +313,16 @@ def _tenant(value: str) -> str:
         raise argparse.ArgumentTypeError(str(error)) from None
 
 
+def _delay(value: str) -> float:
+    try:
+        seconds = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number of seconds: {value!r}") from None
+    if not seconds >= 0 or seconds == float("inf"):
+        raise argparse.ArgumentTypeError(f"must be 0 or more seconds: {value!r}")
+    return seconds
+
+
 def _api_url(value: str) -> str:
     try:
         api_origin(value)
@@ -336,6 +362,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--force", action="store_true", help="ask the API to reindex even unchanged documents"
+    )
+    parser.add_argument(
+        "--delay",
+        type=_delay,
+        default=0.0,
+        metavar="SECONDS",
+        help="seconds between an upload that was embedded (or failed) and the next one,"
+        " conversion time included (default: 0); for the embedding provider's rate limits",
     )
     parser.add_argument("--no-upload", action="store_true", help="convert only")
     parser.add_argument(

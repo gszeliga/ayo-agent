@@ -22,6 +22,7 @@ uv run docling-import-files docs/ --tenant acme --dry-run     # what it would do
 uv run docling-import-files docs/ --no-upload                 # convert only (no tenant, no key needed)
 uv run docling-import-files docs/ --tenant acme --api-url https://kb.example.com   # another API
 uv run docling-import-files docs/ --tenant acme -v            # also docling's own info logs
+uv run docling-import-files docs/ --tenant acme --delay 10    # at least 10 s between embedded uploads
 uv run docling-import-files docs/ --tenant acme --office-converter /usr/bin/soffice   # for .ppt/.doc/.xls
 ```
 
@@ -30,6 +31,13 @@ environment or `.env` (never a flag, never printed). The `source_key` is the Mar
 name, so uploading again replaces the document; `--force` reindexes unchanged ones. **Each
 upload of new or changed content is one billed Voyage call on the server**; unchanged
 files come back `up_to_date` without one, so a rerun is cheap.
+
+Voyage limits requests and tokens per minute. The server retries a `429` for up to a minute
+([configuration](configuration.md#chunking-and-embeddings)), but a large import can still
+run into the limit. `--delay SECONDS` keeps that many seconds between the end of an upload
+the server embedded (or that failed) and the next upload. Time spent converting counts, so
+a slow conversion is not followed by a full wait; an `unchanged` answer embedded nothing,
+so the next upload does not wait for it. A wait prints `waiting     N s`. The default is 0.
 
 A folder is scanned flat unless `--recursive`; hidden files and folders and `--out` itself
 are not scanned. A file of a type the tool cannot read (`.zip`, ...) is listed as

@@ -6,7 +6,7 @@ document to Markdown into a target folder or next to it, then upload each with o
 and the decisions below are the agreement.
 
 ## Next (resume here)
-**The follow-ups are done** (K3-K6, 2026-11-27): see "Open items". Nothing is planned
+**The follow-ups are done** (K3-K7, 2026-11-27): see "Open items". Nothing is planned
 next: ask the user.
 
 ## Decisions (agreed 2026-11-26)
@@ -59,7 +59,13 @@ next: ask the user.
     would end past it). `embed_query` uses at most `QUERY_RETRY_BUDGET_SECONDS` (10 s, a
     constant): search and copilot turns fail fast. One WARNING per retry (status or
     exception type, attempt, delay); after a retry the error says `, after N attempts`.
-    Client-side pacing in `docling-import-files` (`--delay`) left for later.
+    Client-side pacing in `docling-import-files`: K7.
+12. **`--delay SECONDS` (K7):** float >= 0 (finite), default 0. Before an upload, wait
+    what is left of the delay since the last upload that ended `indexed` or rejected
+    (413/422/502...); conversion time counts. `unchanged` (no embedding) starts no gap; the
+    first upload never waits. A wait prints `waiting     N.N s`. Accepted, and without
+    effect, with `--dry-run` and `--no-upload`. No adaptive slow-down after a 429 (the
+    server retries: K6). `main()` takes `sleep` and `clock` for tests.
 
 ## Steps
 - [x] K1 (2026-11-26): convert: plan, converter, CLI (`--out`, `--recursive`, `--reconvert`,
@@ -76,6 +82,8 @@ next: ask the user.
   instead of `mkstemp`'s 0600. 3 new tests (87 for the tool).
 - [x] K6 (2026-11-27): Voyage retries outlast a rate-limit window: `Retry-After`, 30 s cap,
   60 s budget, 10 s for queries, a warning per retry. 9 new embedder tests.
+- [x] K7 (2026-11-27): `--delay SECONDS` between embedded uploads. 12 new test cases
+  (99 for the tool).
 
 ## Log
 - 2026-11-26, K1: `docling>=2.153.0` in the `convert` group (locked, not installed here:
@@ -102,6 +110,8 @@ next: ask the user.
 - 2026-11-27, K6: whether Voyage sends `Retry-After` on 429 is not checked (no billed call
   made); both paths are tested. `.env` sets no `EMBEDDING_*` retry value, so the new
   defaults apply after a restart. Not tried against Voyage.
+- 2026-11-27, K7: the wait is measured from the end of the previous embedded upload, not
+  its start: the server's own retries (K6) already stretch a rate-limited upload.
 
 ## Open items
 - docling's own Python warnings (`holder.bbox = ...`, RapidOCR) go to stderr; not ours to
@@ -115,5 +125,4 @@ next: ask the user.
 - K6: the budget is per embedding request (one batch of 128 chunks). A document with
   several batches that are all rate limited can make the server take longer than the
   uploader's 120 s read timeout; the file then fails and a rerun picks it up. If 429s
-  persist (e.g. Voyage's low limits without a payment method), add a `--delay` between
-  uploads.
+  persist (e.g. Voyage's low limits without a payment method), use `--delay` (K7).

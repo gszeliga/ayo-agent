@@ -24,7 +24,8 @@ working rules, update this file in that step's commit.
   report and "Open items" in `plans/nav-progress.md`. Front end only.
 - Done (2026-11-27): docling import follow-ups K3 (progress lines, `-v`, skipped files
   listed), K4 (old Office formats through OnlyOffice `x2t` or LibreOffice) and K6 (Voyage
-  429s: `Retry-After`, capped backoff, a retry budget; decision 11). Done
+  429s: `Retry-After`, capped backoff, a retry budget; decision 11) and K7 (`--delay`
+  between embedded uploads; decision 12). Done
   (2026-11-26): docling import (`docling-import-files`: documents -> Markdown -> upload;
   K1-K2). No spec file; decisions, log and "Open items" in
   `plans/kb-import-progress.md`. Uploads make billed Voyage calls on the server: never run
@@ -119,7 +120,7 @@ uv run python scripts/export_openapi.py   # regenerate docs/openapi.json (--chec
 uv run ayo-llm-check models --model ID     # OpenRouter listing: tools, context, prices, ZDR (free)
 uv run ayo-transcript SESSION_ID          # a session's transcript -> eval/conversations/ (reads only)
 uv sync --group convert                   # docling, optional (torch): plain `uv sync` removes it
-uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--dry-run] [--no-upload] [-v] [--office-converter PATH]   # docling -> Markdown -> upload (BILLED embeddings; ask first)
+uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--dry-run] [--no-upload] [-v] [--office-converter PATH] [--delay S]   # docling -> Markdown -> upload (BILLED embeddings; ask first)
 uv run python scripts/seed_demo_cases.py  # demo cases (no model call); --host for the dev branch, --reset [--yes], --embedder voyage (BILLED; ask first)
 uv run ayo-llm-check run --models A,B --runs 3   # tool-calling check: REAL, billed calls (cap: --max-calls)
 # UI (in ui/, pnpm; details in ui/README.md)

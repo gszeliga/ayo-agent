@@ -295,6 +295,9 @@ def test_dry_run_shows_the_uploads_and_sends_nothing(tmp_path: Path) -> None:
         ([], "--tenant is required"),
         (["--tenant", "ACME!"], "tenant must match"),
         (["--tenant", "acme", "--api-url", "ftp://x"], "not an http(s) URL"),
+        (["--tenant", "acme", "--delay", "-1"], "must be 0 or more seconds"),
+        (["--tenant", "acme", "--delay", "nan"], "must be 0 or more seconds"),
+        (["--tenant", "acme", "--delay", "soon"], "not a number of seconds"),
     ],
 )
 def test_bad_arguments_exit_2(
@@ -351,3 +354,135 @@ def test_the_api_url_may_have_a_path_prefix(tmp_path: Path) -> None:
     run(str(tmp_path), "--tenant", "acme", "--api-url", f"{API}/kb", handler=recorder)
 
     assert str(recorder.requests[0].url) == f"{API}/kb/admin/documents"
+
+
+# --- --delay --------------------------------------------------------------------
+
+
+class FakeClock:
+    """Time that moves when the CLI sleeps or a conversion takes `convert_seconds`."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+class SlowConverter(FakeConverter):
+    def __init__(self, clock: FakeClock, seconds: float) -> None:
+        super().__init__()
+        self.clock, self.seconds = clock, seconds
+
+    def to_markdown(self, source: Path) -> str:
+        self.clock.now += self.seconds
+        return super().to_markdown(source)
+
+
+def run_paced(
+    *argv: str,
+    clock: FakeClock,
+    handler: Handler = indexed,
+    converter: FakeConverter | None = None,
+) -> tuple[int, str]:
+    out = io.StringIO()
+
+    def make_uploader(url: str, key: SecretStr) -> Uploader:
+        client = httpx2.Client(transport=httpx2.MockTransport(handler), base_url=url)
+        return Uploader(url, key, client=client)
+
+    code = main(
+        list(argv),
+        make_converter=lambda: converter or FakeConverter(),
+        find_office=lambda _: None,
+        make_uploader=make_uploader,
+        load_api_key=lambda: SecretStr(KEY),
+        stdout=out,
+        stderr=io.StringIO(),
+        sleep=clock.sleep,
+        clock=clock.monotonic,
+    )
+    return code, out.getvalue()
+
+
+def unchanged(request: httpx2.Request) -> httpx2.Response:
+    return httpx2.Response(200, json={"doc_id": "upload-1890b5dc5335", "status": "up_to_date"})
+
+
+def test_delay_spaces_uploads_and_the_first_does_not_wait(tmp_path: Path) -> None:
+    for name in ("a.md", "b.md", "c.md"):
+        touch(tmp_path / name, CONTENT)
+    clock = FakeClock()
+
+    code, out = run_paced(str(tmp_path), "--tenant", "acme", "--delay", "5", clock=clock)
+
+    assert code == 0 and clock.sleeps == [5.0, 5.0]
+    lines = out.splitlines()
+    assert lines[1] == "as is       " + str(tmp_path / "a.md")
+    assert lines[3:5] == ["as is       " + str(tmp_path / "b.md"), "waiting     5.0 s"]
+
+
+@pytest.mark.parametrize(("convert_seconds", "sleeps"), [(3.0, [2.0]), (10.0, [])])
+def test_delay_counts_the_conversion_time(
+    tmp_path: Path, convert_seconds: float, sleeps: list[float]
+) -> None:
+    touch(tmp_path / "a.pdf")
+    touch(tmp_path / "b.pdf")
+    clock = FakeClock()
+
+    code, out = run_paced(
+        str(tmp_path),
+        "--tenant",
+        "acme",
+        "--delay",
+        "5",
+        clock=clock,
+        converter=SlowConverter(clock, convert_seconds),
+    )
+
+    assert code == 0 and clock.sleeps == sleeps
+    assert ("waiting" in out) == bool(sleeps)
+
+
+def test_an_unchanged_answer_does_not_make_the_next_upload_wait(tmp_path: Path) -> None:
+    for name in ("a.md", "b.md", "c.md"):
+        touch(tmp_path / name, CONTENT)
+    clock = FakeClock()
+    recorder = Recorder(unchanged, indexed)
+
+    run_paced(str(tmp_path), "--tenant", "acme", "--delay", "5", clock=clock, handler=recorder)
+
+    # a: unchanged, b: no wait, indexed; c: waits for b.
+    assert len(recorder.requests) == 3 and clock.sleeps == [5.0]
+
+
+def test_a_refused_upload_makes_the_next_one_wait(tmp_path: Path) -> None:
+    touch(tmp_path / "a.md", CONTENT)
+    touch(tmp_path / "b.md", CONTENT)
+    clock = FakeClock()
+    recorder = Recorder(error(502, "embedding_failed", "embedding provider failed"), indexed)
+
+    code, _ = run_paced(
+        str(tmp_path), "--tenant", "acme", "--delay", "2.5", clock=clock, handler=recorder
+    )
+
+    assert code == 1 and clock.sleeps == [2.5]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [[], ["--delay", "0"], ["--delay", "5", "--dry-run"], ["--delay", "5", "--no-upload"]],
+)
+def test_no_wait_without_a_delay_or_without_uploads(tmp_path: Path, argv: list[str]) -> None:
+    touch(tmp_path / "a.md", CONTENT)
+    touch(tmp_path / "b.md", CONTENT)
+    clock = FakeClock()
+
+    code, out = run_paced(str(tmp_path), "--tenant", "acme", *argv, clock=clock)
+
+    assert code == 0 and clock.sleeps == [] and "waiting" not in out
