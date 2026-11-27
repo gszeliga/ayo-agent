@@ -41,12 +41,14 @@ path is printed with `-s`).
 ```sh
 uv sync --group convert                     # docling (torch, layout models): not in plain `uv sync`
 uv run docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run] [-v]
+                                            [--office-converter PATH]   # .ppt/.doc/.xls: x2t or soffice
 uv run docling-import-files PATH --no-upload  # convert only
 ```
 
 Details in [knowledge-base.md](knowledge-base.md#converting-and-uploading-documents-with-docling).
-Its tests use a fake converter (docling is never imported) and an `httpx2.MockTransport`
-for the API (no request leaves the process). A real run uploads through the API, and the
+Its tests use a fake converter (docling is never imported), fake office converters (no
+`x2t` or `soffice` is run; the lookup is injected, so what is installed does not matter)
+and an `httpx2.MockTransport` for the API (no request leaves the process). A real run uploads through the API, and the
 server embeds each new or changed document: billed Voyage calls.
 
 ## Conversation transcripts

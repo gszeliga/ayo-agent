@@ -1,6 +1,7 @@
 """`docling-import-files PATH --tenant T [--out DIR] [-r] [--reconvert] [--dry-run] [-v] ...`.
 
-Converts a document, or the documents in a folder, to Markdown with docling, then uploads
+Converts a document, or the documents in a folder, to Markdown with docling (old Office
+files, `.ppt` `.doc` `.xls`, through an office converter first: office.py), then uploads
 each Markdown file to `POST /admin/documents`. The Markdown goes next to each source, or
 under `--out` (keeping subfolders). A Markdown file newer than its source is not converted
 again unless `--reconvert`, but is still uploaded (the API answers `up_to_date` when nothing
@@ -37,7 +38,22 @@ from ayo_copilot.docling_import.converter import (
     DoclingConverter,
     write_markdown,
 )
-from ayo_copilot.docling_import.plan import Action, Item, PlanError, plan_import
+from ayo_copilot.docling_import.office import (
+    OfficeConverter,
+    OfficeConverterUnavailableError,
+    UpgradingConverter,
+    find_office_converter,
+)
+from ayo_copilot.docling_import.plan import (
+    LEGACY_SUFFIXES,
+    OFFICE_HINT,
+    Action,
+    Item,
+    PlanError,
+    Skipped,
+    SkipReason,
+    plan_import,
+)
 from ayo_copilot.docling_import.upload import (
     UploadAbortedError,
     Uploaded,
@@ -71,6 +87,7 @@ def main(
     make_converter: Callable[[], Converter] = DoclingConverter,
     make_uploader: Callable[[str, SecretStr], Uploader] = Uploader,
     load_api_key: Callable[[], SecretStr | None] = lambda: ImportSettings().admin_api_key,
+    find_office: Callable[[Path | None], OfficeConverter | None] = find_office_converter,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
@@ -84,19 +101,36 @@ def main(
         logging.getLogger().setLevel(logging.INFO)
 
     try:
+        office = find_office(args.office_converter)
+    except OfficeConverterUnavailableError as error:
+        _say(f"{PROG}: --office-converter: {error}", file=err)
+        return 2
+
+    try:
         plan = plan_import(
-            args.path, out_dir=args.out, recursive=args.recursive, reconvert=args.reconvert
+            args.path,
+            out_dir=args.out,
+            recursive=args.recursive,
+            reconvert=args.reconvert,
+            legacy=office is not None,
         )
         items = plan.items
         keys = _source_keys(items) if upload else {}
     except PlanError as error:
         _say(f"{PROG}: {error}", file=err)
         return 2
-    for path in plan.skipped:
-        _say(f"{'skipped':<11} {path} ({_unsupported(path)})", file=out)
+    for skipped in plan.skipped:
+        _say(f"{'skipped':<11} {skipped.path} ({_skip_reason(skipped)})", file=out)
     if not items:
         _say(f"{PROG}: no documents found in {args.path}", file=err)
         return 2
+    upgrades = office is not None and any(
+        item.action is Action.CONVERT and item.source.suffix.lower() in LEGACY_SUFFIXES
+        for item in items
+    )
+    if upgrades:
+        assert office is not None
+        _say(f"old Office files through {office.name} ({office.path})", file=out)
 
     if args.dry_run:
         for item in items:
@@ -118,6 +152,9 @@ def main(
     if any(item.action is Action.CONVERT for item in items):
         try:
             converter = make_converter()
+            if upgrades:
+                assert office is not None
+                converter = UpgradingConverter(converter, office)
         except ConverterUnavailableError as error:
             _say(f"{PROG}: {error}", file=err)
             return 2
@@ -210,8 +247,15 @@ def _convert(converter: Converter, item: Item) -> None:
     write_markdown(item.markdown, text)
 
 
-def _unsupported(path: Path) -> str:
-    return f"unsupported: {path.suffix.lower()}" if path.suffix else "unsupported: no extension"
+def _skip_reason(skipped: Skipped) -> str:
+    path, suffix = skipped.path, skipped.path.suffix.lower()
+    match skipped.reason:
+        case SkipReason.UNSUPPORTED:
+            return f"unsupported: {suffix}" if suffix else "unsupported: no extension"
+        case SkipReason.NO_OFFICE_CONVERTER:
+            return OFFICE_HINT
+        case SkipReason.NEWER_FORMAT:
+            return f"{path.stem}{LEGACY_SUFFIXES[suffix]} present"
 
 
 def _label(action: Action) -> str:
@@ -296,6 +340,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-upload", action="store_true", help="convert only")
     parser.add_argument(
         "--dry-run", action="store_true", help="show what would be done; write or send nothing"
+    )
+    parser.add_argument(
+        "--office-converter",
+        type=Path,
+        metavar="PATH",
+        help="converter for .ppt/.doc/.xls: OnlyOffice's x2t or LibreOffice's soffice"
+        " (default: x2t from OnlyOffice Desktop Editors, else soffice on PATH)",
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="also show docling's info logs"

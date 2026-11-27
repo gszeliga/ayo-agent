@@ -22,6 +22,7 @@ uv run docling-import-files docs/ --tenant acme --dry-run     # what it would do
 uv run docling-import-files docs/ --no-upload                 # convert only (no tenant, no key needed)
 uv run docling-import-files docs/ --tenant acme --api-url https://kb.example.com   # another API
 uv run docling-import-files docs/ --tenant acme -v            # also docling's own info logs
+uv run docling-import-files docs/ --tenant acme --office-converter /usr/bin/soffice   # for .ppt/.doc/.xls
 ```
 
 It uploads to `--api-url` (default `http://127.0.0.1:8000`) with `ADMIN_API_KEY` from the
@@ -31,8 +32,20 @@ upload of new or changed content is one billed Voyage call on the server**; unch
 files come back `up_to_date` without one, so a rerun is cheap.
 
 A folder is scanned flat unless `--recursive`; hidden files and folders and `--out` itself
-are not scanned. A file of a type the tool cannot read (`.ppt`, `.zip`, ...) is listed as
-`skipped` at the start, also in a dry run, and counted in the summary. A Markdown file newer than its source is not converted again (`up to date`)
+are not scanned. A file of a type the tool cannot read (`.zip`, ...) is listed as
+`skipped` at the start, also in a dry run, and counted in the summary.
+
+docling cannot read the old binary Office formats (`.ppt`, `.doc`, `.xls`), so the tool
+first converts them to `.pptx`, `.docx` or `.xlsx` in a temporary folder with an office
+converter: `--office-converter PATH` if given (`x2t` by its name, else LibreOffice), else
+OnlyOffice Desktop Editors' `x2t` (`/opt/onlyoffice/desktopeditors/converter/x2t`), else
+`soffice` or `libreoffice` on PATH. The run names the one it uses. The Markdown is named
+after the original (`deck.ppt` -> `deck.md`) and no `.pptx` is left behind. A converter
+that fails or times out (300 s) fails that file only; its own messages are never printed.
+An old file whose newer copy sits next to it (`deck.ppt` and `deck.pptx`) is skipped in
+favour of the copy. Without a converter, old files are skipped with an install hint. `x2t`
+is OnlyOffice's internal converter, not a documented command: a new OnlyOffice version
+could change it (the tool checks its exit status and its output). A Markdown file newer than its source is not converted again (`up to date`)
 unless `--reconvert`, but is still uploaded; other `.md` files found are uploaded `as is`.
 The run refuses to start when two sources would write the same file (`a.pdf` and `a.docx`)
 or two Markdown files share a name (`x/a.md` and `y/a.md` would replace each other in the
@@ -47,7 +60,7 @@ logs. Its OCR may warn `RapidOCR returned empty result` for pages or pictures wi
 harmless.
 
 ```text
-skipped     docs/old-deck.ppt (unsupported: .ppt)
+skipped     docs/archive.zip (unsupported: .zip)
 uploading to http://127.0.0.1:8000, tenant acme
 converting  (1/2) docs/manual.pdf …
 converted   docs/manual.pdf -> docs/manual.md

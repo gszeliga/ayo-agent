@@ -83,6 +83,7 @@ def run(
     code = main(
         list(argv),
         make_converter=lambda: converter or FakeConverter(),
+        find_office=lambda _: None,
         make_uploader=make_uploader,
         load_api_key=lambda: SecretStr(api_key) if api_key else None,
         stdout=out,

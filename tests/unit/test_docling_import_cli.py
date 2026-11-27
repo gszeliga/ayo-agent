@@ -4,7 +4,7 @@ import io
 import logging
 import os
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -17,6 +17,12 @@ from ayo_copilot.docling_import.converter import (
     DoclingConverter,
     write_markdown,
 )
+from ayo_copilot.docling_import.office import (
+    OfficeConversionError,
+    OfficeConverter,
+    OfficeConverterUnavailableError,
+)
+from ayo_copilot.docling_import.plan import OFFICE_HINT
 
 SECRET_TEXT = "Contenido confidencial del procedimiento"
 
@@ -36,10 +42,24 @@ class FakeConverter:
         return f"# {source.stem}\n\n{SECRET_TEXT}"
 
 
-def run(*argv: str, converter: FakeConverter | None = None) -> tuple[int, str, str]:
+def no_office(explicit: Path | None) -> None:
+    return None
+
+
+def run(
+    *argv: str,
+    converter: FakeConverter | None = None,
+    find_office: Callable[[Path | None], OfficeConverter | None] = no_office,
+) -> tuple[int, str, str]:
     out, err = io.StringIO(), io.StringIO()
     fake = converter or FakeConverter()
-    code = main([*argv, "--no-upload"], make_converter=lambda: fake, stdout=out, stderr=err)
+    code = main(
+        [*argv, "--no-upload"],
+        make_converter=lambda: fake,
+        find_office=find_office,
+        stdout=out,
+        stderr=err,
+    )
     return code, out.getvalue(), err.getvalue()
 
 
@@ -86,7 +106,12 @@ def test_no_converter_is_built_when_nothing_needs_converting(tmp_path: Path) -> 
     def unavailable() -> FakeConverter:
         raise ConverterUnavailableError(INSTALL_HINT)
 
-    code = main([str(tmp_path), "--no-upload"], make_converter=unavailable, stdout=io.StringIO())
+    code = main(
+        [str(tmp_path), "--no-upload"],
+        make_converter=unavailable,
+        find_office=no_office,
+        stdout=io.StringIO(),
+    )
 
     assert code == 0
 
@@ -197,7 +222,7 @@ def test_skipped_files_come_first_and_are_counted(tmp_path: Path) -> None:
     assert code == 0
     assert lines[:2] == [
         f"skipped     {tmp_path / 'LEEME'} (unsupported: no extension)",
-        f"skipped     {tmp_path / 'PDCA.ppt'} (unsupported: .ppt)",
+        f"skipped     {tmp_path / 'PDCA.ppt'} ({OFFICE_HINT})",
     ]
     assert lines[-1] == "1 document: 1 converted; 2 skipped"
 
@@ -210,7 +235,7 @@ def test_dry_run_lists_skipped_files(tmp_path: Path) -> None:
 
     assert code == 0
     assert out.splitlines() == [
-        f"skipped     {tmp_path / 'PDCA.PPT'} (unsupported: .ppt)",
+        f"skipped     {tmp_path / 'PDCA.PPT'} ({OFFICE_HINT})",
         f"would convert {tmp_path / 'a.pdf'} -> {tmp_path / 'a.md'}",
     ]
 
@@ -261,7 +286,12 @@ def test_every_line_is_flushed(tmp_path: Path) -> None:
     touch(tmp_path / "x.zip")
     out = FlushRecorder()
 
-    main([str(tmp_path), "--no-upload"], make_converter=FakeConverter, stdout=out)
+    main(
+        [str(tmp_path), "--no-upload"],
+        make_converter=FakeConverter,
+        find_office=no_office,
+        stdout=out,
+    )
 
     assert out.flushes == len(out.getvalue().splitlines()) == 4
 
@@ -276,6 +306,7 @@ def test_missing_docling_exits_2_with_the_install_hint(tmp_path: Path) -> None:
     code = main(
         [str(tmp_path), "--no-upload"],
         make_converter=unavailable,
+        find_office=no_office,
         stdout=io.StringIO(),
         stderr=err,
     )
@@ -317,3 +348,128 @@ def test_write_markdown_keeps_the_old_file_when_writing_fails(
 
     assert target.read_text(encoding="utf-8") == "old"
     assert [p.name for p in tmp_path.iterdir()] == ["a.md"]
+
+
+class FakeOffice:
+    """Writes `<stem>.pptx` (etc.) into the folder it is given, or fails like x2t."""
+
+    name = "x2t"
+    path = Path("/opt/onlyoffice/desktopeditors/converter/x2t")
+
+    def __init__(self, failing: set[str] | None = None) -> None:
+        self.failing = failing or set()
+        self.calls: list[Path] = []
+
+    def upgrade(self, source: Path, out_dir: Path) -> Path:
+        self.calls.append(source)
+        if source.name in self.failing:
+            raise OfficeConversionError("x2t exit 1")
+        target = out_dir / (source.stem + source.suffix.lower() + "x")
+        target.write_bytes(b"pptx")
+        return target
+
+
+def test_old_office_files_are_converted_through_the_office_converter(tmp_path: Path) -> None:
+    ppt = touch(tmp_path / "PDCA ESP 2012.ppt")
+    touch(tmp_path / "a.pdf")
+    office, fake = FakeOffice(), FakeConverter()
+
+    code, out, _ = run(str(tmp_path), converter=fake, find_office=lambda _: office)
+
+    assert code == 0
+    assert office.calls == [ppt]
+    upgraded, pdf = fake.calls
+    assert pdf == tmp_path / "a.pdf"
+    assert upgraded.name == "PDCA ESP 2012.pptx" and upgraded.parent != tmp_path
+    assert not upgraded.parent.exists()  # the temporary folder is gone
+    assert (tmp_path / "PDCA ESP 2012.md").read_text(encoding="utf-8").startswith("# PDCA ESP 2012")
+    assert not (tmp_path / "PDCA ESP 2012.pptx").exists()
+    assert out.splitlines() == [
+        f"old Office files through x2t ({FakeOffice.path})",
+        f"converting  (1/2) {tmp_path / 'PDCA ESP 2012.ppt'} …",
+        f"converted   {tmp_path / 'PDCA ESP 2012.ppt'} -> {tmp_path / 'PDCA ESP 2012.md'}",
+        f"converting  (2/2) {tmp_path / 'a.pdf'} …",
+        f"converted   {tmp_path / 'a.pdf'} -> {tmp_path / 'a.md'}",
+        "2 documents: 2 converted",
+    ]
+
+
+def test_the_office_line_is_left_out_when_no_old_file_is_converted(tmp_path: Path) -> None:
+    touch(tmp_path / "a.ppt", mtime=1_000)
+    touch(tmp_path / "a.md", mtime=2_000)
+    office = FakeOffice()
+
+    code, out, _ = run(str(tmp_path), find_office=lambda _: office)
+
+    assert code == 0 and office.calls == []
+    assert out.splitlines() == [f"up to date  {tmp_path / 'a.md'}", "1 document: 1 up to date"]
+
+
+def test_a_failed_office_conversion_fails_only_that_file(tmp_path: Path) -> None:
+    touch(tmp_path / "a.ppt")
+    touch(tmp_path / "b.doc")
+    office, fake = FakeOffice(failing={"a.ppt"}), FakeConverter()
+
+    code, out, _ = run(str(tmp_path), converter=fake, find_office=lambda _: office)
+
+    assert code == 1
+    assert f"failed      {tmp_path / 'a.ppt'} (OfficeConversionError: x2t exit 1)" in out
+    assert not (tmp_path / "a.md").exists() and (tmp_path / "b.md").is_file()
+    assert [call.name for call in fake.calls] == ["b.docx"]
+    assert out.splitlines()[-1] == "2 documents: 1 converted, 1 failed"
+
+
+def test_an_old_file_next_to_its_newer_copy_is_skipped(tmp_path: Path) -> None:
+    touch(tmp_path / "PDCA.ppt")
+    touch(tmp_path / "PDCA.pptx")
+    office, fake = FakeOffice(), FakeConverter()
+
+    code, out, _ = run(str(tmp_path), converter=fake, find_office=lambda _: office)
+
+    assert code == 0 and office.calls == []
+    assert fake.calls == [tmp_path / "PDCA.pptx"]
+    assert out.splitlines()[0] == f"skipped     {tmp_path / 'PDCA.ppt'} (PDCA.pptx present)"
+
+
+def test_dry_run_names_the_office_converter_and_converts_nothing(tmp_path: Path) -> None:
+    touch(tmp_path / "a.xls")
+    office = FakeOffice()
+
+    code, out, _ = run(str(tmp_path), "--dry-run", find_office=lambda _: office)
+
+    assert code == 0 and office.calls == []
+    assert out.splitlines() == [
+        f"old Office files through x2t ({FakeOffice.path})",
+        f"would convert {tmp_path / 'a.xls'} -> {tmp_path / 'a.md'}",
+    ]
+
+
+def test_the_office_converter_flag_reaches_the_lookup(tmp_path: Path) -> None:
+    touch(tmp_path / "notas.md")
+    asked: list[Path | None] = []
+
+    def find(explicit: Path | None) -> None:
+        asked.append(explicit)
+
+    run(str(tmp_path), "--office-converter", "/usr/bin/soffice", find_office=find)
+    run(str(tmp_path), find_office=find)
+
+    assert asked == [Path("/usr/bin/soffice"), None]
+
+
+def test_an_unusable_office_converter_flag_exits_2(tmp_path: Path) -> None:
+    touch(tmp_path / "a.ppt")
+
+    def find(explicit: Path | None) -> None:
+        raise OfficeConverterUnavailableError(f"not an executable file: {explicit}")
+
+    code, out, err = run(str(tmp_path), "--office-converter", "/nada/x2t", find_office=find)
+
+    assert code == 2 and out == ""
+    assert err == "docling-import-files: --office-converter: not an executable file: /nada/x2t\n"
+
+
+def test_a_single_old_file_without_a_converter_exits_2_with_the_hint(tmp_path: Path) -> None:
+    code, out, err = run(str(touch(tmp_path / "a.ppt")))
+
+    assert code == 2 and out == "" and OFFICE_HINT in err

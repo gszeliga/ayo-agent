@@ -5,7 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from ayo_copilot.docling_import.plan import Action, Item, Plan, PlanError, plan_import
+from ayo_copilot.docling_import.plan import (
+    OFFICE_HINT,
+    Action,
+    Item,
+    Plan,
+    PlanError,
+    Skipped,
+    SkipReason,
+    plan_import,
+)
 
 
 def touch(path: Path, *, mtime: float | None = None) -> Path:
@@ -62,7 +71,7 @@ def test_a_folder_is_scanned_flat_by_default(tmp_path: Path) -> None:
         Item(pdf, tmp_path / "a.md", Action.CONVERT),
         Item(md, md, Action.AS_IS),
     ]
-    assert plan.skipped == [zip_file]
+    assert plan.skipped == [Skipped(zip_file, SkipReason.UNSUPPORTED)]
 
 
 def test_recursive_scans_subfolders_but_not_hidden_ones(tmp_path: Path) -> None:
@@ -134,9 +143,65 @@ def test_unsupported_files_are_skipped_sorted_and_hidden_ones_never_listed(
     touch(tmp_path / ".cache" / "x.bin")
 
     assert plan_import(tmp_path, recursive=True) == Plan(
-        [Item(pdf, tmp_path / "a.md", Action.CONVERT)], [bare, ppt]
+        [Item(pdf, tmp_path / "a.md", Action.CONVERT)],
+        [
+            Skipped(bare, SkipReason.UNSUPPORTED),
+            Skipped(ppt, SkipReason.NO_OFFICE_CONVERTER),
+        ],
     )
 
 
 def test_a_single_file_has_nothing_skipped(tmp_path: Path) -> None:
     assert plan_import(touch(tmp_path / "a.pdf")).skipped == []
+
+
+def test_old_office_files_are_sources_with_an_office_converter(tmp_path: Path) -> None:
+    ppt = touch(tmp_path / "PDCA ESP 2012.ppt")
+    doc = touch(tmp_path / "sub" / "Ficha.DOC")
+    xls = touch(tmp_path / "datos.xls")
+
+    plan = plan_import(tmp_path, recursive=True, legacy=True)
+
+    assert plan == Plan(
+        [
+            Item(ppt, tmp_path / "PDCA ESP 2012.md", Action.CONVERT),
+            Item(xls, tmp_path / "datos.md", Action.CONVERT),
+            Item(doc, tmp_path / "sub" / "Ficha.md", Action.CONVERT),
+        ]
+    )
+
+
+def test_an_old_office_file_is_up_to_date_against_the_original(tmp_path: Path) -> None:
+    ppt = touch(tmp_path / "a.ppt", mtime=1_000)
+    md = touch(tmp_path / "a.md", mtime=2_000)
+
+    assert plan_import(tmp_path, legacy=True).items == [Item(ppt, md, Action.UP_TO_DATE)]
+
+
+@pytest.mark.parametrize("legacy", [True, False])
+def test_an_old_file_next_to_its_newer_copy_is_skipped(tmp_path: Path, legacy: bool) -> None:
+    ppt = touch(tmp_path / "PDCA.ppt")
+    pptx = touch(tmp_path / "PDCA.PPTX")
+
+    assert plan_import(tmp_path, legacy=legacy) == Plan(
+        [Item(pptx, tmp_path / "PDCA.md", Action.CONVERT)],
+        [Skipped(ppt, SkipReason.NEWER_FORMAT)],
+    )
+
+
+def test_an_old_file_next_to_a_pdf_of_the_same_name_is_a_clash(tmp_path: Path) -> None:
+    touch(tmp_path / "Ficha.pdf")
+    touch(tmp_path / "Ficha.doc")
+
+    with pytest.raises(PlanError, match="same Markdown file"):
+        plan_import(tmp_path, legacy=True)
+
+
+def test_a_single_old_file_needs_an_office_converter(tmp_path: Path) -> None:
+    ppt = touch(tmp_path / "a.ppt")
+
+    with pytest.raises(PlanError, match="install OnlyOffice or LibreOffice") as raised:
+        plan_import(ppt)
+
+    assert str(raised.value) == f"{ppt}: {OFFICE_HINT}"
+    assert plan_import(ppt, legacy=True).items == [Item(ppt, tmp_path / "a.md", Action.CONVERT)]

@@ -14,8 +14,9 @@ ayodb.connect
 .env
 voyage.ai
 
-# Local knowledge files
+# Local knowledge files (customer documents)
 data/
+knowledge-docs/
 
 # ayo-llm-check reports (one example is committed)
 eval/llm/*.json

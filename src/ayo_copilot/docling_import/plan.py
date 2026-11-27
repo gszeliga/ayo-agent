@@ -1,9 +1,9 @@
 """What a run does with each file: scan a file or a folder, name the Markdown, skip the done.
 
 Pure file-system logic, no docling: `plan_import` returns a `Plan` (one `Item` per document,
-and the scanned files it leaves out), or raises `PlanError` before anything is written
-(unsupported file given by name, missing path, two sources that would write the same
-Markdown file).
+and the scanned files it leaves out, each with a reason), or raises `PlanError` before
+anything is written (unsupported file given by name, missing path, two sources that would
+write the same Markdown file).
 """
 
 from dataclasses import dataclass, field
@@ -31,6 +31,8 @@ CONVERTIBLE_SUFFIXES = frozenset(
         ".webp",
     }
 )
+# Old binary Office formats docling cannot read: converted to the newer one first (office.py).
+LEGACY_SUFFIXES = {".ppt": ".pptx", ".doc": ".docx", ".xls": ".xlsx"}
 MARKDOWN_SUFFIX = ".md"
 
 
@@ -49,12 +51,29 @@ class Item:
     action: Action
 
 
+OFFICE_HINT = "an old Office format: install OnlyOffice or LibreOffice, or pass --office-converter"
+
+
+class SkipReason(StrEnum):
+    UNSUPPORTED = "unsupported"  # a type no step reads
+    NO_OFFICE_CONVERTER = "no_office_converter"  # an old Office file, and no converter here
+    NEWER_FORMAT = "newer_format"  # an old Office file next to its newer-format copy
+
+
+@dataclass(frozen=True)
+class Skipped:
+    """A scanned file the run leaves out, and why."""
+
+    path: Path
+    reason: SkipReason
+
+
 @dataclass(frozen=True)
 class Plan:
-    """A run's documents, sorted by source, and the scanned files no step can read."""
+    """A run's documents, sorted by source, and the scanned files it leaves out."""
 
     items: list[Item]
-    skipped: list[Path] = field(default_factory=list)
+    skipped: list[Skipped] = field(default_factory=list)
 
 
 class PlanError(Exception):
@@ -67,26 +86,48 @@ def plan_import(
     out_dir: Path | None = None,
     recursive: bool = False,
     reconvert: bool = False,
+    legacy: bool = False,
 ) -> Plan:
     """The plan for `path` (a file or a folder): items and skipped files, sorted by path.
 
     The Markdown goes next to its source, or under `out_dir`, keeping the source's folder
     relative to the scanned one. A Markdown file that is the output of a scanned source is
-    that source's output, not a document of its own. A scanned file of any other type is
-    skipped (hidden files and folders are not scanned at all).
+    that source's output, not a document of its own. Old Office files (`LEGACY_SUFFIXES`)
+    are sources only when `legacy` (an office converter is available), and never when their
+    newer-format copy sits next to them. A scanned file of any other type is skipped
+    (hidden files and folders are not scanned at all).
     """
     if not path.exists():
         raise PlanError(f"no such file or folder: {path}")
     if path.is_file():
         root = path.parent
-        if path.suffix.lower() not in CONVERTIBLE_SUFFIXES | {MARKDOWN_SUFFIX}:
+        suffix = path.suffix.lower()
+        if suffix in LEGACY_SUFFIXES and not legacy:
+            raise PlanError(f"{path}: {OFFICE_HINT}")
+        if suffix not in CONVERTIBLE_SUFFIXES | LEGACY_SUFFIXES.keys() | {MARKDOWN_SUFFIX}:
             raise PlanError(f"unsupported file type: {path}")
         files = [path]
     else:
         root = path
         files = _scan(path, recursive=recursive, skip=out_dir)
 
-    sources = [f for f in files if f.suffix.lower() in CONVERTIBLE_SUFFIXES]
+    skipped: list[Skipped] = []
+    sources = []
+    present = {(f.parent, f.stem, f.suffix.lower()) for f in files}
+    for f in files:
+        suffix = f.suffix.lower()
+        if suffix in CONVERTIBLE_SUFFIXES:
+            sources.append(f)
+        elif suffix in LEGACY_SUFFIXES:
+            if (f.parent, f.stem, LEGACY_SUFFIXES[suffix]) in present:
+                skipped.append(Skipped(f, SkipReason.NEWER_FORMAT))
+            elif legacy:
+                sources.append(f)
+            else:
+                skipped.append(Skipped(f, SkipReason.NO_OFFICE_CONVERTER))
+        elif suffix != MARKDOWN_SUFFIX:
+            skipped.append(Skipped(f, SkipReason.UNSUPPORTED))
+
     targets: dict[Path, list[Path]] = {}
     for source in sources:
         targets.setdefault(_markdown_for(source, root, out_dir), []).append(source)
@@ -108,8 +149,7 @@ def plan_import(
         for f in files
         if f.suffix.lower() == MARKDOWN_SUFFIX and f.resolve() not in outputs
     ]
-    skipped = [f for f in files if f.suffix.lower() not in CONVERTIBLE_SUFFIXES | {MARKDOWN_SUFFIX}]
-    return Plan(sorted(items, key=lambda item: item.source), sorted(skipped))
+    return Plan(sorted(items, key=lambda item: item.source), sorted(skipped, key=lambda s: s.path))
 
 
 def _scan(folder: Path, *, recursive: bool, skip: Path | None) -> list[Path]:

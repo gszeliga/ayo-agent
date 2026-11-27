@@ -6,9 +6,8 @@ document to Markdown into a target folder or next to it, then upload each with o
 and the decisions below are the agreement.
 
 ## Next (resume here)
-Follow-up steps (2026-11-27, after the first real run): K3 is done; next is **K4**
-(convert `.ppt`/`.doc`/`.xls` through OnlyOffice's `x2t` or LibreOffice; decision 9).
-Brief it, wait for approval.
+**The follow-ups are done** (K3-K4, 2026-11-27): see "Open items". Nothing is planned
+next: ask the user.
 
 ## Decisions (agreed 2026-11-26)
 1. **A CLI entry point** `docling-import-files` (the user's name), in
@@ -38,11 +37,15 @@ Brief it, wait for approval.
    `skipped (unsupported: .ext)` first (also in a dry run) and counted in the summary;
    `plan_import` returns a `Plan` (items + skipped). No per-page progress bar (no clean
    hook in docling).
-9. **Old Office formats (K4, planned):** `--office-converter PATH`, else OnlyOffice's
+9. **Old Office formats (K4):** `--office-converter PATH`, else OnlyOffice's
    `x2t` (`/opt/onlyoffice/desktopeditors/converter/x2t`), else `soffice`/`libreoffice` on
    PATH; convert to the new format in a temporary folder (timeout 300 s, exit 0 + non-empty
    output, the converter's messages never printed), Markdown named after the original;
    `X.ppt` beside `X.pptx` -> the old one is skipped. Without a converter: skipped + hint.
+   `--office-converter` names x2t by its file name (`x2t`), anything else is LibreOffice.
+   A single old file given by name without a converter is a `PlanError` (exit 2). The
+   office line (`old Office files through x2t (PATH)`) prints only when an old file is to
+   be converted. `knowledge-docs/` (the user's local customer documents) is git-ignored.
 
 ## Steps
 - [x] K1 (2026-11-26): convert: plan, converter, CLI (`--out`, `--recursive`, `--reconvert`,
@@ -52,7 +55,9 @@ Brief it, wait for approval.
   21 `MockTransport` tests (46 for the tool).
 - [x] K3 (2026-11-27): progress: `converting (n/N)` lines, flushed output, `-v`, skipped
   files listed and counted (`Plan`). 10 new tests (56 for the tool).
-- [ ] K4: old Office formats through `x2t` / LibreOffice (decision 9).
+- [x] K4 (2026-11-27): old Office formats: `office.py` (`X2tConverter`, `SofficeConverter`,
+  `find_office_converter`, `UpgradingConverter`), skip reasons in the plan,
+  `--office-converter`. 28 new tests (84 for the tool).
 
 ## Log
 - 2026-11-26, K1: `docling>=2.153.0` in the `convert` group (locked, not installed here:
@@ -72,8 +77,15 @@ Brief it, wait for approval.
   the 2 `.ppt` files being left out silently. OnlyOffice's `x2t <in.ppt> <out.pptx>`
   (OnlyOffice Desktop Editors 10.0) converted one of them in 0.7 s, text intact: the basis
   of decision 9.
+- 2026-11-27, K4: real check (no upload): `PDCA ESP 2012.ppt` -> x2t -> docling ->
+  Markdown in 10 s (971 words), temporary folder removed. Tests inject the converter
+  lookup: this machine has x2t, and the CLI tests must not depend on it.
 
 ## Open items
+- Markdown files are written with mode 0600 (`write_markdown` uses `mkstemp`; since K1).
+  Harmless for the upload; a `chmod` to the umask default would be a small fix.
+- docling's own Python warnings (`holder.bbox = ...`, RapidOCR) go to stderr; not ours to
+  silence.
 - `DoclingConverter` ran for real for the first time on 2026-11-27 (the user's run); its
   outcome is not recorded here yet.
 - No real upload has been made with the tool (billed embeddings). First one: a local API,
