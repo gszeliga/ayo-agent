@@ -10,6 +10,15 @@ sends the shared admin key from the browser.
 Plan, decisions, progress log and final report in `../plans/ui-progress.md`; the approved
 clickable prototype it follows is linked there (U1).
 
+## Navigation
+
+One header row: the brand and host, the tabs, then the utilities. The tabs are Test chat,
+then, after a divider, the knowledge base's Documents, Search and Indexing settings (a
+group named "Knowledge base" for screen readers). Each has an icon; the current one is
+underlined (a document's page marks Documents, a case marks Test chat). Below the `md`
+breakpoint the tabs show only their icons, their names kept for screen readers, and the
+row scrolls sideways instead of wrapping. Plan and decisions: `../plans/nav-progress.md`.
+
 ## Themes and errors
 
 Light, Dark or System (the default) from the header; the choice is kept in this browser.
@@ -254,8 +263,8 @@ back to "Differs from the current settings".
 ## Test chat
 
 `/chat` and `/chat/:caseId` (`src/chat/`, lazy-loaded; plan, decisions and steps in
-`../plans/chat-progress.md`). "Test chat" comes first in the navigation, as an accent pill;
-the knowledge pages follow under "Knowledge". Connecting still lands on Documents, and a
+`../plans/chat-progress.md`). "Test chat" is the first tab of the navigation; the knowledge
+base's pages follow after a divider (`../plans/nav-progress.md`). Connecting still lands on Documents, and a
 link to a case survives the connect screen. The page uses the whole window (the shell drops
 its width limit on these paths).
 

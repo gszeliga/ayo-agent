@@ -105,7 +105,8 @@ What the UI steps start from:
     (a discard is its own event, not linked to its hypothesis; a note says so), the
     validated cause and the evidence. No "confirmed" group: that is the validated cause.
     The facts are `what`, `where`, `since`, `standard` (the spec's "impact" does not exist).
-21. **Navigation**: "Test chat" comes first, as an accent pill with an icon, then a divider
+21. **Navigation** (superseded 2026-11-27 by decision 1 in `plans/nav-progress.md`: Test
+    chat is an ordinary tab, the divider stays, the group is "Knowledge base"): "Test chat" comes first, as an accent pill with an icon, then a divider
     and the "Knowledge" group (Documents, Search, Indexing settings). The landing page
     after connecting stays Documents; a link to `/chat/:caseId` survives the connect screen.
 22. **Generating the AI summary asks first**: a dialog names the model and says the call is

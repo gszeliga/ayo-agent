@@ -5,7 +5,7 @@ export const common = {
     dismiss: 'Dismiss',
     mainNav: 'Main',
     testChat: 'Test chat',
-    knowledge: 'Knowledge',
+    knowledgeBase: 'Knowledge base',
     documents: 'Documents',
     search: 'Search',
     indexingSettings: 'Indexing settings',

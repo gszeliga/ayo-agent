@@ -9,8 +9,9 @@ working rules, update this file in that step's commit.
 
 ## Where things stand
 
-- **Nothing is active.** Ask the user what comes next (candidates: the "Open items" of the
-  milestones below, or the parked E11, S3-S5 and D1).
+- **Active (2026-11-27): header navigation** (N1-N3, option D: one row of real tabs, the
+  status as one pill, theme/language/Disconnect in a connection menu). No spec file;
+  decisions and log in `plans/nav-progress.md`. Front end only. N1 is done; next N2.
 - Done (2026-11-26): docling import (`docling-import-files`: documents -> Markdown ->
   upload; K1-K2). No spec file; decisions, log and "Open items" in
   `plans/kb-import-progress.md`. Uploads make billed Voyage calls on the server: never run

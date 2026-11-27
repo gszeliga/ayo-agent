@@ -7,7 +7,7 @@ export const common: Catalog['common'] = {
     dismiss: 'Cerrar',
     mainNav: 'Principal',
     testChat: 'Chat de prueba',
-    knowledge: 'Conocimiento',
+    knowledgeBase: 'Base de conocimiento',
     documents: 'Documentos',
     search: 'Búsqueda',
     indexingSettings: 'Ajustes de indexación',

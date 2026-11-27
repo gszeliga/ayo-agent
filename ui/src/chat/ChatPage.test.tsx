@@ -77,7 +77,7 @@ test('the navigation puts the test chat first, then the knowledge pages', async 
     'Search',
     'Indexing settings',
   ])
-  expect(within(nav).getByRole('group', { name: 'Knowledge' })).toBeInTheDocument()
+  expect(within(nav).getByRole('group', { name: 'Knowledge base' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Test chat' })).toHaveAttribute('aria-current', 'page')
   expect(await screen.findByRole('heading', { name: 'Pick a case' })).toBeInTheDocument()
   expect(document.title).toBe('Test chat · AYO Admin')
