@@ -21,6 +21,7 @@ async function fillAndConnect(
   user: ReturnType<typeof renderApp>['user'],
   { url = API, key = KEY }: { url?: string; key?: string } = {},
 ) {
+  await user.click(screen.getByRole('button', { name: 'Change the API address' }))
   const address = screen.getByLabelText('API address')
   await user.clear(address)
   if (url) await user.type(address, url)
@@ -28,10 +29,52 @@ async function fillAndConnect(
   await user.click(screen.getByRole('button', { name: 'Connect' }))
 }
 
-test('the address defaults to the page origin outside a dev build', () => {
-  renderApp('/connect')
+test('the address defaults to the page origin, shown as text behind Change', async () => {
+  const { user } = renderApp('/connect')
 
-  expect(screen.getByLabelText('API address')).toHaveValue(window.location.origin)
+  expect(screen.queryByRole('textbox', { name: 'API address' })).not.toBeInTheDocument()
+  expect(screen.getByText(window.location.origin)).toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Change the API address' }))
+
+  const address = screen.getByRole('textbox', { name: 'API address' })
+  expect(address).toHaveValue(window.location.origin)
+  expect(address).toHaveFocus()
+  expect(screen.queryByRole('button', { name: 'Change the API address' })).not.toBeInTheDocument()
+})
+
+test('connecting without opening the address uses the default', async () => {
+  server.use(
+    http.get(`${window.location.origin}/admin/tenants`, ({ request }) =>
+      request.headers.get('X-API-Key') === KEY
+        ? HttpResponse.json([])
+        : HttpResponse.json({ detail: [] }, { status: 401 }),
+    ),
+  )
+  const { user } = renderApp('/connect?next=%2Fsettings')
+
+  await user.type(screen.getByLabelText('Admin key'), KEY)
+  await user.click(screen.getByRole('button', { name: 'Connect' }))
+
+  expect(await screen.findByRole('heading', { name: 'Indexing settings' })).toBeInTheDocument()
+  expect(loadConnection()).toEqual({ baseUrl: window.location.origin, apiKey: KEY })
+})
+
+test('an address that does not answer opens the field', async () => {
+  const origin = window.location.origin
+  server.use(
+    http.get(`${origin}/admin/tenants`, () => HttpResponse.error()),
+    http.get(`${origin}/health`, () => HttpResponse.error()),
+  )
+  const { user } = renderApp('/connect')
+
+  await user.type(screen.getByLabelText('Admin key'), KEY)
+  await user.click(screen.getByRole('button', { name: 'Connect' }))
+
+  expect(await screen.findByRole('alert')).toBeInTheDocument()
+  const address = screen.getByRole('textbox', { name: 'API address' })
+  expect(address).toHaveValue(origin)
+  expect(address).toHaveFocus()
 })
 
 test('a valid key is kept for the tab and opens the requested page', async () => {
@@ -139,6 +182,7 @@ describe('in Spanish', () => {
     user: ReturnType<typeof renderApp>['user'],
     { url = API, key = KEY }: { url?: string; key?: string } = {},
   ) {
+    await user.click(screen.getByRole('button', { name: 'Cambiar la dirección de la API' }))
     const address = screen.getByLabelText('Dirección de la API')
     await user.clear(address)
     if (url) await user.type(address, url)
@@ -197,6 +241,7 @@ test('a language chosen on the connect screen is kept once connected', async () 
   await user.click(screen.getByRole('button', { name: 'Language: system' }))
   await user.click(await screen.findByRole('menuitemradio', { name: 'Español' }))
   expect(window.localStorage.getItem(LANGUAGE_KEY)).toBe('es')
+  await user.click(screen.getByRole('button', { name: 'Cambiar la dirección de la API' }))
   const address = screen.getByLabelText('Dirección de la API')
   await user.clear(address)
   await user.type(address, API)

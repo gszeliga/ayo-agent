@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-import { apiPrefixes, proxyPattern } from './src/apiPaths'
+import { apiPrefixes, proxyPattern } from './src/apiPaths.ts'
 
 // The API's paths go to the local API, so the UI and the API share one origin (no CORS),
 // as behind Caddy in production. The prefixes come from the committed contract.

@@ -4,6 +4,8 @@ export const connect = {
   title: 'Connect to the AYO API',
   description: 'The admin API this UI manages documents through.',
   address: 'API address',
+  change: 'Change',
+  changeAddress: 'Change the API address',
   key: 'Admin key',
   showKey: 'Show key',
   hideKey: 'Hide key',

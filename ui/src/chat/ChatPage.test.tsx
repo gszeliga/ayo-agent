@@ -92,6 +92,7 @@ test('connecting still lands on the documents', async () => {
     ),
   )
 
+  await user.click(screen.getByRole('button', { name: 'Change the API address' }))
   await user.clear(screen.getByLabelText('API address'))
   await user.type(screen.getByLabelText('API address'), API)
   await user.type(screen.getByLabelText('Admin key'), KEY)
@@ -108,6 +109,7 @@ test('a link to a case survives the connect screen', async () => {
   const { user } = renderApp(`/chat/${caseId}`)
 
   expect(location()).toBe(`/connect?next=${encodeURIComponent(`/chat/${caseId}`)}`)
+  await user.click(screen.getByRole('button', { name: 'Change the API address' }))
   await user.clear(screen.getByLabelText('API address'))
   await user.type(screen.getByLabelText('API address'), API)
   await user.type(screen.getByLabelText('Admin key'), KEY)

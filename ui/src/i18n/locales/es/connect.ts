@@ -5,6 +5,8 @@ export const connect: Catalog['connect'] = {
   title: 'Conéctate a la API de AYO',
   description: 'La API de administración con la que esta interfaz gestiona los documentos.',
   address: 'Dirección de la API',
+  change: 'Cambiar',
+  changeAddress: 'Cambiar la dirección de la API',
   key: 'Clave de administración',
   showKey: 'Mostrar clave',
   hideKey: 'Ocultar clave',

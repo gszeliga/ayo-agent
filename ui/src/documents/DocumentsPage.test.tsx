@@ -390,6 +390,7 @@ test('reconnecting never shows rows cached before', async () => {
       return HttpResponse.json({ items: [], total: 0, limit: 25, offset: 0 })
     }),
   )
+  await user.click(screen.getByRole('button', { name: 'Change the API address' }))
   await user.clear(screen.getByLabelText('API address'))
   await user.type(screen.getByLabelText('API address'), API)
   await user.type(screen.getByLabelText('Admin key'), 'another-key')

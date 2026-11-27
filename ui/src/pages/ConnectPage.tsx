@@ -51,6 +51,9 @@ export function ConnectPage() {
   const [params] = useSearchParams()
   const next = safeNext(params.get('next'))
   const [baseUrl, setBaseUrl] = useState(() => defaultBaseUrl())
+  // The default is right almost always (the page's origin, or the build's API address), so
+  // the field stays closed behind Change until it is needed.
+  const [editingAddress, setEditingAddress] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -73,6 +76,8 @@ export function ConnectPage() {
     const problems = await checkConnection(url, key)
     setChecking(false)
     setErrors(problems)
+    // Nothing answered: a wrong address is the likely cause, so show the field.
+    if (problems.form?.kind === 'noAnswer') setEditingAddress(true)
     if (Object.keys(problems).length === 0) {
       connect({ baseUrl: url, apiKey: key })
       void navigate(next, { replace: true })
@@ -115,27 +120,50 @@ export function ConnectPage() {
                 <AlertDescription>{t(`notice.${notice}`)}</AlertDescription>
               </Alert>
             )}
-            <div className="space-y-1.5">
-              <Label htmlFor={ids.baseUrl}>{t('address')}</Label>
-              <Input
-                id={ids.baseUrl}
-                type="url"
-                autoComplete="url"
-                spellCheck={false}
-                className="font-mono"
-                value={baseUrl}
-                aria-invalid={errors.baseUrl ? true : undefined}
-                aria-describedby={errors.baseUrl ? ids.baseUrlError : undefined}
-                onChange={(event) => {
-                  setBaseUrl(event.target.value)
-                }}
-              />
-              {errors.baseUrl && (
-                <p id={ids.baseUrlError} className="text-destructive text-[13px]">
-                  {t('fieldError.address')}
-                </p>
-              )}
-            </div>
+            {editingAddress ? (
+              <div className="space-y-1.5">
+                <Label htmlFor={ids.baseUrl}>{t('address')}</Label>
+                <Input
+                  id={ids.baseUrl}
+                  type="url"
+                  autoComplete="url"
+                  spellCheck={false}
+                  className="font-mono"
+                  value={baseUrl}
+                  aria-invalid={errors.baseUrl ? true : undefined}
+                  aria-describedby={errors.baseUrl ? ids.baseUrlError : undefined}
+                  // Mounted by a click on Change, or after a failed check: the next thing to edit.
+                  autoFocus
+                  onChange={(event) => {
+                    setBaseUrl(event.target.value)
+                  }}
+                />
+                {errors.baseUrl && (
+                  <p id={ids.baseUrlError} className="text-destructive text-[13px]">
+                    {t('fieldError.address')}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-sm leading-none font-medium">{t('address')}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate font-mono text-sm">{baseUrl}</span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto flex-none p-0"
+                    aria-label={t('changeAddress')}
+                    onClick={() => {
+                      setEditingAddress(true)
+                    }}
+                  >
+                    {t('change')}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor={ids.apiKey}>{t('key')}</Label>
               <div className="relative">

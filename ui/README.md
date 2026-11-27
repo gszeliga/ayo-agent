@@ -121,8 +121,8 @@ pnpm dev --host                     # prints the Network URL, such as http://192
 pnpm build && pnpm preview --host   # leaner: serves the built bundle on port 4173
 ```
 
-Open that URL on the device and enter the admin key; the address already defaults to the
-page's origin. If a firewall is on, open the port to your network only, for example
+Open that URL on the device and enter the admin key; the address is already the page's
+origin (shown as text, behind **Change**). If a firewall is on, open the port to your network only, for example
 `sudo ufw allow from 192.168.1.0/24 to any port 5173 proto tcp`.
 
 - **Plain HTTP**: the admin key crosses the network unencrypted. Only on a network you
@@ -146,7 +146,8 @@ to `CORS_ALLOWED_ORIGINS`; otherwise the API is unreachable (`src/connection/rea
 The address defaults to `VITE_API_BASE_URL` when it is set at build time, else to the
 page's own origin, which is right when a proxy serves the UI and the API together
 (production, see `../plans/ui-progress.md` decision 5, and `pnpm dev` through its proxy).
-For a build against an API on another host:
+The screen shows it as text with a **Change** button; the field opens on a click, or by
+itself when nothing answers at the address. For a build against an API on another host:
 `VITE_API_BASE_URL=https://api.example.com pnpm build`.
 
 ## Documents list
