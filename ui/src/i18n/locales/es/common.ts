@@ -15,9 +15,15 @@ export const common: Catalog['common'] = {
   },
   status: {
     trigger: 'Estado del servicio: base de datos {{database}}, embeddings {{embeddings}}',
-    database: 'Base de datos',
-    embeddings: 'Embeddings',
     state: { up: 'OK', down: 'sin servicio', unknown: 'estado desconocido' },
+    summary: {
+      ok: 'Todo en orden',
+      databaseDown: 'Base de datos sin servicio',
+      embeddingsDown: 'Embeddings sin servicio',
+      bothDown: 'Base de datos y embeddings sin servicio',
+      checking: 'Comprobando…',
+      unknown: 'Estado desconocido',
+    },
   },
   theme: {
     label: 'Tema',

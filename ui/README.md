@@ -249,7 +249,11 @@ Embeddings and Uploads settings with the environment variable behind each (the f
 provider is flagged), copyable config strings, and a Services card. Read-only: the
 settings come from the API's environment.
 
-The header shows two dots, database and embeddings, from `GET /admin/health`, with the
+The header shows one pill from `GET /admin/health`: "All systems ok" (green), the service
+that is down (red: "Embeddings down", "Database and embeddings down"), "Checking…" while
+the first answer is on its way, or "Status unknown" when it failed. Below `md` only its dot
+shows. Its accessible name keeps each service's state ("Service status: database up,
+embeddings down"). The popover has the
 details and **Check now** (`refresh=true`) in a popover. One query (`settings/healthQuery.ts`)
 feeds the header, the Services card and the upload dialog's "provider is down" warning. It
 is asked on load and on Check now, never polled; a window regaining focus asks again once

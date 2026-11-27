@@ -7,7 +7,7 @@ make the experience smoother and clearer", 2026-11-27), the design canvas of alt
 are the agreement. Front end only: no API change and no billed call.
 
 ## Next (resume here)
-N1 is done. Next: N2 (the status pill), brief first.
+N1 and N2 are done. Next: N3 (the connection menu), brief first.
 
 ## The problem (2026-11-27)
 - Test chat was an outlined accent pill: it read as an action, not a place.
@@ -38,5 +38,11 @@ N1 is done. Next: N2 (the status pill), brief first.
   "Base de conocimiento"); the bar is one `h-14` row with no wrap. New
   `layout/AppShell.test.tsx` (the current tab per path, icons and the group, Spanish name);
   `ChatPage.test.tsx` follows the group's new name. Docs: `ui/README.md` "Navigation".
-- [ ] **N2**: the status pill.
+- [x] **N2** (2026-11-27): the status pill. `StatusIndicator.tsx`: one rounded pill with the
+  existing `StatusDot`; `layout/healthSummary.ts` (`summarizeHealth`: ok, one or both down,
+  checking while pending, unknown after a failure; own file for the fast-refresh lint).
+  The `aria-label` is unchanged, so the Settings and Upload tests pass as they were.
+  `status.summary.*` added, `status.database` / `status.embeddings` (no longer used)
+  removed. New `layout/StatusIndicator.test.tsx` (each state, the popover, Spanish).
+  Docs: `ui/README.md`, service status.
 - [ ] **N3**: the connection menu.

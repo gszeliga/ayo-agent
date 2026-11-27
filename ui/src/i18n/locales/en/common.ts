@@ -13,9 +13,16 @@ export const common = {
   },
   status: {
     trigger: 'Service status: database {{database}}, embeddings {{embeddings}}',
-    database: 'Database',
-    embeddings: 'Embeddings',
     state: { up: 'up', down: 'down', unknown: 'status unknown' },
+    // The header's pill (its name is `trigger`, so a screen reader hears each service).
+    summary: {
+      ok: 'All systems ok',
+      databaseDown: 'Database down',
+      embeddingsDown: 'Embeddings down',
+      bothDown: 'Database and embeddings down',
+      checking: 'Checking…',
+      unknown: 'Status unknown',
+    },
   },
   theme: {
     label: 'Theme',
